@@ -3,7 +3,7 @@
 import type { LeagueInput, LeagueRules, Player } from "../../engine/types";
 import { parseCsv } from "./csv";
 import { likelySame, nameKey } from "./names";
-import { newId, type Season } from "./season";
+import { SEASON_SCHEMA, newId, type Season } from "./season";
 
 export interface RosterRow { line: number; name: string; gender: string; team: string | null; salary: number }
 export interface RosterIssue { line: number | null; message: string; blocking: boolean }
@@ -133,7 +133,7 @@ export function buildNewSeason(spec: NewSeasonSpec): Season {
     throughWeek: 1,
   };
   const now = new Date().toISOString();
-  return { id: newId(), name: spec.name.trim(), source: "New season", createdAt: now, updatedAt: now, input, gameLengthMin: spec.gameLengthMin };
+  return { schemaVersion: SEASON_SCHEMA, id: newId(), name: spec.name.trim(), source: "New season", createdAt: now, updatedAt: now, input, gameLengthMin: spec.gameLengthMin };
 }
 
 /** Why a schedule can't be used, or null: every week needs a date, each later than the last. */

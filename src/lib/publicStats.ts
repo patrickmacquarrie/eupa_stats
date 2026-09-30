@@ -127,13 +127,45 @@ export function leaderboards(s: Snapshot): GroupBoards[] {
   }));
 }
 
+const NOT_STATS = "That isn't the copied stats. Copy them again from the Player stats tab and paste the whole thing.";
+
+/** Checks a snapshot's shape and values before the public page shows or publishes it. */
+export function snapshotProblems(d: any): string[] {
+  const out: string[] = [];
+  if (!d || typeof d !== "object" || d.v !== 1) return ["Not a stats snapshot (or one from a newer version of the app)."];
+  if (typeof d.season !== "string" || !d.season.trim()) out.push("The snapshot has no season name.");
+  if (!Number.isInteger(d.throughWeek) || d.throughWeek < 0) out.push("The snapshot's week isn't a week number.");
+  if (Number.isNaN(Date.parse(d.generatedAt))) out.push("The snapshot has no valid date.");
+  const st = d.settings;
+  if (!st || !Array.isArray(st.columns) || !Array.isArray(st.leaderboards)) out.push("The snapshot's page settings are missing.");
+  else {
+    if (st.columns.some((c: string) => !COLUMNS.some((x) => x.key === c))) out.push("The snapshot asks for a column this page doesn't know.");
+    if (st.leaderboards.some((c: string) => !BOARDS.some((x) => x.key === c))) out.push("The snapshot asks for a leaderboard this page doesn't know.");
+    if (!Number.isInteger(st.topN) || st.topN < 1 || st.topN > 50) out.push("Players per leaderboard must be 1 to 50.");
+    if (!Number.isInteger(st.minGames) || st.minGames < 1) out.push("The minimum games must be at least 1.");
+  }
+  if (!Array.isArray(d.rows)) return [...out, "The snapshot has no players."];
+  const seen = new Set<string>();
+  d.rows.forEach((r: any, i: number) => {
+    if (!r || typeof r.name !== "string" || !r.name.trim()) { out.push(`Player ${i + 1} has no name.`); return; }
+    if (seen.has(r.name)) out.push(`${r.name} appears twice.`);
+    seen.add(r.name);
+    if (typeof r.group !== "string") out.push(`${r.name} has no division.`);
+    for (const k of ["gp", "goals", "assists", "secondAssists", "blocks", "touches", "drops", "throwaways", "gso"]) {
+      if (!Number.isInteger(r[k]) || r[k] < 0) { out.push(`${r.name}: ${k} isn't a whole number.`); break; }
+    }
+    if (typeof r.wins !== "number" || !Number.isFinite(r.wins) || r.wins < 0 || r.wins > r.gp || (r.wins * 2) % 1 !== 0) out.push(`${r.name}: wins isn't a count of wins and half-wins.`);
+  });
+  return out;
+}
+
 /** Checks pasted text is a snapshot before it replaces what the public page shows. */
 export function parseSnapshot(text: string): Snapshot {
   let d: any;
-  try { d = JSON.parse(text); } catch { throw new Error("That isn't the copied stats. Copy them again from the Stats tab and paste the whole thing."); }
-  if (d?.v !== 1 || !Array.isArray(d.rows) || !d.settings || typeof d.season !== "string") {
-    throw new Error("That isn't the copied stats. Copy them again from the Stats tab and paste the whole thing.");
-  }
+  try { d = JSON.parse(text); } catch { throw new Error(NOT_STATS); }
+  if (d?.v !== 1 || !Array.isArray(d?.rows)) throw new Error(NOT_STATS);
+  const problems = snapshotProblems(d);
+  if (problems.length) throw new Error(`These stats can't be published: ${problems.slice(0, 4).join(" ")}${problems.length > 4 ? ` …and ${problems.length - 4} more.` : ""}`);
   return d as Snapshot;
 }
 

@@ -90,7 +90,7 @@ export function Home() {
         <strong>Import a season file</strong>
         <span className="muted small">A season exported from this app, or a master-sheet fixture from <code>scripts/extract_fixture.py</code>.</span>
       </label>
-      {error && <p className="error">{error}</p>}
+      {error && <p className="error pre-line">{error}</p>}
     </main>
     </>
   );

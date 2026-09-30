@@ -2,7 +2,7 @@
 // well past what localStorage holds.
 import { del, get, set } from "idb-keyval";
 import type { Draft } from "./recorder";
-import type { Season, SeasonMeta } from "./season";
+import { SEASON_SCHEMA, migrateSeason, type Season, type SeasonMeta } from "./season";
 
 const INDEX = "seasons";
 const key = (id: string) => `season:${id}`;
@@ -11,10 +11,13 @@ export async function listSeasons(): Promise<SeasonMeta[]> {
   return ((await get<SeasonMeta[]>(INDEX)) ?? []).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
-export const loadSeason = (id: string) => get<Season>(key(id));
+export async function loadSeason(id: string): Promise<Season | undefined> {
+  const raw = await get<Season>(key(id));
+  return raw ? migrateSeason(raw) : undefined;
+}
 
 export async function saveSeason(s: Season): Promise<Season> {
-  const next = { ...s, updatedAt: new Date().toISOString() };
+  const next = { ...s, schemaVersion: SEASON_SCHEMA, updatedAt: new Date().toISOString() };
   await set(key(s.id), next);
   const idx = ((await get<SeasonMeta[]>(INDEX)) ?? []).filter((m) => m.id !== s.id);
   idx.push({ id: next.id, name: next.name, source: next.source, updatedAt: next.updatedAt });

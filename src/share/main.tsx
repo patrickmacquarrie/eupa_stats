@@ -1,12 +1,15 @@
 import { StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { PublicStatsView } from "../components/PublicStatsView";
-import { parseSnapshot, type Snapshot } from "../lib/publicStats";
+import { parseSnapshot, snapshotProblems, type Snapshot } from "../lib/publicStats";
 import { fullDocument, pageBody } from "./page";
 import "../styles.css";
 
 function readSnapshot(): Snapshot | null {
-  try { return JSON.parse(document.getElementById("stats-data")?.textContent ?? "null"); } catch { return null; }
+  try {
+    const d = JSON.parse(document.getElementById("stats-data")?.textContent ?? "null");
+    return d && snapshotProblems(d).length === 0 ? d : null;
+  } catch { return null; }
 }
 
 type ArtifactNs = { publish: (html: string) => Promise<unknown> };

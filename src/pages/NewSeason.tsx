@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import type { LeagueRules } from "../../engine/types";
 import { money } from "../lib/format";
 import { EUPA_RULES, buildNewSeason, parseRoster, scheduleProblem, skipWeek, weeklySchedule } from "../lib/newSeason";
-import type { SeasonMeta } from "../lib/season";
+import { checkSeason, type SeasonMeta } from "../lib/season";
 import { listSeasons, loadSeason, saveSeason } from "../lib/store";
 
 const EXAMPLE = "Player\tGender\tTeam\tStarting Salary\nGreg Wentworth\tM\tTeam 1\t$7,500,000\nJennifer Blaser\tF\tTeam 1\t$4,050,000\nVanessa Chow\tF\tSub\t";
@@ -27,6 +27,7 @@ export function NewSeason() {
   const [rules, setRules] = useState<LeagueRules>(EUPA_RULES);
   const [showRows, setShowRows] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => { listSeasons().then(setSeasons); }, []);
   useEffect(() => {
@@ -49,6 +50,7 @@ export function NewSeason() {
     if (problem) return;
     setBusy(true);
     const season = buildNewSeason({ name, roster: roster.rows, gms, schedule, rules, gameLengthMin: length });
+    try { checkSeason(season); } catch (e) { setError((e as Error).message); setBusy(false); return; }
     await saveSeason(season);
     nav(`/s/${season.id}`);
   };
@@ -162,6 +164,7 @@ export function NewSeason() {
           </p>
         </section>
 
+        {error && <p className="error pre-line">{error}</p>}
         <div className="row gap-sm wrap">
           {problem && <span className="attn">{problem}</span>}
           <span className="grow" />

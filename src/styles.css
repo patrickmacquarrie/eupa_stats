@@ -422,3 +422,4 @@ table.data th { text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.
 .ns-weeks li { display: flex; align-items: center; gap: 8px; }
 .ns-weeks li > span { white-space: nowrap; min-width: 56px; }
 .brand-link:hover { text-decoration: none; }
+.pre-line { white-space: pre-line; }

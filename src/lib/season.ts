@@ -3,8 +3,14 @@
 import type { BoxScore, LeagueInput, PlayEvent } from "../../engine/types";
 import type { Alias } from "./names";
 import type { PublicSettings } from "./publicStats";
+import { seasonInputProblems, summarize } from "./validate";
+
+/** Bump when the stored shape changes, and add a step to `migrateSeason`. */
+export const SEASON_SCHEMA = 1;
 
 export interface Season {
+  /** Shape version of this record (absent on exports made before versioning: treated as 0). */
+  schemaVersion?: number;
   id: string;
   name: string;
   source: string;
@@ -111,19 +117,48 @@ export function seasonFromFixture(fx: any, name?: string): { season: Season; not
   };
   const now = new Date().toISOString();
   return {
-    season: { id: newId(), name: name ?? String(fx.source ?? "Imported season"), source: String(fx.source ?? ""), createdAt: now, updatedAt: now, input },
+    season: { schemaVersion: SEASON_SCHEMA, id: newId(), name: name ?? String(fx.source ?? "Imported season"), source: String(fx.source ?? ""), createdAt: now, updatedAt: now, input },
     notes,
   };
 }
 
 /** Accepts either an exported season or a raw master-sheet fixture. */
-export function seasonFromJson(data: any, fallbackName: string): { season: Season; notes: string[] } {
-  if (data?.input?.rules && data?.input?.players) {
-    const now = new Date().toISOString();
-    return { season: { ...data, id: newId(), name: data.name ?? fallbackName, updatedAt: now }, notes: [] };
+/**
+ * Brings a stored or exported season up to the current shape, one version at a time.
+ * v0 → v1: versioning added; optional fields get their defaults.
+ */
+export function migrateSeason(raw: any): Season {
+  const v = raw?.schemaVersion ?? 0;
+  if (typeof v !== "number" || v > SEASON_SCHEMA) {
+    throw new Error("This season was saved by a newer version of the app. Update the app, then import it again.");
   }
-  if (data?.league && data?.players && data?.teams) return seasonFromFixture(data, fallbackName);
-  throw new Error("Not a season export or a master-sheet fixture.");
+  let s = { ...raw };
+  if (v < 1) s = { ...s, aliases: s.aliases ?? [], ignoredNames: s.ignoredNames ?? [], flags: s.flags ?? [], schemaVersion: 1 };
+  return s as Season;
+}
+
+/** Checks a season before it's stored; throws with the first problems in plain words. */
+export function checkSeason(season: Season): string[] {
+  if (typeof season.name !== "string" || !season.name.trim()) throw new Error("The season has no name.");
+  const problems = seasonInputProblems(season.input);
+  const blocking = problems.filter((p) => p.blocking);
+  if (blocking.length) throw new Error(`This season can't be used as it is:\n${summarize(blocking).join("\n")}`);
+  const warnings = problems.filter((p) => !p.blocking);
+  return warnings.length ? [`Imported with ${warnings.length} warning(s): ${summarize(warnings, 3).join(" ")}`] : [];
+}
+
+/** Accepts either an exported season or a raw master-sheet fixture. */
+export function seasonFromJson(data: any, fallbackName: string): { season: Season; notes: string[] } {
+  if (data?.input && typeof data.input === "object") {
+    const now = new Date().toISOString();
+    const season = migrateSeason({ ...data, id: newId(), name: typeof data.name === "string" && data.name.trim() ? data.name : fallbackName, updatedAt: now });
+    return { season, notes: checkSeason(season) };
+  }
+  if (data?.league && Array.isArray(data?.players) && Array.isArray(data?.teams)) {
+    const r = seasonFromFixture(data, fallbackName);
+    return { season: r.season, notes: [...r.notes, ...checkSeason(r.season)] };
+  }
+  throw new Error("That file isn't a season exported from this app or a master-sheet fixture.");
 }
 
 /** Groups the event log into recordings: one per game night per tracked team. */

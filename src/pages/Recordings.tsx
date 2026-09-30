@@ -8,12 +8,13 @@ import sample1b from "../../fixtures/disputes/2026-08-31_T3vT2_team3.csv?raw";
 import sample2a from "../../fixtures/disputes/2026-09-21_T3vT1_team1.csv?raw";
 import sample2b from "../../fixtures/disputes/2026-09-21_T3vT1_team3.csv?raw";
 import { tabletCsvToEvents } from "../lib/csv";
+import { recordingProblems, summarize } from "../lib/validate";
 import { nameKey, suggestPlayer } from "../lib/names";
 import { shortTeam } from "../lib/format";
 import { recordingsOf, weekOfDate, withoutFlagsFor } from "../lib/season";
 import { useSeason } from "../lib/SeasonContext";
 
-interface Pending { file: string; events: PlayEvent[]; error?: string }
+interface Pending { file: string; events: PlayEvent[]; error?: string; warnings?: string[] }
 
 const SAMPLES = [
   { label: "Aug 31, Team 3 v Team 2", files: [["team2.csv", sample1a], ["team3.csv", sample1b]] },
@@ -39,7 +40,10 @@ export function Recordings() {
         const events = tabletCsvToEvents(text);
         if (!events.length) return { file, events, error: "No plays in this file." };
         if (new Set(events.map(recKey)).size > 1) return { file, events, error: "This file mixes more than one game; export one game per file." };
-        return { file, events };
+        const found = recordingProblems(events, "This file");
+        const blocking = found.filter((x) => x.blocking);
+        if (blocking.length) return { file, events, error: summarize(blocking, 4).join(" ") };
+        return { file, events, warnings: found.map((x) => x.message) };
       } catch (e) { return { file, events: [], error: (e as Error).message }; }
     })]);
   };
@@ -111,6 +115,7 @@ export function Recordings() {
                       <td className="small">
                         {probs.map((x, j) => <div key={j} className="error">{x}</div>)}
                         {!probs.length && (existing.has(recKey(e)) ? <span className="attn">replaces the saved recording</span> : <span className="muted">new</span>)}
+                        {p.warnings?.map((w, j) => <div key={j} className="muted">{w}</div>)}
                         {unk.length > 0 && <div className="attn">Not in the player list: {unk.map((n) => {
                           const sg = suggestPlayer(n, input.players);
                           return sg ? `${n} (probably ${sg.name})` : n;
