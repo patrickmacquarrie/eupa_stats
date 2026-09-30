@@ -399,3 +399,26 @@ table.data th { text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.
 .pub-band-name { font-family: var(--font-display); font-weight: 600; font-size: 1.15rem; letter-spacing: 0.02em; }
 .pub-band-sub { color: var(--on-brand-muted); border-left: 1px solid rgb(255 255 255 / 0.25); padding-left: 12px; }
 @media (max-width: 560px) { .pub-band-name { font-size: 1rem; } .pub-band-sub { display: none; } }
+
+/* clock adjuster */
+.clock-adjust { font-size: 0.78rem; padding: 0; }
+.clock-panel { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+.clock-panel .field { min-width: 150px; }
+.clock-panel .nudges { align-self: flex-end; }
+
+/* new season */
+.new-season { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; border-color: var(--brand); border-left: 4px solid var(--brand); color: var(--text-primary); }
+.new-season:hover { text-decoration: none; background: var(--surface-2); }
+.roster-box { width: 100%; min-height: 160px; font: 13px ui-monospace, SFMono-Regular, Menlo, monospace; padding: 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-1); color: var(--text-primary); tab-size: 18; }
+.file-inline { display: inline-flex; align-items: center; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-1); cursor: pointer; }
+.file-inline:hover { background: var(--surface-2); }
+.file-inline:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.issues { margin: 10px 0; padding-left: 18px; font-size: 0.88rem; }
+.ns-teams { margin-top: 10px; }
+.gm-in { width: 120px; padding: 3px 6px; }
+.ns-sched { align-items: flex-end; }
+.ns-weeks { list-style: none; padding: 0; margin: 8px 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 6px 14px; }
+.ns-weeks li { display: flex; align-items: center; gap: 8px; }
+.ns-weeks li > span { white-space: nowrap; min-width: 56px; }
+.brand-link:hover { text-decoration: none; }

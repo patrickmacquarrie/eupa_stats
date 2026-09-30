@@ -6,6 +6,7 @@ import { GameDetail } from "./pages/GameDetail";
 import { Games } from "./pages/Games";
 import { Home } from "./pages/Home";
 import { Names } from "./pages/Names";
+import { NewSeason } from "./pages/NewSeason";
 import { Overview } from "./pages/Overview";
 import { PlayerDetail } from "./pages/PlayerDetail";
 import { Players } from "./pages/Players";
@@ -22,6 +23,7 @@ export function App() {
       <ConfirmHost />
       <Routes>
         <Route path="/" element={<Home />} />
+        <Route path="/new" element={<NewSeason />} />
         <Route path="/s/:id" element={<SeasonShell />}>
           <Route index element={<Overview />} />
           <Route path="record" element={<Record />} />

@@ -6,7 +6,7 @@ import { genderOf } from "../../engine/pairing";
 import type { Player } from "../../engine/types";
 import { shortTeam } from "../lib/format";
 import { nameKey, suggestPlayer } from "../lib/names";
-import { elapsedMs, gameTime, possessions, press, stateOf, toggleFlag, toTabletCsv, undoPress, type Draft, type Phase, type Press } from "../lib/recorder";
+import { elapsedMs, gameTime, parseClock, possessions, press, setClock, stateOf, toggleClock, toggleFlag, toTabletCsv, undoPress, type Draft, type Phase, type Press } from "../lib/recorder";
 import { weekOfDate, withoutFlagsFor } from "../lib/season";
 import { useSeason } from "../lib/SeasonContext";
 import { clearDraft, downloadText, loadDraft, saveDraft } from "../lib/store";
@@ -42,7 +42,7 @@ function GameSetup({ onStart }: { onStart: (d: Draft) => void }) {
   const [team, setTeam] = useState(teams[0] ?? "");
   const [opp, setOpp] = useState(teams[1] ?? "");
   const [startOn, setStartOn] = useState<Phase>("offense");
-  const [len, setLen] = useState(25);
+  const [len, setLen] = useState(season.gameLengthMin ?? 25);
   const [jersey, setJersey] = useState<"light" | "dark">("light");
   const week = weekOfDate(input.schedule, date);
   const roster = useMemo(() => (week === null ? [] : input.players.filter((p) => result.teamOf(p.name, week) === team && !p.isPlug))
@@ -198,9 +198,8 @@ function Live({ draft, onChange, onFinish }: { draft: Draft; onChange: (d: Draft
     setMsg(null);
     onChange(r);
   };
-  const clock = () => onChange({ ...draft, clock: running
-    ? { runningSince: null, elapsedMs: elapsedMs(draft.clock) }
-    : { runningSince: Date.now(), elapsedMs: draft.clock.elapsedMs } });
+  const clock = () => onChange(toggleClock(draft));
+  const [adjusting, setAdjusting] = useState(false);
 
   const offense = s.phase === "offense";
   const poss = possessions(draft.events);
@@ -217,9 +216,12 @@ function Live({ draft, onChange, onFinish }: { draft: Draft; onChange: (d: Draft
           <button className={"clock" + (running ? " on" : "")} onClick={clock} aria-label={running ? "Pause clock" : "Start clock"}>
             {gameTime(draft)} {running ? "❚❚" : "▶"}
           </button>
+          <button className="link small clock-adjust" onClick={() => setAdjusting(!adjusting)} aria-expanded={adjusting}>Adjust clock</button>
         </div>
         <div className="score-team right"><strong>{s.them}</strong><span>{shortTeam(draft.opp)}</span></div>
       </div>
+
+      {adjusting && <ClockAdjust draft={draft} onApply={(d) => { onChange(d); setAdjusting(false); }} onCancel={() => setAdjusting(false)} />}
 
       <div className="live-top">
         <p className="prompt" aria-live="polite">{prompt}</p>
@@ -293,6 +295,36 @@ function Live({ draft, onChange, onFinish }: { draft: Draft; onChange: (d: Draft
         <button className="primary" disabled={!draft.events.length} onClick={onFinish}>Finish game</button>
       </div>
     </main>
+  );
+}
+
+/** Set the time left (to match the field's clock) or change the game length mid-game. */
+function ClockAdjust({ draft, onApply, onCancel }: { draft: Draft; onApply: (d: Draft) => void; onCancel: () => void }) {
+  const leftNow = Math.max(0, draft.gameLengthMin * 60000 - elapsedMs(draft.clock));
+  const fmt = (ms: number) => { const t = Math.round(ms / 1000); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`; };
+  const [left, setLeft] = useState(fmt(leftNow));
+  const [len, setLen] = useState(String(draft.gameLengthMin));
+  const leftMs = parseClock(left), lenMin = Number(len);
+  const nudge = (s: number) => setLeft(fmt(Math.max(0, (leftMs ?? leftNow) + s * 1000)));
+  const ok = leftMs !== null && lenMin > 0 && leftMs <= lenMin * 60000;
+  return (
+    <section className="card clock-panel" aria-label="Adjust clock">
+      <div className="row wrap gap-sm">
+        <label className="field"><span>Time left (min:sec)</span>
+          <input id="clock-left" inputMode="numeric" value={left} onChange={(e) => setLeft(e.target.value)} /></label>
+        <div className="row gap-sm nudges">
+          {[-60, -10, 10, 60].map((s) => <button key={s} className="small-btn" onClick={() => nudge(s)}>{s > 0 ? "+" : "−"}{Math.abs(s) >= 60 ? `${Math.abs(s) / 60}:00` : `0:${Math.abs(s)}`}</button>)}
+        </div>
+        <label className="field"><span>Game length (minutes)</span>
+          <input id="clock-length" type="number" min={1} value={len} onChange={(e) => setLen(e.target.value)} /></label>
+      </div>
+      {!ok && <p className="attn small">{leftMs === null ? "Enter the time left as minutes:seconds, e.g. 18:30." : "Time left can't be more than the game length."}</p>}
+      <div className="row gap-sm">
+        <span className="muted small grow">{draft.clock.runningSince ? "The clock keeps running from the new time." : draft.clock.started ? "The clock stays paused." : "The clock still starts with the first play."}</span>
+        <button onClick={onCancel}>Cancel</button>
+        <button className="primary" disabled={!ok} onClick={() => onApply(setClock(draft, lenMin, leftMs!))}>Set clock</button>
+      </div>
+    </section>
   );
 }
 

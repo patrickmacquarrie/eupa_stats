@@ -29,7 +29,8 @@ export interface Draft {
   undo?: { added: number }[];
   /** Possessions flagged as wrong during the game. */
   flags?: Flag[];
-  clock: { runningSince: number | null; elapsedMs: number };
+  /** `started`: the clock has run at least once (it starts itself on the first play; pausing keeps this true). */
+  clock: { runningSince: number | null; elapsedMs: number; started?: boolean };
 }
 
 export interface GameState {
@@ -164,7 +165,8 @@ export function press(d: Draft, p: Press, clock = new Date().toTimeString(), now
     next = { ...next, events: [...next.events, eventFor(next, t, clock)], gameTimes: [...next.gameTimes, gt] };
   }
   // The game clock starts itself with the first recorded play.
-  const gameClock = !d.clock.runningSince && d.clock.elapsedMs === 0 ? { runningSince: now, elapsedMs: 0 } : next.clock;
+  const neverRun = !d.clock.runningSince && !(d.clock.started ?? d.clock.elapsedMs > 0);
+  const gameClock = neverRun ? { runningSince: now, elapsedMs: d.clock.elapsedMs, started: true } : next.clock;
   return { ...next, clock: gameClock, undo: [...(d.undo ?? []), { added: taps.length }] };
 }
 
@@ -181,7 +183,7 @@ export function undoPress(d: Draft): Draft {
     // A flag on a possession that no longer exists goes with it.
     flags: d.flags?.filter((f) => f.start < keep),
     // Undoing every play puts the game back before kickoff, clock included.
-    ...(keep === 0 ? { clock: { runningSince: null, elapsedMs: 0 } } : {}),
+    ...(keep === 0 ? { clock: { runningSince: null, elapsedMs: 0, started: false } } : {}),
   };
 }
 
@@ -236,4 +238,32 @@ export function toggleFlag(d: Draft, p: Possession): Draft {
     flags: on ? d.flags!.filter((f) => f.start !== p.start)
       : [...(d.flags ?? []), { start: p.start, end: p.end, clock: (d.events[p.end]?.clock ?? "").slice(0, 8) }],
   };
+}
+
+/** Start or pause the game clock by hand. */
+export function toggleClock(d: Draft, now = Date.now()): Draft {
+  return { ...d, clock: d.clock.runningSince
+    ? { runningSince: null, elapsedMs: elapsedMs(d.clock, now), started: true }
+    : { runningSince: now, elapsedMs: d.clock.elapsedMs, started: true } };
+}
+
+/**
+ * Change the game length and/or the time left (to match the field's clock). A running clock keeps
+ * running from the new time; one that hasn't started yet still starts itself on the first play.
+ */
+export function setClock(d: Draft, lengthMin: number, leftMs: number, now = Date.now()): Draft {
+  const length = Math.max(1, lengthMin);
+  const elapsed = Math.min(length * 60000, Math.max(0, length * 60000 - leftMs));
+  const running = d.clock.runningSince !== null;
+  const started = running || (d.clock.started ?? d.clock.elapsedMs > 0);
+  return { ...d, gameLengthMin: length, clock: { elapsedMs: elapsed, runningSince: running ? now : null, started } };
+}
+
+/** "24:30" or "1:05:00" → milliseconds; null if it isn't a time. */
+export function parseClock(s: string): number | null {
+  const parts = s.trim().split(":").map((x) => x.trim());
+  if (!parts.length || parts.length > 3 || parts.some((x) => !/^\d+$/.test(x))) return null;
+  const n = parts.map(Number);
+  const secs = n.length === 3 ? n[0] * 3600 + n[1] * 60 + n[2] : n.length === 2 ? n[0] * 60 + n[1] : n[0] * 60;
+  return secs * 1000;
 }

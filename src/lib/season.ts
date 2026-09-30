@@ -19,6 +19,8 @@ export interface Season {
   flags?: SavedFlag[];
   /** What the player-facing stats page shows. */
   publicStats?: PublicSettings;
+  /** Default game length for new recordings, in minutes. */
+  gameLengthMin?: number;
 }
 
 export interface SavedFlag {

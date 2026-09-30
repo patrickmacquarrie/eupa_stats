@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { tallyRecording } from "../engine/compute";
 import type { PlayEvent } from "../engine/types";
 import { tabletCsvToEvents } from "../src/lib/csv";
-import { canTap, eventFor, possessions, press, stateOf, toggleFlag, toTabletCsv, undoPress, type Draft, type Tap } from "../src/lib/recorder";
+import { canTap, eventFor, gameTime, parseClock, possessions, press, setClock, stateOf, toggleClock, toggleFlag, toTabletCsv, undoPress, type Draft, type Tap } from "../src/lib/recorder";
 
 const draft = (over: Partial<Draft> = {}): Draft => ({
   seasonId: "x", date: "2026-10-05", team: "A", opp: "B", startOn: "offense", gameLengthMin: 25,
@@ -114,7 +114,7 @@ describe("game clock", () => {
     const d = draft({ present: ["Ann", "Bo"] });
     expect(d.clock.runningSince).toBeNull();
     const first = press(d, { kind: "touch", player: "Ann" }, "19:00:00", 1_000) as Draft;
-    expect(first.clock).toEqual({ runningSince: 1_000, elapsedMs: 0 });
+    expect(first.clock).toEqual({ runningSince: 1_000, elapsedMs: 0, started: true });
     expect(first.gameTimes[0]).toBe("00:25:00");
     const later = press(first, { kind: "touch", player: "Bo" }, "19:00:05", 6_000) as Draft;
     expect(later.clock.runningSince).toBe(1_000);
@@ -123,8 +123,33 @@ describe("game clock", () => {
 
   it("stays paused if the stat-taker paused it, and resets when every play is undone", () => {
     const d = press(draft(), { kind: "touch", player: "Ann" }, "19:00:00", 1_000) as Draft;
-    const paused = { ...d, clock: { runningSince: null, elapsedMs: 60_000 } };
+    const paused = { ...d, clock: { runningSince: null, elapsedMs: 60_000, started: true } };
     expect((press(paused, { kind: "touch", player: "Bo" }, "19:01:00", 90_000) as Draft).clock.runningSince).toBeNull();
-    expect(undoPress(d).clock).toEqual({ runningSince: null, elapsedMs: 0 });
+    expect(undoPress(d).clock).toEqual({ runningSince: null, elapsedMs: 0, started: false });
+  });
+});
+
+describe("adjusting the clock", () => {
+  it("sets time left and game length; a clock set before kickoff still starts on the first play", () => {
+    let d = setClock(draft(), 30, parseClock("28:15")!, 0);
+    expect(gameTime(d, 0)).toBe("00:28:15");
+    expect(d.clock.runningSince).toBeNull();
+    d = press(d, { kind: "touch", player: "Ann" }, "19:00:00", 1_000) as Draft;
+    expect(d.clock.runningSince).toBe(1_000);
+    expect(gameTime(d, 11_000)).toBe("00:28:05");
+  });
+
+  it("keeps a running clock running from the new time", () => {
+    const d = toggleClock(draft(), 1_000);
+    const set = setClock(d, 25, parseClock("10:00")!, 50_000);
+    expect(gameTime(set, 50_000)).toBe("00:10:00");
+    expect(gameTime(set, 60_000)).toBe("00:09:50");
+  });
+
+  it("reads clock times", () => {
+    expect(parseClock("24:30")).toBe(1_470_000);
+    expect(parseClock("5")).toBe(300_000);
+    expect(parseClock("1:05:00")).toBe(3_900_000);
+    expect(parseClock("ten")).toBeNull();
   });
 });

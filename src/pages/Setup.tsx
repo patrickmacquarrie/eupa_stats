@@ -128,7 +128,7 @@ export function Setup() {
 }
 
 function SeasonBasics() {
-  const { season, update } = useSeason();
+  const { season, update, updateSeason } = useSeason();
   const { input } = season;
   const [name, setName] = useState(season.name);
   const [np, setNp] = useState<Player>({ name: "", gender: "M", initialSalary: 0, team: null, isSub: true });
@@ -141,6 +141,11 @@ function SeasonBasics() {
         <h2>Season</h2>
         <div className="fields">
           <label className="field"><span>Name</span><input value={name} onChange={(e) => setName(e.target.value)} onBlur={() => name !== season.name && update((i) => i, { name })} /></label>
+          <label className="field"><span>Game length (minutes)</span>
+            <input type="number" min={1} defaultValue={season.gameLengthMin ?? 25} key={season.gameLengthMin ?? 25}
+              onBlur={(e) => { const n = Math.round(Number(e.target.value)); if (n > 0 && n !== (season.gameLengthMin ?? 25)) updateSeason((s) => ({ ...s, gameLengthMin: n })); }} />
+            <small className="muted">The clock's starting time on the Record tab. Each game can still change it.</small>
+          </label>
           <label className="field"><span>Count games through week</span>
             <select value={input.throughWeek} onChange={(e) => update((i) => ({ ...i, throughWeek: +e.target.value }))}>
               {input.schedule.map((s) => <option key={s.week} value={s.week}>Week {s.week} ({s.date})</option>)}

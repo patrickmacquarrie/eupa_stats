@@ -67,6 +67,11 @@ export function Home() {
       )}
 
       <h2>Start a season</h2>
+      <Link to="/new" className="card choice new-season">
+        <strong>New season</strong>
+        <span className="muted small">Paste your roster from a spreadsheet (players, genders, teams, starting salaries), set the schedule, pick the rules.</span>
+      </Link>
+      <h3>Or explore a demo season</h3>
       <div className="grid-3">
         {DEMOS.map((d) => (
           <button key={d.name} className="card choice" disabled={!!busy}
