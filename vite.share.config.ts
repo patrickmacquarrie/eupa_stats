@@ -10,6 +10,8 @@ export default defineConfig({
     outDir: "dist-share",
     emptyOutDir: true,
     cssCodeSplit: false,
+    // The public page is one file: fonts are inlined into its stylesheet.
+    assetsInlineLimit: 200_000,
     rollupOptions: { input: "share.html", output: { inlineDynamicImports: true } },
   },
 } as any);

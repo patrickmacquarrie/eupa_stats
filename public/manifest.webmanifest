@@ -1,0 +1,11 @@
+{
+  "name": "EUPA Stats",
+  "short_name": "EUPA Stats",
+  "description": "League stats, salaries and live stat entry for the Edmonton Ultimate Players Association.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#efefef",
+  "theme_color": "#346d25",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

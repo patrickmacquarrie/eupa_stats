@@ -5,15 +5,17 @@
   "type": "module",
   "description": "League stats and salary-cap web app built on the PRG master-sheet engine",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --mode demo",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "validate": "tsx scripts/validate.ts --check",
     "experiments": "tsx scripts/experiments.ts",
-    "build:artifact": "npm run build && node scripts/build-artifact.mjs",
-    "build:share": "tsc --noEmit && vite build --config vite.share.config.ts && tsx scripts/build-share.ts"
+    "build:artifact": "npm run build:demo && node scripts/build-artifact.mjs",
+    "build:share": "tsc --noEmit && vite build --config vite.share.config.ts && tsx scripts/build-share.ts",
+    "build:demo": "tsc --noEmit && vite build --mode demo",
+    "e2e": "playwright test"
   },
   "dependencies": {
     "idb-keyval": "^6.2.2",
@@ -22,6 +24,7 @@
     "react-router-dom": "^7.18.4"
   },
   "devDependencies": {
+    "@playwright/test": "^1.56.1",
     "@types/node": "^26.6.3",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",

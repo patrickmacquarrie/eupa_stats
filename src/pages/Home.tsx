@@ -1,23 +1,20 @@
 import { useEffect, useState } from "react";
 import { askConfirm } from "../lib/confirm";
 import { Link, useNavigate } from "react-router-dom";
-import fallUrl from "../../fixtures/fall-2026.json?url";
-import thursdayUrl from "../../fixtures/thursday-s1-2026.json?url";
-import plUrl from "../../fixtures/pl-2025.json?url";
 import { seasonFromFixture, seasonFromJson, type SeasonMeta } from "../lib/season";
 import { deleteSeason, downloadJson, listSeasons, loadSeason, saveSeason } from "../lib/store";
 
-const DEMOS = [
-  { name: "EUPA Fall 2026", detail: "weeks 1–4, 3 teams", url: fallUrl },
-  { name: "EUPA Thursday S1 2026", detail: "weeks 1–8, trades mid-season", url: thursdayUrl },
-  { name: "Premier League 2025", detail: "weeks 1–15, 6 teams, 39k events", url: plUrl },
-];
+type Demo = { name: string; detail: string; url: string };
+/** Demo seasons exist only in demo builds; the import is removed from production builds. */
+const loadDemos = (): Promise<Demo[]> => (import.meta.env.VITE_DEMOS === "true" ? import("../lib/demos").then((m) => m.DEMOS) : Promise.resolve([]));
 
 export function Home() {
   const [seasons, setSeasons] = useState<SeasonMeta[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const nav = useNavigate();
+  const [demos, setDemos] = useState<Demo[]>([]);
+  useEffect(() => { loadDemos().then(setDemos); }, []);
   const refresh = () => listSeasons().then(setSeasons).catch((e) => { setSeasons([]); setError((e as Error).message); });
   useEffect(() => { refresh(); }, []);
 
@@ -48,7 +45,7 @@ export function Home() {
       </p>
 
       {seasons === null ? <p className="muted">Loading…</p> : seasons.length === 0 ? (
-        <p className="empty">No seasons yet. Load a demo season below or import one.</p>
+        <p className="empty">No seasons yet. Start a new season below, or import one you exported.</p>
       ) : (
         <ul className="season-list">
           {seasons.map((s) => (
@@ -73,9 +70,9 @@ export function Home() {
         <strong>New season</strong>
         <span className="muted small">Paste your roster from a spreadsheet (players, genders, teams, starting salaries), set the schedule, pick the rules.</span>
       </Link>
-      <h3>Or explore a demo season</h3>
+      {demos.length > 0 && <h3>Or explore a demo season</h3>}
       <div className="grid-3">
-        {DEMOS.map((d) => (
+        {demos.map((d) => (
           <button key={d.name} className="card choice" disabled={!!busy}
             onClick={() => importFrom(d.name, () => fetch(d.url).then((r) => r.json()), d.name)}>
             <strong>{busy === d.name ? "Loading…" : d.name}</strong>

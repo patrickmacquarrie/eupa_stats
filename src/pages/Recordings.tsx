@@ -1,12 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { askConfirm } from "../lib/confirm";
 import { Link } from "react-router-dom";
 import { crossCheck } from "../../engine/crosscheck";
 import type { PlayEvent } from "../../engine/types";
-import sample1a from "../../fixtures/disputes/2026-08-31_T3vT2_team2.csv?raw";
-import sample1b from "../../fixtures/disputes/2026-08-31_T3vT2_team3.csv?raw";
-import sample2a from "../../fixtures/disputes/2026-09-21_T3vT1_team1.csv?raw";
-import sample2b from "../../fixtures/disputes/2026-09-21_T3vT1_team3.csv?raw";
 import { tabletCsvToEvents } from "../lib/csv";
 import { recordingProblems, summarize } from "../lib/validate";
 import { nameKey, suggestPlayer } from "../lib/names";
@@ -16,10 +12,9 @@ import { useSeason } from "../lib/SeasonContext";
 
 interface Pending { file: string; events: PlayEvent[]; error?: string; warnings?: string[] }
 
-const SAMPLES = [
-  { label: "Aug 31, Team 3 v Team 2", files: [["team2.csv", sample1a], ["team3.csv", sample1b]] },
-  { label: "Sep 21, Team 3 v Team 1", files: [["team1.csv", sample2a], ["team3.csv", sample2b]] },
-];
+type Sample = { label: string; files: [string, string][] };
+/** Sample tablet pairs exist only in demo builds, like the demo seasons. */
+const loadSamples = (): Promise<Sample[]> => (import.meta.env.VITE_DEMOS === "true" ? import("../lib/demos").then((m) => m.SAMPLES) : Promise.resolve([]));
 
 const recKey = (e: PlayEvent) => `${e.date}|${e.statTeam}|${e.otherTeam}`;
 
@@ -28,6 +23,8 @@ export function Recordings() {
   const { input } = season;
   const [pending, setPending] = useState<Pending[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
+  const [samples, setSamples] = useState<Sample[]>([]);
+  useEffect(() => { loadSamples().then(setSamples); }, []);
 
   const existing = useMemo(() => recordingsOf(input.events), [input.events]);
   const teams = new Set(input.teams.map((t) => t.name));
@@ -93,9 +90,9 @@ export function Recordings() {
             e.target.value = "";
           }} />
           <strong>Choose CSV files</strong>
-          <span className="muted small">or try a sample pair: {SAMPLES.map((s, i) => (
-            <button key={i} type="button" className="link" onClick={(ev) => { ev.preventDefault(); addFiles(s.files as [string, string][]); }}>{s.label}</button>
-          ))}</span>
+          {samples.length > 0 && <span className="muted small">or try a sample pair: {samples.map((s, i) => (
+            <button key={i} type="button" className="link" onClick={(ev) => { ev.preventDefault(); addFiles(s.files); }}>{s.label}</button>
+          ))}</span>}
         </label>
 
         {pending.length > 0 && (

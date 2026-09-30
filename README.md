@@ -7,10 +7,15 @@ from the raw plays.
 
 ```
 npm install
-npm run dev        # http://localhost:5173
-npm test           # unit tests, incl. Fall 2026 rebuilt to the sheet's exact 180/180 salaries
-npm run build      # static site in dist/ (hash routing, relative paths: host it anywhere)
-npm run validate   # engine vs the three master sheets; fails if any result differs from scripts/validate-baseline.json
+npm run dev          # http://localhost:5173, with the demo seasons
+npm test             # unit tests, incl. Fall 2026 rebuilt to the sheet's exact 180/180 salaries
+npm run typecheck
+npm run validate     # engine vs the three master sheets; fails if any result differs from scripts/validate-baseline.json
+npm run build        # production site in dist/ (hash routing, relative paths: host it anywhere)
+npm run build:demo   # the same, plus the three demo seasons and sample CSVs
+npm run build:share  # the shareable player stats page, one file in dist-share/
+npm run e2e          # browser test: create a season, record, refresh mid-game, finish,
+                     # settle a dispute, export and re-import, then reload offline
 ```
 
 What's in the app (`src/`):
@@ -31,7 +36,26 @@ What's in the app (`src/`):
 The shareable player stats page is a separate single-file page (`npm run build:share` → `dist-share/stats-page.html`) containing only the stats view and a snapshot of player totals, so sharing its link exposes nothing else. Its owner updates it by pasting a snapshot from the Player stats tab; the page republishes itself with the new numbers.
 
 Seasons are stored in the browser's IndexedDB, one per key, so nothing leaves the device. Export a
-season to back it up or hand it to another admin. There is no server or login yet.
+season to back it up or hand it to another admin. There is no server or login yet. If the
+browser refuses to store (full, private window, site data blocked) the app says so in a bar with
+an Export button rather than failing quietly; a crash in any screen shows a recovery screen
+with the same Export.
+
+Saved seasons and exports carry a `schemaVersion`. Older files are migrated on load; a file from
+a newer version of the app is refused rather than half-read. Every import (tablet CSV, season
+export, master-sheet fixture, public snapshot) is checked before it's saved: problems that would
+corrupt salaries block the import, oddities real recordings contain are shown as warnings.
+
+A week with an open item (a score the tablets disagree on and no official score set, a flagged
+possession, an unknown name, an unpaired sub) is marked provisional on the Overview and on the
+public page. Setting an official score on the game page settles a dispute for both sides.
+
+The production build works offline once it has loaded (a service worker caches the app; fonts
+are bundled, see `src/assets/fonts/OFL.txt`) and shows an Offline pill in the header. The demo
+fixtures are only in `build:demo` / `dev`, so a production build carries no real league data.
+
+CI (`.github/workflows/ci.yml`) runs typecheck, unit tests, the validation baseline, both
+builds and the browser test on every push and pull request.
 
 ---
 
