@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { tallyRecording } from "../engine/compute";
 import type { PlayEvent } from "../engine/types";
 import { tabletCsvToEvents } from "../src/lib/csv";
-import { canTap, eventFor, stateOf, toTabletCsv, type Draft, type Tap } from "../src/lib/recorder";
+import { canTap, eventFor, press, stateOf, toTabletCsv, undoPress, type Draft, type Tap } from "../src/lib/recorder";
 
 const draft = (over: Partial<Draft> = {}): Draft => ({
   seasonId: "x", date: "2026-10-05", team: "A", opp: "B", startOn: "offense", gameLengthMin: 25,
@@ -55,5 +55,44 @@ describe("recorder", () => {
       d.events.push(eventFor(d, t, "19:00:00 GMT-0600 (Mountain Daylight Time)"));
     expect(d.events[3]).toMatchObject({ action: "Point", player: "Cy", lastPlayer: "Bo", secLastPlayer: "Ann", statScore: 1 });
     expect(tabletCsvToEvents(toTabletCsv(d.events))).toEqual(d.events);
+  });
+});
+
+describe("row buttons", () => {
+  const d0 = () => draft({ present: ["Ann", "Bo", "Cy"] });
+  const run = (d: Draft, ...ps: Parameters<typeof press>[1][]) => {
+    for (const p of ps) { const r = press(d, p, "19:00:00"); if (typeof r === "string") throw new Error(r); d = r; }
+    return d;
+  };
+
+  it("a goal on the receiver is one press and matches catch-then-goal", () => {
+    const one = run(d0(), { kind: "touch", player: "Ann" }, { kind: "touch", player: "Bo" }, { kind: "goal", player: "Cy" });
+    const two = run(d0(), { kind: "touch", player: "Ann" }, { kind: "touch", player: "Bo" }, { kind: "touch", player: "Cy" }, { kind: "goal", player: "Cy" });
+    expect(one.events.map(({ clock, ...e }) => e)).toEqual(two.events.map(({ clock, ...e }) => e));
+    expect(one.events.at(-1)).toMatchObject({ action: "Point", player: "Cy", lastPlayer: "Bo", secLastPlayer: "Ann", statScore: 1 });
+  });
+
+  it("a drop on the holder takes back the touch and matches dropping before the catch", () => {
+    const late = run(d0(), { kind: "touch", player: "Ann" }, { kind: "touch", player: "Bo" }, { kind: "touch", player: "Cy" }, { kind: "drop", player: "Cy" });
+    const onTime = run(d0(), { kind: "touch", player: "Ann" }, { kind: "touch", player: "Bo" }, { kind: "drop", player: "Cy" });
+    expect(late.events).toEqual(onTime.events);
+    expect(late.events.at(-1)).toMatchObject({ action: "Drop", player: "Cy", lastPlayer: "Bo", secLastPlayer: "Ann" });
+    expect(stateOf(late).phase).toBe("defense");
+  });
+
+  it("undo reverts a whole press, including a replaced touch", () => {
+    const before = run(d0(), { kind: "touch", player: "Ann" }, { kind: "touch", player: "Bo" });
+    expect(undoPress(run(before, { kind: "goal", player: "Cy" })).events).toEqual(before.events);
+    expect(undoPress(run(before, { kind: "drop", player: "Bo" })).events).toEqual(before.events);
+  });
+
+  it("defense rows: block, scored on, and their turnover", () => {
+    const d = run(draft({ startOn: "defense" }), { kind: "scoredOn", player: "Ann" });
+    expect(d.events[0]).toMatchObject({ action: "GSO", player: "Ann", otherScore: 1 });
+    expect(stateOf(d).phase).toBe("offense");
+    expect(press(d, { kind: "block", player: "Bo" })).toMatch(/offense/);
+    const t = run(draft({ startOn: "defense" }), { kind: "theirTurnover" });
+    expect(t.events[0].action).toBe("O-Error");
+    expect(press(run(d0(), { kind: "touch", player: "Ann" }), { kind: "drop", player: "Ann" })).toMatch(/no throw/);
   });
 });

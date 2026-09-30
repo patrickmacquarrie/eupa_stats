@@ -5,7 +5,7 @@ import { genderOf } from "../../engine/pairing";
 import type { Player } from "../../engine/types";
 import { shortTeam } from "../lib/format";
 import { nameKey, suggestPlayer } from "../lib/names";
-import { canTap, describe, elapsedMs, eventFor, gameTime, stateOf, toTabletCsv, type Draft, type Phase, type Tap } from "../lib/recorder";
+import { describe, elapsedMs, gameTime, press, stateOf, toTabletCsv, undoPress, type Draft, type Phase, type Press } from "../lib/recorder";
 import { weekOfDate } from "../lib/season";
 import { useSeason } from "../lib/SeasonContext";
 import { clearDraft, downloadText, loadDraft, saveDraft } from "../lib/store";
@@ -167,15 +167,12 @@ function AddSub({ exclude, pending, onAdd }: { exclude: string[]; pending: Playe
 
 /* ------------------------------------------------------------------ live */
 
-type Pending = "drop" | "gso" | null;
-
 function Live({ draft, onChange, onFinish }: { draft: Draft; onChange: (d: Draft) => void; onFinish: () => void }) {
-  const [pending, setPending] = useState<Pending>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [, tick] = useState(0);
   const s = stateOf(draft);
-  const holder = s.chain[0];
+  const [holder, thrower] = s.chain;
   const running = !!draft.clock.runningSince;
 
   useEffect(() => { if (!running) return; const t = setInterval(() => tick((x) => x + 1), 1000); return () => clearInterval(t); }, [running]);
@@ -186,37 +183,27 @@ function Live({ draft, onChange, onFinish }: { draft: Draft; onChange: (d: Draft
     return () => { lock.current?.release?.().catch?.(() => {}); };
   }, []);
 
-  const tap = (t: Tap) => {
-    const why = canTap(s, t);
-    if (why) { setMsg(why); return; }
-    setMsg(null); setPending(null);
-    const now = Date.now();
-    onChange({ ...draft, events: [...draft.events, eventFor(draft, t)], gameTimes: [...draft.gameTimes, gameTime(draft, now)] });
-  };
-  const onPlayer = (name: string) => {
-    if (pending === "drop") return tap({ action: "Drop", player: name });
-    if (pending === "gso") return tap({ action: "GSO", player: name });
-    return tap(s.phase === "offense" ? { action: "Touch", player: name } : { action: "D-Play", player: name });
-  };
-  const undo = () => {
-    setPending(null); setMsg(null);
-    onChange({ ...draft, events: draft.events.slice(0, -1), gameTimes: draft.gameTimes.slice(0, -1) });
+  const go = (p: Press) => {
+    const r = press(draft, p);
+    if (typeof r === "string") { setMsg(r); return; }
+    setMsg(null);
+    onChange(r);
   };
   const clock = () => onChange({ ...draft, clock: running
     ? { runningSince: null, elapsedMs: elapsedMs(draft.clock) }
     : { runningSince: Date.now(), elapsedMs: draft.clock.elapsedMs } });
 
-  const prompt = pending === "drop" ? `Who dropped ${holder}'s throw?`
-    : pending === "gso" ? "Who was scored on? (optional)"
-    : s.phase === "offense" ? (holder ? `${holder} has the disc: tap who catches it` : "Tap who picks up the disc")
-    : "On defense: tap a player for a block";
+  const offense = s.phase === "offense";
+  const prompt = offense
+    ? (holder ? `${holder} has the disc` : "Who picks up the disc?")
+    : "On defense";
 
   return (
     <main className="live">
       <div className="scorebar">
         <div className="score-team"><span>{shortTeam(draft.team)}</span><strong>{s.us}</strong></div>
         <div className="score-mid">
-          <span className={`poss ${s.phase}`}>{s.phase === "offense" ? "Offense" : "Defense"}</span>
+          <span className={`poss ${s.phase}`}>{offense ? "Offense" : "Defense"}</span>
           <button className={"clock" + (running ? " on" : "")} onClick={clock} aria-label={running ? "Pause clock" : "Start clock"}>
             {gameTime(draft)} {running ? "❚❚" : "▶"}
           </button>
@@ -224,43 +211,36 @@ function Live({ draft, onChange, onFinish }: { draft: Draft; onChange: (d: Draft
         <div className="score-team right"><strong>{s.them}</strong><span>{shortTeam(draft.opp)}</span></div>
       </div>
 
-      <p className={"prompt" + (pending ? " pending" : "")} aria-live="polite">{prompt}</p>
+      <div className="live-top">
+        <p className="prompt" aria-live="polite">{prompt}</p>
+        {!offense && <button className="rbtn turnover" onClick={() => go({ kind: "theirTurnover" })}>Their turnover</button>}
+        <button className="rbtn quiet" disabled={!draft.events.length} onClick={() => { setMsg(null); onChange(undoPress(draft)); }}>Undo</button>
+      </div>
       {msg && <p className="error small center">{msg}</p>}
 
-      <div className="live-grid">
-        <div className="players">
-          {draft.present.map((n) => {
-            const isSub = draft.subs.includes(n);
-            const cls = n === holder ? " holder" : n === s.chain[1] ? " thrower" : "";
-            return (
-              <button key={n} className={"pbtn" + cls} onClick={() => onPlayer(n)} disabled={pending === "drop" && n === holder}>
-                {n}{isSub && <span className="tag">sub</span>}
-              </button>
-            );
-          })}
-          <button className="pbtn add" onClick={() => setShowAdd(!showAdd)}>+ Sub</button>
-        </div>
-
-        <div className="actions">
-          {pending ? (
-            <>
-              {pending === "gso" && <button className="abtn" onClick={() => tap({ action: "GSO", player: null })}>Skip</button>}
-              <button className="abtn" onClick={() => { setPending(null); setMsg(null); }}>Cancel</button>
-            </>
-          ) : s.phase === "offense" ? (
-            <>
-              <button className="abtn goal" disabled={!holder} onClick={() => tap({ action: "Point" })}>Goal{holder ? `: ${holder}` : ""}</button>
-              <button className="abtn" disabled={!holder} onClick={() => setPending("drop")}>Drop</button>
-              <button className="abtn" disabled={!holder} onClick={() => tap({ action: "T-Away" })}>Throwaway</button>
-            </>
-          ) : (
-            <>
-              <button className="abtn" onClick={() => tap({ action: "O-Error" })}>Their turnover</button>
-              <button className="abtn scored" onClick={() => setPending("gso")}>They scored</button>
-            </>
-          )}
-          <button className="abtn quiet" disabled={!draft.events.length} onClick={undo}>Undo</button>
-        </div>
+      <div className={"roster " + s.phase}>
+        {draft.present.map((n) => {
+          const isHolder = offense && n === holder;
+          return (
+            <div key={n} className={"prow" + (isHolder ? " holder" : offense && n === thrower ? " thrower" : "")}>
+              <span className="pname">{n}{draft.subs.includes(n) && <span className="tag">sub</span>}{isHolder && <span className="disc" aria-label="has the disc">●</span>}</span>
+              {offense ? (
+                <>
+                  <button className="rbtn" disabled={isHolder} onClick={() => go({ kind: "touch", player: n })}>Touch</button>
+                  <button className="rbtn goal" onClick={() => go({ kind: "goal", player: n })}>Goal</button>
+                  <button className="rbtn drop" disabled={isHolder ? !thrower : !holder} onClick={() => go({ kind: "drop", player: n })}>Drop</button>
+                  <button className="rbtn ta" disabled={!isHolder} onClick={() => go({ kind: "throwaway" })}>Throwaway</button>
+                </>
+              ) : (
+                <>
+                  <button className="rbtn block" onClick={() => go({ kind: "block", player: n })}>D-Play</button>
+                  <button className="rbtn gso" onClick={() => go({ kind: "scoredOn", player: n })}>GSO</button>
+                </>
+              )}
+            </div>
+          );
+        })}
+        <button className="prow add" onClick={() => setShowAdd(!showAdd)}>+ Add a sub</button>
       </div>
 
       {showAdd && (

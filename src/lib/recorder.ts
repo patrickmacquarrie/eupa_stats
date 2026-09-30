@@ -23,6 +23,8 @@ export interface Draft {
   events: PlayEvent[];
   /** Game clock at each event (parallel to `events`), for the CSV export. */
   gameTimes: string[];
+  /** One entry per button press, so Undo reverts a whole press (see `press`). */
+  undo?: { added: number; replaced?: { event: PlayEvent; gameTime: string } }[];
   clock: { runningSince: number | null; elapsedMs: number };
 }
 
@@ -119,4 +121,63 @@ export function toTabletCsv(events: PlayEvent[], gameTimes?: string[]) {
     e.action, e.player ?? "", e.lastPlayer ?? "", e.secLastPlayer ?? "", ENDS_POSSESSION.has(e.action) ? "true" : "false",
   ]);
   return "﻿" + [head, ...rows].map((r) => r.map(q).join(",")).join("\r\n") + "\r\n";
+}
+
+/** A button on a player's row, or the team-level "Their turnover". */
+export type Press =
+  | { kind: "touch" | "goal" | "drop" | "block" | "scoredOn"; player: string }
+  | { kind: "throwaway" | "theirTurnover" };
+
+/**
+ * What a row button does, given who has the disc:
+ *  goal on a receiver     → their catch and the goal, in one press
+ *  goal on the holder     → the goal
+ *  drop on a receiver     → their drop of the holder's throw
+ *  drop on the holder     → the touch just credited is taken back and recorded as their drop of
+ *                           the previous thrower's pass (the stat-taker tapped the catch too soon)
+ * Returns the updated draft, or the reason the press doesn't fit the possession.
+ */
+export function press(d: Draft, p: Press, clock = new Date().toTimeString(), now = Date.now()): Draft | string {
+  const s = stateOf(d);
+  const holder = s.chain[0];
+  const gt = gameTime(d, now);
+  let base = d, replaced: { event: PlayEvent; gameTime: string } | undefined;
+  const taps: Tap[] = [];
+  switch (p.kind) {
+    case "touch": taps.push({ action: "Touch", player: p.player }); break;
+    case "goal":
+      if (s.phase === "offense" && p.player !== holder) taps.push({ action: "Touch", player: p.player });
+      taps.push({ action: "Point" });
+      break;
+    case "drop":
+      if (s.phase === "offense" && p.player === holder) {
+        if (!s.chain[1]) return `${p.player} picked it up; there's no throw to drop`;
+        replaced = { event: d.events[d.events.length - 1], gameTime: d.gameTimes[d.gameTimes.length - 1] ?? "" };
+        base = { ...d, events: d.events.slice(0, -1), gameTimes: d.gameTimes.slice(0, -1) };
+      }
+      taps.push({ action: "Drop", player: p.player });
+      break;
+    case "throwaway": taps.push({ action: "T-Away" }); break;
+    case "block": taps.push({ action: "D-Play", player: p.player }); break;
+    case "scoredOn": taps.push({ action: "GSO", player: p.player }); break;
+    case "theirTurnover": taps.push({ action: "O-Error" }); break;
+  }
+  let next = base;
+  for (const t of taps) {
+    const why = canTap(stateOf(next), t);
+    if (why) return why;
+    next = { ...next, events: [...next.events, eventFor(next, t, clock)], gameTimes: [...next.gameTimes, gt] };
+  }
+  return { ...next, undo: [...(d.undo ?? []), { added: taps.length, replaced }] };
+}
+
+/** Reverts the last press (or the last event, for drafts saved before presses were tracked). */
+export function undoPress(d: Draft): Draft {
+  const stack = d.undo ?? [];
+  const last = stack[stack.length - 1];
+  const n = last?.added ?? 1;
+  let events = d.events.slice(0, Math.max(0, d.events.length - n));
+  let gameTimes = d.gameTimes.slice(0, Math.max(0, d.gameTimes.length - n));
+  if (last?.replaced) { events = [...events, last.replaced.event]; gameTimes = [...gameTimes, last.replaced.gameTime]; }
+  return { ...d, events, gameTimes, undo: stack.slice(0, -1) };
 }

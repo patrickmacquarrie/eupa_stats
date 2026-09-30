@@ -218,28 +218,34 @@ button.big { padding: 12px 22px; font-size: 1.05rem; }
 .poss.defense { background: var(--bad-bg); color: var(--bad); }
 .clock { font-variant-numeric: tabular-nums; font-weight: 600; }
 .clock.on { border-color: var(--accent); }
-.prompt { text-align: center; font-size: 1.1rem; margin: 14px 0 10px; color: var(--text-secondary); }
-.prompt.pending { color: var(--warn); font-weight: 600; }
-.live-grid { display: grid; grid-template-columns: 1fr 220px; gap: 14px; align-items: start; }
-.players { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
-.pbtn { min-height: 64px; font-size: 1.02rem; font-weight: 600; border-radius: 12px; text-align: left; padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; gap: 6px; touch-action: manipulation; }
-.pbtn.holder { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
-.pbtn.holder:hover:not(:disabled) { background: var(--accent); }
-.pbtn.thrower { border: 2px solid var(--accent); }
-.pbtn.add { border-style: dashed; color: var(--text-secondary); font-weight: 500; justify-content: center; }
-.actions { display: flex; flex-direction: column; gap: 10px; position: sticky; top: 100px; }
-.abtn { min-height: 64px; font-size: 1.05rem; font-weight: 600; border-radius: 12px; touch-action: manipulation; }
-.abtn.goal { background: var(--good); border-color: var(--good); color: #fff; }
-.abtn.goal:hover:not(:disabled) { background: var(--good); filter: brightness(1.08); }
-.abtn.scored { background: var(--bad-bg); color: var(--bad); }
-.abtn.quiet { min-height: 48px; font-weight: 500; color: var(--text-secondary); }
+.live-top { display: flex; align-items: center; gap: 10px; margin: 12px 0 8px; }
+.live-top .prompt { flex: 1; margin: 0; font-size: 1.1rem; color: var(--text-secondary); }
+.roster { display: flex; flex-direction: column; gap: 6px; }
+.prow { display: grid; grid-template-columns: minmax(150px, 1.3fr) repeat(4, minmax(0, 1fr)); gap: 6px; align-items: stretch;
+  background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 4px; }
+.roster.defense .prow { grid-template-columns: minmax(150px, 1.3fr) repeat(2, minmax(0, 1fr)); }
+.prow.holder { border: 2px solid var(--accent); background: var(--info-bg); }
+.prow.thrower .pname { color: var(--accent); }
+.prow.add { display: block; border-style: dashed; color: var(--text-secondary); min-height: 52px; font-weight: 500; }
+.pname { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 1.02rem; padding: 0 8px; }
+.disc { color: var(--accent); margin-left: auto; font-size: 0.9rem; }
+.rbtn { min-height: 50px; font-size: 0.98rem; font-weight: 600; border-radius: 10px; padding: 4px 6px; touch-action: manipulation; }
+.rbtn:disabled { opacity: 0.28; }
+.rbtn.goal { background: var(--good-bg); color: var(--good); border-color: transparent; }
+.rbtn.drop, .rbtn.ta { color: var(--bad); }
+.rbtn.block { background: var(--good-bg); color: var(--good); border-color: transparent; }
+.rbtn.gso { background: var(--bad-bg); color: var(--bad); border-color: transparent; }
+.rbtn.turnover { min-width: 170px; background: var(--good-bg); color: var(--good); border-color: transparent; }
+.rbtn.quiet { min-height: 44px; font-weight: 500; color: var(--text-secondary); min-width: 90px; }
 .feed { list-style: none; padding: 0; margin: 16px 0 0; border-top: 1px solid var(--border); }
 .feed li { padding: 6px 2px; border-bottom: 1px solid var(--border); display: flex; gap: 10px; align-items: baseline; }
 .feed li:first-child { font-weight: 600; }
 .live-foot { margin-top: 14px; }
 @media (max-width: 700px) {
-  .live-grid { grid-template-columns: 1fr; }
-  .actions { position: static; display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
-  .players { grid-template-columns: repeat(2, 1fr); }
+  .prow { grid-template-columns: 1fr 1fr 1fr 1fr; }
+  .roster.defense .prow { grid-template-columns: 1fr 1fr; }
+  .pname { grid-column: 1 / -1; padding: 4px 6px; }
+  .rbtn { min-height: 48px; font-size: 0.88rem; }
   .score-team strong { font-size: 1.8rem; }
+  .rbtn.turnover { min-width: 0; }
 }
