@@ -1,0 +1,32 @@
+{
+  "name": "eupa-stats",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "League stats and salary-cap web app built on the PRG master-sheet engine",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "validate": "tsx scripts/validate.ts fixtures/fall-2026.json fixtures/thursday-s1-2026.json fixtures/pl-2025.json",
+    "experiments": "tsx scripts/experiments.ts"
+  },
+  "dependencies": {
+    "idb-keyval": "^6.2.2",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "react-router-dom": "^7.18.4"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.3",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.1",
+    "vitest": "^5.0.2"
+  }
+}
