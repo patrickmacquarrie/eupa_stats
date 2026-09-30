@@ -291,3 +291,4 @@ button.flag.on { color: var(--warn); background: var(--surface-1); border-color:
 .nowrap { white-space: nowrap; }
 .edit-effect { border-top: 1px solid var(--border); margin-top: 10px; padding-top: 8px; }
 .edit-effect p { margin: 4px 0; }
+.add-end { margin: 8px 0; }

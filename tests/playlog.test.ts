@@ -73,3 +73,10 @@ describe("play log editor", () => {
     expect(problems(bad).size).toBeGreaterThan(0);
   });
 });
+
+it("appends a missing final point", () => {
+  const evs = sample().slice(0, 10); // ends on Aven's Touch, which the old app already bumped to 1-0
+  expect(evs[9]).toMatchObject({ action: "Touch", player: "Aven Unger", statScore: 1 });
+  const rows = insertRow(rowsOf(evs), evs.length, "Point", null);
+  expect(rows.at(-1)!.e).toMatchObject({ action: "Point", player: "Aven Unger", lastPlayer: "James Cannon", statScore: 1 });
+});

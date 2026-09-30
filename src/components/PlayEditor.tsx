@@ -153,7 +153,26 @@ export function PlayEditor({ date, team, opp, focus, onClose }: { date: string; 
           })}
         </table>
       </div>
-      {!showAll && <p className="small"><button className="link" onClick={() => setShowAll(true)}>Show every play ({rows.length})</button></p>}
+      {adding?.at === rows.length ? (
+        <div className="row wrap gap-sm add-end">
+          <span className="small muted">New last play:</span>
+          <select value={adding.action} onChange={(ev) => setAdding({ ...adding, action: ev.target.value as Action })} aria-label="New play">
+            {ACTIONS.map((a) => <option key={a.action} value={a.action}>{a.label}</option>)}
+          </select>
+          {PICKS_PLAYER.has(adding.action)
+            ? <PlayerSelect value={adding.player} label="Player for the new play" optional={adding.action === "GSO"} onChange={(v) => setAdding({ ...adding, player: v })} />
+            : <span className="muted small">whoever had the disc</span>}
+          <button className="primary small-btn" disabled={PICKS_PLAYER.has(adding.action) && adding.action !== "GSO" && !adding.player}
+            onClick={() => { apply(insertRow(rows, rows.length, adding.action, adding.player || null)); setShowAll(true); }}>Add</button>
+          <button className="small-btn" onClick={() => setAdding(null)}>Cancel</button>
+        </div>
+      ) : (
+        <p className="small row wrap gap-sm">
+          {!showAll && <button className="link" onClick={() => setShowAll(true)}>Show every play ({rows.length})</button>}
+          {(showAll || focusPoss + 2 >= poss.length) && rows.length > 0 &&
+            <button className="link" onClick={() => setAdding({ at: rows.length, action: "Touch", player: "" })}>＋ Add a play after the last one</button>}
+        </p>
+      )}
 
       {dirty && (
         <div className="edit-effect">

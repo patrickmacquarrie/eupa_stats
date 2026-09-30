@@ -66,10 +66,13 @@ function repair(before: Row[], rows: Row[], from: number): Row[] {
     const [us, them] = now.get(r.uid)!;
     const old = was.get(r.uid);
     if (old) { r.e.statScore += us - old[0]; r.e.otherScore += them - old[1]; continue; }
-    // An inserted play: the previous play's score, plus its own Point/GSO.
-    const prev = out[j - 1]?.e;
-    r.e.statScore = (prev?.statScore ?? 0) + (r.e.action === "Point" ? 1 : 0);
-    r.e.otherScore = (prev?.otherScore ?? 0) + (r.e.action === "GSO" ? 1 : 0);
+    // An inserted play: the score after the last non-Touch play before it (a Touch may carry the
+    // old app's early bump), plus the Points/GSOs from there up to and including this one.
+    let b = j - 1;
+    while (b >= 0 && out[b].e.action === "Touch") b--;
+    let us2 = b >= 0 ? out[b].e.statScore : 0, them2 = b >= 0 ? out[b].e.otherScore : 0;
+    for (let x = b + 1; x <= j; x++) { if (out[x].e.action === "Point") us2++; if (out[x].e.action === "GSO") them2++; }
+    r.e.statScore = us2; r.e.otherScore = them2;
   }
   return out;
 }
