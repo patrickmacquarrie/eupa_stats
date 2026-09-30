@@ -45,6 +45,7 @@ export function resolveInput(input: LeagueInput, aliases: Alias[] = []): LeagueI
     subAssignments: input.subAssignments.map((a) => ({ ...a, sub: r(a.sub), subbedFor: r(a.subbedFor) })),
     boxScores: input.boxScores?.map((b) => ({ ...b, lines: b.lines.map((l) => ({ ...l, player: r(l.player) })) })),
     trades: input.trades.map((t) => ({ ...t, player: r(t.player) })),
+    presentWithoutPlays: input.presentWithoutPlays?.map((x) => ({ ...x, player: r(x.player) })),
   };
 }
 

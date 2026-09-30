@@ -213,7 +213,7 @@ function Live({ draft, onChange, onFinish }: { draft: Draft; onChange: (d: Draft
 
       <div className="live-top">
         <p className="prompt" aria-live="polite">{prompt}</p>
-        {!offense && <button className="rbtn turnover" onClick={() => go({ kind: "theirTurnover" })}>Their turnover</button>}
+        {!offense && <button className="rbtn turnover" onClick={() => go({ kind: "offensiveError" })}>Offensive error</button>}
         <button className="rbtn quiet" disabled={!draft.events.length} onClick={() => { setMsg(null); onChange(undoPress(draft)); }}>Undo</button>
       </div>
       {msg && <p className="error small center">{msg}</p>}
@@ -227,7 +227,7 @@ function Live({ draft, onChange, onFinish }: { draft: Draft; onChange: (d: Draft
               {offense ? (
                 <>
                   <button className="rbtn" disabled={isHolder} onClick={() => go({ kind: "touch", player: n })}>Touch</button>
-                  <button className="rbtn goal" onClick={() => go({ kind: "goal", player: n })}>Goal</button>
+                  <button className="rbtn goal" onClick={() => go({ kind: "goal", player: n })}>Point</button>
                   <button className="rbtn drop" disabled={isHolder ? !thrower : !holder} onClick={() => go({ kind: "drop", player: n })}>Drop</button>
                   <button className="rbtn ta" disabled={!isHolder} onClick={() => go({ kind: "throwaway" })}>Throwaway</button>
                 </>
@@ -272,6 +272,7 @@ function Live({ draft, onChange, onFinish }: { draft: Draft; onChange: (d: Draft
 function Review({ draft, onBack, onDone }: { draft: Draft; onBack: () => void; onDone: () => void }) {
   const { season, updateSeason } = useSeason();
   const [saved, setSaved] = useState<{ week: number } | null>(null);
+  const [here, setHere] = useState<Set<string>>(new Set());
   const tally = useMemo(() => tallyRecording(draft.events, (n) => n), [draft.events]);
   const s = stateOf(draft);
   const key = `${draft.date}|${draft.team}|${draft.opp}`;
@@ -289,6 +290,10 @@ function Review({ draft, onBack, onDone }: { draft: Draft; onBack: () => void; o
         players: [...x.input.players, ...draft.newPlayers.filter((p) => !have.has(nameKey(p.name)))],
         events: [...x.input.events.filter((e) => `${e.date}|${e.statTeam}|${e.otherTeam}` !== key), ...draft.events],
         throughWeek: Math.max(x.input.throughWeek, week),
+        presentWithoutPlays: [
+          ...(x.input.presentWithoutPlays ?? []).filter((p) => !(p.week === week && p.team === draft.team && p.opp === draft.opp)),
+          ...[...here].map((player) => ({ week, team: draft.team, opp: draft.opp, player })),
+        ],
       } };
     });
     setSaved({ week });
@@ -311,6 +316,8 @@ function Review({ draft, onBack, onDone }: { draft: Draft; onBack: () => void; o
   }
 
   const lines = [...tally.lines.entries()].sort(([x], [y]) => x.localeCompare(y));
+  // Subs with no plays don't affect anyone's salary, so only rostered players are asked about.
+  const quiet = draft.present.filter((n) => !tally.lines.has(n) && !draft.subs.includes(n));
   return (
     <main className="page narrow">
       <p className="crumbs"><button className="link" onClick={onBack}>← Back to recording</button></p>
@@ -327,8 +334,18 @@ function Review({ draft, onBack, onDone }: { draft: Draft; onBack: () => void; o
             ))}
           </tbody>
         </table>
-        {draft.present.filter((n) => !tally.lines.has(n)).length > 0 && (
-          <p className="attn small">No plays recorded for {draft.present.filter((n) => !tally.lines.has(n)).join(", ")}. The engine counts a player with no plays as absent.</p>
+        {quiet.length > 0 && (
+          <div className="noplays">
+            <p className="small"><strong>No plays recorded</strong> for these checked-in players, so they count as absent. Tick anyone who played anyway.</p>
+            <div className="checkin">
+              {quiet.map((n) => (
+                <label key={n} className="chip">
+                  <input type="checkbox" checked={here.has(n)} onChange={() => { const x = new Set(here); if (x.has(n)) x.delete(n); else x.add(n); setHere(x); }} />
+                  {n}
+                </label>
+              ))}
+            </div>
+          </div>
         )}
       </section>
       {exists && <p className="attn">This replaces the recording already saved for {draft.team} on {draft.date}.</p>}

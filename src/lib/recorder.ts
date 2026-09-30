@@ -4,8 +4,8 @@
 // Offense: each catch is a Touch that remembers the last two throwers; a Point credits the
 // holder with the goal and those two with the assist and second assist. A Drop is charged to
 // the receiver (the thrower is remembered); a Throwaway to the holder. Either turns us over.
-// Defense: a block (D-Play) or an opponent error (O-Error) wins the disc back; "They scored"
-// (GSO) adds a point for the other team and optionally notes who was scored on.
+// Defense: a D-Play or an offensive error by the other team (O-Error) wins the disc back; GSO
+// (GSO) adds a point for the other team and notes who was scored on.
 import type { Player, PlayEvent } from "../../engine/types";
 
 export type Phase = "offense" | "defense";
@@ -101,13 +101,13 @@ export function eventFor(d: Draft, t: Tap, clock = new Date().toTimeString()): P
 /** One line of the play feed. */
 export function describe(e: PlayEvent) {
   switch (e.action) {
-    case "Touch": return e.lastPlayer ? `${e.lastPlayer} → ${e.player}` : `${e.player} picks up`;
-    case "Point": return `GOAL ${e.player}${e.lastPlayer ? ` (from ${e.lastPlayer}${e.secLastPlayer ? `, ${e.secLastPlayer}` : ""})` : ""}`;
-    case "Drop": return `Drop by ${e.player}${e.lastPlayer ? ` (from ${e.lastPlayer})` : ""}`;
-    case "T-Away": return `Throwaway by ${e.player}`;
-    case "D-Play": return `Block by ${e.player}`;
-    case "O-Error": return "Their turnover";
-    case "GSO": return `They scored${e.player ? ` (on ${e.player})` : ""}`;
+    case "Touch": return `Touch ${e.player}${e.lastPlayer ? ` (from ${e.lastPlayer})` : ""}`;
+    case "Point": return `Point ${e.player}${e.lastPlayer ? ` (from ${e.lastPlayer}${e.secLastPlayer ? `, ${e.secLastPlayer}` : ""})` : ""}`;
+    case "Drop": return `Drop ${e.player}${e.lastPlayer ? ` (from ${e.lastPlayer})` : ""}`;
+    case "T-Away": return `Throwaway ${e.player}`;
+    case "D-Play": return `D-Play ${e.player}`;
+    case "O-Error": return "Offensive error";
+    case "GSO": return `GSO${e.player ? ` ${e.player}` : ""}`;
     default: return e.action;
   }
 }
@@ -123,15 +123,15 @@ export function toTabletCsv(events: PlayEvent[], gameTimes?: string[]) {
   return "﻿" + [head, ...rows].map((r) => r.map(q).join(",")).join("\r\n") + "\r\n";
 }
 
-/** A button on a player's row, or the team-level "Their turnover". */
+/** A button on a player's row, or the team-level "Offensive error" (O-Error). */
 export type Press =
   | { kind: "touch" | "goal" | "drop" | "block" | "scoredOn"; player: string }
-  | { kind: "throwaway" | "theirTurnover" };
+  | { kind: "throwaway" | "offensiveError" };
 
 /**
  * What a row button does, given who has the disc:
- *  goal on a receiver     → their catch and the goal, in one press
- *  goal on the holder     → the goal
+ *  point on a receiver    → their catch (Touch) and the Point, in one press
+ *  point on the holder    → the Point
  *  drop on a receiver     → their drop of the holder's throw
  *  drop on the holder     → the touch just credited is taken back and recorded as their drop of
  *                           the previous thrower's pass (the stat-taker tapped the catch too soon)
@@ -160,7 +160,7 @@ export function press(d: Draft, p: Press, clock = new Date().toTimeString(), now
     case "throwaway": taps.push({ action: "T-Away" }); break;
     case "block": taps.push({ action: "D-Play", player: p.player }); break;
     case "scoredOn": taps.push({ action: "GSO", player: p.player }); break;
-    case "theirTurnover": taps.push({ action: "O-Error" }); break;
+    case "offensiveError": taps.push({ action: "O-Error" }); break;
   }
   let next = base;
   for (const t of taps) {

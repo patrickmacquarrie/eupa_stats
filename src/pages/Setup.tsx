@@ -6,7 +6,7 @@ import { teamPayroll, useSeason } from "../lib/SeasonContext";
 
 const WEIGHTS: [keyof StatWeights, string][] = [
   ["win", "Win"], ["goal", "Goal"], ["assist", "Assist"], ["secondAssist", "2nd assist"],
-  ["block", "Block (D)"], ["drop", "Drop"], ["throwaway", "Throwaway"], ["gso", "Scored on"],
+  ["block", "D-Play"], ["drop", "Drop"], ["throwaway", "Throwaway"], ["gso", "GSO"],
 ];
 
 function Num({ label, value, onChange, step, hint }: { label: string; value: number; onChange: (n: number) => void; step?: number; hint?: string }) {

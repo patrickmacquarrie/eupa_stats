@@ -94,6 +94,8 @@ export function computeLeague(input: LeagueInput): EngineResult {
     if (!subFor.has(k)) subFor.set(k, canon(a.subbedFor));
   }
 
+  const present = new Set((input.presentWithoutPlays ?? []).map((x) => `${x.week}|${x.team}|${x.opp}|${canon(x.player)}`));
+
   const lines: GameLine[] = [];
   const recordings: RecordingSummary[] = [];
   const val = (s: StatLine, r: number | null) => lineValue(s, r, rules.weights, rules.tieWeightFactor);
@@ -136,6 +138,10 @@ export function computeLeague(input: LeagueInput): EngineResult {
     }
     for (const p of roster) {
       if (t.lines.has(p.name)) continue;
+      if (present.has(`${week}|${team}|${opp}|${p.name}`)) {
+        gameLines.push({ week, team, opp, player: p.name, ...emptyLine(), result: t.result, role: "rostered", growth: val(emptyLine(), t.result) });
+        continue;
+      }
       gameLines.push({ week, team, opp, player: p.name, ...emptyLine(), result: null, role: "absent", growth: 0 });
     }
     // Link subs to the absentee they covered (first sub wins, as the sheet's MATCH does).

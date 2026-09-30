@@ -249,3 +249,5 @@ button.big { padding: 12px 22px; font-size: 1.05rem; }
   .score-team strong { font-size: 1.8rem; }
   .rbtn.turnover { min-width: 0; }
 }
+.noplays { border-top: 1px solid var(--border); margin-top: 10px; padding-top: 6px; }
+label.presence { margin-top: 4px; font-size: 0.8rem; }

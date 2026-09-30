@@ -48,7 +48,7 @@ export function Overview() {
       <section className="card scroll-x">
         <h2>Payroll vs cap</h2>
         <table className="data">
-          <thead><tr><th>Team</th><th>GM</th><th className="num">Payroll</th><th className="num">Cap room</th></tr></thead>
+          <thead><tr><th>Team</th><th>GM</th><th className="num">Payroll</th><th className="num">Cap space</th></tr></thead>
           <tbody>
             {teams.map((t) => {
               const room = cap - payroll[t];

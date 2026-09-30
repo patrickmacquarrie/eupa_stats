@@ -59,7 +59,7 @@ export function PlayerDetail() {
                 <td className="num">{l.goals}</td><td className="num">{l.assists}</td><td className="num">{l.blocks}</td>
                 <td className="num">{l.drops}</td><td className="num">{l.throwaways}</td>
                 <td className="num">{l.role === "sub" ? <span className="muted" title="Credited to the player covered">{money(l.subEarned ?? 0)}</span> : delta(l.growth)}</td>
-                <td className="muted small">{l.role === "sub" ? (l.subbedFor ? `covering ${l.subbedFor}` : "not paired") : l.coveredBy ? `covered by ${l.coveredBy}` : l.role === "absent" ? "estimated" : ""}</td>
+                <td className="muted small">{l.role === "sub" ? (l.subbedFor ? `subbed for ${l.subbedFor}` : "not paired") : l.coveredBy ? `sub: ${l.coveredBy}` : l.role === "absent" ? "estimated" : ""}</td>
               </tr>
             ))}
           </tbody>

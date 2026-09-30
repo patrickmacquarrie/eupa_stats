@@ -97,7 +97,7 @@ export function Subs() {
               )}
             </div>
             <table className="data">
-              <thead><tr><th>Sub</th><th>Gender</th><th className="num">Night worth</th><th>Covering</th><th>Rule says</th></tr></thead>
+              <thead><tr><th>Sub</th><th>Gender</th><th className="num">Sub growth</th><th>Subbed for</th><th>Rule says</th></tr></thead>
               <tbody>
                 {subs.map((s) => {
                   const cur = current(s, s.player);
@@ -124,7 +124,7 @@ export function Subs() {
               </tbody>
             </table>
             {absent.length > 0 && (
-              <p className="small muted">Absent: {absent.map((a) => `${a.player} (${delta(a.growth)}${a.coveredBy ? `, covered by ${a.coveredBy}` : ""})`).join(" · ")}</p>
+              <p className="small muted">Absent: {absent.map((a) => `${a.player} (${delta(a.growth)}${a.coveredBy ? `, sub: ${a.coveredBy}` : ""})`).join(" · ")}</p>
             )}
             {doubled.length > 0 && <p className="small attn">{doubled.join(", ")} is picked for more than one sub; only the first counts.</p>}
             {g.flags.map((f, i) => <p key={i} className="small attn">⚑ {f.message}</p>)}

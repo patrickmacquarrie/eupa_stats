@@ -44,7 +44,7 @@ export function GameDetail() {
                 {check.unmatched.map((u, i) => (
                   <tr key={i}>
                     <td>{u.at}</td><td>{u.side === "A" ? a : b}</td>
-                    <td>{u.kind === "goal" ? `Goal by ${u.player ?? "?"}` : `Scored on${u.player ? ` (${u.player})` : ""}`}</td>
+                    <td>{u.kind === "goal" ? `Point ${u.player ?? "?"}` : `GSO${u.player ? ` ${u.player}` : ""}`}</td>
                     <td>{u.scoreAfter}</td>
                     <td><span className={`pill ${u.verdict === "conflict" ? "warn" : u.verdict === "review" ? "info" : "ok"}`}>{u.verdict}</span></td>
                     <td className="small">{u.why}</td>
@@ -52,7 +52,7 @@ export function GameDetail() {
                 ))}
               </tbody>
             </table>
-          ) : <p className="muted small">Every goal on one tablet lines up with a “scored on” tap on the other.</p>}
+          ) : <p className="muted small">Every Point on one tablet lines up with a GSO on the other.</p>}
           <p className="muted small">Each side's salaries use that tablet's own score. To settle a disagreement, correct a side below with a box score.</p>
         </section>
       )}
@@ -66,12 +66,22 @@ export function GameDetail() {
 }
 
 function Side({ team, opp, week, lines }: { team: string; opp: string; week: number; lines: GameLine[] }) {
-  const { season, result, update } = useSeason();
+  const { season, input, result, update, resolveName } = useSeason();
   const rec = result.recordings.find((r) => r.week === week && r.team === team && r.opp === opp);
   const box = season.input.boxScores?.find((x) => x.week === week && x.team === team && x.opp === opp);
   const [editing, setEditing] = useState(false);
   const order = { rostered: 0, sub: 1, absent: 2 } as const;
   const sorted = [...lines].sort((x, y) => order[x.role] - order[y.role] || y.growth - x.growth || x.player.localeCompare(y.player));
+  const isMarked = (x: { week: number; team: string; opp: string; player: string }, player: string) =>
+    x.week === week && x.team === team && x.opp === opp && x.player.toLowerCase() === player.toLowerCase();
+  const marked = (player: string) => (input.presentWithoutPlays ?? []).some((x) => isMarked(x, player));
+  const setPresent = (player: string, on: boolean) => update((inp) => ({
+    ...inp,
+    presentWithoutPlays: [
+      ...(inp.presentWithoutPlays ?? []).filter((x) => !isMarked({ ...x, player: resolveName(x.player) }, player)),
+      ...(on ? [{ week, team, opp, player }] : []),
+    ],
+  }));
 
   return (
     <section className="card scroll-x">
@@ -94,8 +104,14 @@ function Side({ team, opp, week, lines }: { team: string; opp: string; week: num
                   <td>
                     <Link to={`../players/${encodeURIComponent(l.player)}`}>{l.player}</Link>
                     {l.role !== "rostered" && <span className="tag">{l.role}</span>}
-                    {l.role === "sub" && <div className="muted small">{l.subbedFor ? `covering ${l.subbedFor}` : "not paired"}</div>}
-                    {l.role === "absent" && l.coveredBy && <div className="muted small">covered by {l.coveredBy}</div>}
+                    {l.role === "sub" && <div className="muted small">{l.subbedFor ? `subbed for ${l.subbedFor}` : "not paired"}</div>}
+                    {l.role === "absent" && l.coveredBy && <div className="muted small">sub: {l.coveredBy}</div>}
+                    {rec && (l.role === "absent" || marked(l.player)) && (
+                      <label className="check small muted presence">
+                        <input type="checkbox" checked={l.role !== "absent"} onChange={(e) => setPresent(l.player, e.target.checked)} />
+                        {l.role === "absent" ? "Was here" : "Here, no plays"}
+                      </label>
+                    )}
                   </td>
                   {STATS.slice(0, 6).map(([k]) => <td key={k} className="num">{l.role === "absent" ? "" : l[k]}</td>)}
                   <td className="num">{l.role === "sub" ? <span className="muted" title="Worth this much; credited to the absent player">{money(l.subEarned ?? 0)}</span> : delta(l.growth)}</td>

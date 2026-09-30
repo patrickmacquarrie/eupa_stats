@@ -60,3 +60,16 @@ describe("tablet CSV", () => {
     expect(r.unmatched.length).toBeGreaterThan(0);
   });
 });
+
+describe("present without plays", () => {
+  it("turns an absence into a zero line that earns only the result", () => {
+    const { season } = seasonFromFixture(JSON.parse(readFileSync("fixtures/fall-2026.json", "utf8")));
+    const base = computeLeague(season.input);
+    const abs = base.lines.find((l) => l.role === "absent" && !l.coveredBy && l.week >= 3)!;
+    const rec = base.recordings.find((r) => r.week === abs.week && r.team === abs.team && r.opp === abs.opp)!;
+    const res = computeLeague({ ...season.input, presentWithoutPlays: [{ week: abs.week, team: abs.team, opp: abs.opp, player: abs.player }] });
+    const line = res.lines.find((l) => l.week === abs.week && l.team === abs.team && l.opp === abs.opp && l.player === abs.player)!;
+    expect(line.role).toBe("rostered");
+    expect(line.growth).toBe(rec.result === 1 ? 100000 : rec.result === 0.5 ? 50000 : 0);
+  });
+});

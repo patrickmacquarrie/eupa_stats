@@ -91,7 +91,7 @@ describe("row buttons", () => {
     expect(d.events[0]).toMatchObject({ action: "GSO", player: "Ann", otherScore: 1 });
     expect(stateOf(d).phase).toBe("offense");
     expect(press(d, { kind: "block", player: "Bo" })).toMatch(/offense/);
-    const t = run(draft({ startOn: "defense" }), { kind: "theirTurnover" });
+    const t = run(draft({ startOn: "defense" }), { kind: "offensiveError" });
     expect(t.events[0].action).toBe("O-Error");
     expect(press(run(d0(), { kind: "touch", player: "Ann" }), { kind: "drop", player: "Ann" })).toMatch(/no throw/);
   });

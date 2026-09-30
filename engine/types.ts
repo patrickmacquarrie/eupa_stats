@@ -107,6 +107,11 @@ export interface LeagueInput {
   events: PlayEvent[];
   boxScores?: BoxScore[];
   subAssignments: SubAssignment[];
+  /**
+   * Rostered players who were at a game but recorded no plays. Without an entry, a rostered
+   * player with no plays is treated as absent; with one, they get a zero stat line and the result.
+   */
+  presentWithoutPlays?: { week: number; team: string; opp: string; player: string }[];
   /** Games up to and including this week are counted. */
   throughWeek: number;
 }
