@@ -12,6 +12,7 @@ import { Players } from "./pages/Players";
 import { Record } from "./pages/Record";
 import { Recordings } from "./pages/Recordings";
 import { Setup } from "./pages/Setup";
+import { Stats } from "./pages/Stats";
 import { Subs } from "./pages/Subs";
 
 // Hash routing keeps the build a plain folder of static files: no server rewrites needed.
@@ -31,6 +32,7 @@ export function App() {
           <Route path="subs" element={<Subs />} />
           <Route path="names" element={<Names />} />
           <Route path="recordings" element={<Recordings />} />
+          <Route path="stats" element={<Stats />} />
           <Route path="setup" element={<Setup />} />
         </Route>
         <Route path="*" element={<p className="pad">Page not found. <a href="#/">Seasons</a></p>} />
@@ -52,7 +54,7 @@ function SeasonShell() {
 function Header() {
   const { season, nameIssueCount } = useSeason();
   const base = `/s/${season.id}`;
-  const tabs: [string, string][] = [["", "Overview"], ["/record", "Record"], ["/players", "Players"], ["/games", "Games"], ["/subs", "Subs"], ["/names", "Names"], ["/recordings", "Recordings"], ["/setup", "Setup"]];
+  const tabs: [string, string][] = [["", "Overview"], ["/record", "Record"], ["/players", "Players"], ["/games", "Games"], ["/subs", "Subs"], ["/names", "Names"], ["/recordings", "Recordings"], ["/stats", "Player stats"], ["/setup", "Setup"]];
   return (
     <header className="app-header">
       <div className="header-top">

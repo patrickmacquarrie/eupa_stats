@@ -2,6 +2,7 @@
 // Nothing derived (salaries, cap, box scores) is stored; the engine rebuilds it on load.
 import type { BoxScore, LeagueInput, PlayEvent } from "../../engine/types";
 import type { Alias } from "./names";
+import type { PublicSettings } from "./publicStats";
 
 export interface Season {
   id: string;
@@ -16,6 +17,8 @@ export interface Season {
   ignoredNames?: string[];
   /** Possessions a stat-taker flagged as wrong, for the admin to check. Indexes are within that recording. */
   flags?: SavedFlag[];
+  /** What the player-facing stats page shows. */
+  publicStats?: PublicSettings;
 }
 
 export interface SavedFlag {

@@ -25,7 +25,10 @@ What's in the app (`src/`):
 | Subs | The pairing override screen: current pick vs the same-gender rule, flags the rule can't settle, apply the rule per game or everywhere |
 | Names | Recorded spellings that match no player, with a suggested match (typos like Katelyn/Katelynn, short first names like Jess/Jessica); the sheet's old "Name Sub" records, merged in one click; likely duplicate player records. Merges are aliases applied when computing, so recordings keep the tablet's spelling and every merge can be undone |
 | Recordings | Upload tablet CSVs (one per team per game), preview problems and the cross-check before saving, delete recordings |
+| Player stats | What players see: leaderboards (top N per gender group, per game) and every rostered player's totals, with the columns chosen in Setup. "Copy stats for the public page" copies a snapshot (player totals only) for the shareable page |
 | Setup | Edit the league rules with a live preview of who moves before saving; schedule, counted-through week, add players |
+
+The shareable player stats page is a separate single-file page (`npm run build:share` → `dist-share/stats-page.html`) containing only the stats view and a snapshot of player totals, so sharing its link exposes nothing else. Its owner updates it by pasting a snapshot from the Player stats tab; the page republishes itself with the new numbers.
 
 Seasons are stored in the browser's IndexedDB, one per key, so nothing leaves the device. Export a
 season to back it up or hand it to another admin. There is no server or login yet.

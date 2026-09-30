@@ -43,6 +43,7 @@ function GameSetup({ onStart }: { onStart: (d: Draft) => void }) {
   const [opp, setOpp] = useState(teams[1] ?? "");
   const [startOn, setStartOn] = useState<Phase>("offense");
   const [len, setLen] = useState(25);
+  const [jersey, setJersey] = useState<"light" | "dark">("light");
   const week = weekOfDate(input.schedule, date);
   const roster = useMemo(() => (week === null ? [] : input.players.filter((p) => result.teamOf(p.name, week) === team && !p.isPlug))
     .sort((a, b) => a.name.localeCompare(b.name)), [input, result, team, week]);
@@ -72,6 +73,13 @@ function GameSetup({ onStart }: { onStart: (d: Draft) => void }) {
           <label className="field"><span>{shortTeam(team)} starts on</span>
             <select value={startOn} onChange={(e) => setStartOn(e.target.value as Phase)}>
               <option value="offense">Offense (receiving the pull)</option><option value="defense">Defense (pulling)</option></select></label>
+          <div className="field"><span>{shortTeam(team)} is wearing</span>
+            <div className="seg jersey-pick" role="group" aria-label={`${team} jersey colour`}>
+              <button aria-pressed={jersey === "light"} onClick={() => setJersey("light")}><span className="swatch light" />Light</button>
+              <button aria-pressed={jersey === "dark"} onClick={() => setJersey("dark")}><span className="swatch dark" />Dark</button>
+            </div>
+            <small className="muted">{shortTeam(opp)} wears {jersey === "light" ? "dark" : "light"}</small>
+          </div>
           <label className="field"><span>Game length (minutes)</span><input type="number" min={1} value={len} onChange={(e) => setLen(Number(e.target.value) || 25)} /></label>
         </div>
       </section>
@@ -101,7 +109,7 @@ function GameSetup({ onStart }: { onStart: (d: Draft) => void }) {
 
       {problem && <p className="attn">{problem}</p>}
       <button className="primary big" disabled={!!problem} onClick={() => onStart({
-        seasonId: season.id, date, team, opp, startOn, gameLengthMin: len, present, subs, newPlayers,
+        seasonId: season.id, date, team, opp, startOn, gameLengthMin: len, jersey, present, subs, newPlayers,
         events: [], gameTimes: [], clock: { runningSince: null, elapsedMs: 0 },
       })}>Start recording</button>
     </main>
@@ -202,7 +210,7 @@ function Live({ draft, onChange, onFinish }: { draft: Draft; onChange: (d: Draft
 
   return (
     <main className="live">
-      <div className="scorebar">
+      <div className={"scorebar" + (draft.jersey ? ` split ours-${draft.jersey}` : "")}>
         <div className="score-team"><span>{shortTeam(draft.team)}</span><strong>{s.us}</strong></div>
         <div className="score-mid">
           <span className={`poss ${s.phase}`}>{offense ? "Offense" : "Defense"}</span>

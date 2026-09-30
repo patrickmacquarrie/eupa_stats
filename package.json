@@ -12,7 +12,8 @@
     "test": "vitest run",
     "validate": "tsx scripts/validate.ts fixtures/fall-2026.json fixtures/thursday-s1-2026.json fixtures/pl-2025.json",
     "experiments": "tsx scripts/experiments.ts",
-    "build:artifact": "npm run build && node scripts/build-artifact.mjs"
+    "build:artifact": "npm run build && node scripts/build-artifact.mjs",
+    "build:share": "tsc --noEmit && vite build --config vite.share.config.ts && tsx scripts/build-share.ts"
   },
   "dependencies": {
     "idb-keyval": "^6.2.2",

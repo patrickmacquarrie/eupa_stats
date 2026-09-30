@@ -2,6 +2,7 @@ import { useDeferredValue, useMemo, useState } from "react";
 import { computeLeague } from "../../engine/compute";
 import type { LeagueRules, Player, StatWeights } from "../../engine/types";
 import { delta, money, shortTeam } from "../lib/format";
+import { BOARDS, COLUMNS, DEFAULT_PUBLIC, type PublicSettings } from "../lib/publicStats";
 import { teamPayroll, useSeason } from "../lib/SeasonContext";
 
 const WEIGHTS: [keyof StatWeights, string][] = [
@@ -121,6 +122,7 @@ export function Setup() {
       </div>
 
       <SeasonBasics />
+      <PublicSettingsCard />
     </main>
   );
 }
@@ -178,5 +180,41 @@ function SeasonBasics() {
         </button>
       </section>
     </div>
+  );
+}
+
+function PublicSettingsCard() {
+  const { season, updateSeason } = useSeason();
+  const ps = season.publicStats ?? DEFAULT_PUBLIC;
+  const set = (patch: Partial<PublicSettings>) => updateSeason((s) => ({ ...s, publicStats: { ...ps, ...patch } }));
+  const toggle = <K extends "columns" | "leaderboards">(k: K, key: PublicSettings[K][number]) => {
+    const list = ps[k] as string[];
+    set({ [k]: list.includes(key) ? list.filter((x) => x !== key) : [...list, key] } as Partial<PublicSettings>);
+  };
+  return (
+    <section className="card">
+      <h2>Player stats page</h2>
+      <p className="muted small">What players see on the shareable stats page (preview it on the Player stats tab). Salaries are never shown there.</p>
+      <h3>Columns</h3>
+      <div className="checks">
+        {COLUMNS.map((c) => (
+          <label key={c.key} className="check"><input type="checkbox" checked={ps.columns.includes(c.key)} onChange={() => toggle("columns", c.key)} /> {c.label}</label>
+        ))}
+      </div>
+      <h3>Leaderboards</h3>
+      <p className="muted small">Top players in each gender group, per game.</p>
+      <div className="checks">
+        {BOARDS.map((b) => (
+          <label key={b.key} className="check" title={b.short}><input type="checkbox" checked={ps.leaderboards.includes(b.key)} onChange={() => toggle("leaderboards", b.key)} /> {b.label}</label>
+        ))}
+      </div>
+      <div className="fields">
+        <Num label="Players per leaderboard" value={ps.topN} step={1} onChange={(n) => set({ topN: Math.max(1, Math.round(n) || 5) })} />
+        <Num label="Minimum games to appear on a leaderboard" value={ps.minGames} step={1} onChange={(n) => set({ minGames: Math.max(1, Math.round(n) || 1) })} />
+        <label className="field check"><input type="checkbox" checked={ps.includeSubGames} onChange={(e) => set({ includeSubGames: e.target.checked })} />
+          <span>Count games played as a sub for another team (the master sheet didn't)</span></label>
+      </div>
+      <button className="small-btn" onClick={() => updateSeason((s) => ({ ...s, publicStats: DEFAULT_PUBLIC }))}>Reset to the master sheet's layout</button>
+    </section>
   );
 }

@@ -17,6 +17,8 @@ export interface Draft {
   opp: string;
   startOn: Phase;
   gameLengthMin: number;
+  /** What this device's team is wearing; the other team wears the opposite. */
+  jersey?: "light" | "dark";
   present: string[];     // players available to tap: rostered players who showed up, plus subs
   subs: string[];        // which of `present` are subbing in
   newPlayers: Player[];  // first-time subs, added to the season when the game is saved
