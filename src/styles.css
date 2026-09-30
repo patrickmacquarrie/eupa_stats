@@ -276,3 +276,18 @@ button.flag.on { color: var(--warn); background: var(--surface-1); border-color:
 .flag-item { border-top: 1px solid var(--border); padding: 10px 0; }
 .flag-item.resolved { opacity: 0.55; }
 .flag-item .plays { margin: 6px 0 0; padding-left: 18px; }
+
+/* play editor */
+.editor-card { border-color: var(--accent); }
+.plays-table select { max-width: 220px; padding: 3px 6px; }
+.plays-table tr.edited td { background: var(--info-bg); }
+.plays-table tr.bad td { background: var(--bad-bg); }
+.plays-table tr.adding td { background: var(--surface-2); }
+.plays-table .poss-head td { padding-top: 10px; border-bottom: 1px solid var(--border); }
+.plays-table .poss-head .side { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+.plays-table .side.ours { color: var(--good); }
+.plays-table .side.theirs { color: var(--bad); }
+.plays-table tbody.flagged .poss-head td { background: var(--warn-bg); }
+.nowrap { white-space: nowrap; }
+.edit-effect { border-top: 1px solid var(--border); margin-top: 10px; padding-top: 8px; }
+.edit-effect p { margin: 4px 0; }

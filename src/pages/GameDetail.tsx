@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { crossCheck } from "../../engine/crosscheck";
+import { PlayEditor } from "../components/PlayEditor";
 import type { BoxScore, GameLine, StatLine } from "../../engine/types";
 import { delta, money, resultLabel } from "../lib/format";
 import { weekOfDate, type SavedFlag } from "../lib/season";
@@ -23,6 +24,11 @@ export function GameDetail() {
   const evB = useMemo(() => eventsFor(b, a), [input.events, a, b, week]);
   const check = useMemo(() => (evA.length && evB.length ? crossCheck(evA, evB) : null), [evA, evB]);
   const date = evA[0]?.date ?? evB[0]?.date ?? input.schedule.find((s) => s.week === week)?.date;
+  const [edit, setEdit] = useState<{ team: string; opp: string; date: string; focus?: number } | null>(null);
+  const openEditor = (team: string, opp: string, d: string, focus?: number) => {
+    setEdit({ team, opp, date: d, focus });
+    setTimeout(() => document.querySelector(".editor-card")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+  };
 
   return (
     <main className="page">
@@ -58,17 +64,18 @@ export function GameDetail() {
         </section>
       )}
 
-      <Flags week={week} a={a} b={b} />
+      <Flags week={week} a={a} b={b} onEdit={openEditor} />
+      {edit && <PlayEditor key={`${edit.team}|${edit.focus}`} {...edit} onClose={() => setEdit(null)} />}
 
       <div className="two-col">
-        <Side team={a} opp={b} week={week} lines={result.lines.filter((l) => l.week === week && l.team === a && l.opp === b)} />
-        <Side team={b} opp={a} week={week} lines={result.lines.filter((l) => l.week === week && l.team === b && l.opp === a)} />
+        <Side team={a} opp={b} week={week} onEdit={evA.length ? () => openEditor(a, b, evA[0].date) : undefined} lines={result.lines.filter((l) => l.week === week && l.team === a && l.opp === b)} />
+        <Side team={b} opp={a} week={week} onEdit={evB.length ? () => openEditor(b, a, evB[0].date) : undefined} lines={result.lines.filter((l) => l.week === week && l.team === b && l.opp === a)} />
       </div>
     </main>
   );
 }
 
-function Side({ team, opp, week, lines }: { team: string; opp: string; week: number; lines: GameLine[] }) {
+function Side({ team, opp, week, lines, onEdit }: { team: string; opp: string; week: number; lines: GameLine[]; onEdit?: () => void }) {
   const { season, input, result, update, resolveName } = useSeason();
   const rec = result.recordings.find((r) => r.week === week && r.team === team && r.opp === opp);
   const box = season.input.boxScores?.find((x) => x.week === week && x.team === team && x.opp === opp);
@@ -123,6 +130,7 @@ function Side({ team, opp, week, lines }: { team: string; opp: string; week: num
             </tbody>
           </table>
           <div className="row gap">
+            {onEdit && !box && <button onClick={onEdit}>Edit plays</button>}
             <button onClick={() => setEditing(true)}>{box ? "Edit box score" : "Correct with a box score"}</button>
             {box && (
               <button className="danger" onClick={() => {
@@ -201,7 +209,7 @@ function BoxEditor({ team, opp, week, lines, initial, onDone }:
   );
 }
 
-function Flags({ week, a, b }: { week: number; a: string; b: string }) {
+function Flags({ week, a, b, onEdit }: { week: number; a: string; b: string; onEdit: (team: string, opp: string, date: string, focus?: number) => void }) {
   const { season, input, updateSeason } = useSeason();
   const flags = (season.flags ?? []).filter((f) => (f.team === a || f.team === b) && (f.opp === a || f.opp === b) &&
     weekOfDate(input.schedule, f.date) === week);
@@ -212,13 +220,14 @@ function Flags({ week, a, b }: { week: number; a: string; b: string }) {
   return (
     <section className="card">
       <h2>Flagged by the stat-taker ({open} open)</h2>
-      <p className="muted small">Possessions marked as wrong during the game. Fix them with a box score for that side, then mark them resolved.</p>
+      <p className="muted small">Possessions marked as wrong during the game. Fix them in the play editor (or with a box score for that side), then mark them resolved.</p>
       {flags.map((f, i) => {
         const plays = input.events.filter((e) => e.date === f.date && e.statTeam === f.team && e.otherTeam === f.opp).slice(f.start, f.end + 1);
         return (
           <div key={i} className={"flag-item" + (f.resolved ? " resolved" : "")}>
             <div className="row">
               <strong className="grow">⚑ {f.team}'s tablet, {f.clock}</strong>
+              {!f.resolved && <button className="small-btn" onClick={() => onEdit(f.team, f.opp, f.date, f.start)}>Edit these plays</button>}{" "}
               <button className="small-btn" onClick={() => setResolved(f, !f.resolved)}>{f.resolved ? "Reopen" : "Mark resolved"}</button>
             </div>
             {f.note && <p className="small">“{f.note}”</p>}
