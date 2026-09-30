@@ -163,7 +163,9 @@ export function press(d: Draft, p: Press, clock = new Date().toTimeString(), now
     if (why) return why;
     next = { ...next, events: [...next.events, eventFor(next, t, clock)], gameTimes: [...next.gameTimes, gt] };
   }
-  return { ...next, undo: [...(d.undo ?? []), { added: taps.length }] };
+  // The game clock starts itself with the first recorded play.
+  const gameClock = !d.clock.runningSince && d.clock.elapsedMs === 0 ? { runningSince: now, elapsedMs: 0 } : next.clock;
+  return { ...next, clock: gameClock, undo: [...(d.undo ?? []), { added: taps.length }] };
 }
 
 /** Reverts the last press (or the last event, for drafts saved before presses were tracked). */
@@ -178,6 +180,8 @@ export function undoPress(d: Draft): Draft {
     undo: stack.slice(0, -1),
     // A flag on a possession that no longer exists goes with it.
     flags: d.flags?.filter((f) => f.start < keep),
+    // Undoing every play puts the game back before kickoff, clock included.
+    ...(keep === 0 ? { clock: { runningSince: null, elapsedMs: 0 } } : {}),
   };
 }
 

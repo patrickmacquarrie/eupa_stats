@@ -108,3 +108,23 @@ describe("row buttons", () => {
     expect(t.events[0].action).toBe("O-Error");
   });
 });
+
+describe("game clock", () => {
+  it("starts with the first recorded play and not before", () => {
+    const d = draft({ present: ["Ann", "Bo"] });
+    expect(d.clock.runningSince).toBeNull();
+    const first = press(d, { kind: "touch", player: "Ann" }, "19:00:00", 1_000) as Draft;
+    expect(first.clock).toEqual({ runningSince: 1_000, elapsedMs: 0 });
+    expect(first.gameTimes[0]).toBe("00:25:00");
+    const later = press(first, { kind: "touch", player: "Bo" }, "19:00:05", 6_000) as Draft;
+    expect(later.clock.runningSince).toBe(1_000);
+    expect(later.gameTimes[1]).toBe("00:24:55");
+  });
+
+  it("stays paused if the stat-taker paused it, and resets when every play is undone", () => {
+    const d = press(draft(), { kind: "touch", player: "Ann" }, "19:00:00", 1_000) as Draft;
+    const paused = { ...d, clock: { runningSince: null, elapsedMs: 60_000 } };
+    expect((press(paused, { kind: "touch", player: "Bo" }, "19:01:00", 90_000) as Draft).clock.runningSince).toBeNull();
+    expect(undoPress(d).clock).toEqual({ runningSince: null, elapsedMs: 0 });
+  });
+});
