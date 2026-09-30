@@ -10,7 +10,7 @@ npm install
 npm run dev        # http://localhost:5173
 npm test           # unit tests, incl. Fall 2026 rebuilt to the sheet's exact 180/180 salaries
 npm run build      # static site in dist/ (hash routing, relative paths: host it anywhere)
-npm run validate   # the engine's own diff against the three master sheets
+npm run validate   # engine vs the three master sheets; fails if any result differs from scripts/validate-baseline.json
 ```
 
 What's in the app (`src/`):
@@ -62,6 +62,8 @@ Run: `npm i && npx tsx scripts/validate.ts fixtures/*.json` (add `--boxscore` to
 own stat lines instead of the event log), `npx tsx scripts/experiments.ts`.
 
 ## Validation results
+
+`npm run validate` compares every fixture, in both event and box-score mode, with the recorded baseline (`scripts/validate-baseline.json`: the counts below plus every known mismatch line) and exits non-zero on any change. After an intended change, `npm run validate -- --update` rewrites the baseline; review its diff before committing.
 
 | | Fall 2026 | Thursday S1 | Premier League 2025 |
 |---|---|---|---|
