@@ -55,3 +55,16 @@ describe("seasons longer than 16 weeks", () => {
     expect(computeLeague(short).horizon).toBe(14); // the EUPA standard bumps the cap in weeks 11-14
   });
 });
+
+describe("rule constraints", () => {
+  it("refuses divisors of zero and other unusable rules, in plain words", async () => {
+    const { ruleProblems } = await import("../engine/rules");
+    expect(ruleProblems(EUPA_RULES)).toEqual([]);
+    expect(ruleProblems({ ...EUPA_RULES, teamsForCapAverage: 0 })).toEqual(["Teams in the cap average must be a whole number of at least 1."]);
+    expect(ruleProblems({ ...EUPA_RULES, matchesPerWeek: 0 })[0]).toMatch(/Games per team per week/);
+    expect(ruleProblems({ ...EUPA_RULES, tieWeightFactor: 2 })[0]).toMatch(/between 0 and 1/);
+    expect(ruleProblems({ ...EUPA_RULES, weights: { ...EUPA_RULES.weights, goal: NaN } })[0]).toMatch(/Goal value must be a number/);
+    expect(ruleProblems({ ...EUPA_RULES, capExtraByWeek: { x: 5 } })[0]).toMatch(/week number/);
+    expect(() => computeLeague({ ...longSeason([1]), rules: { ...EUPA_RULES, teamsForCapAverage: 0 } })).toThrow(/cap average/);
+  });
+});

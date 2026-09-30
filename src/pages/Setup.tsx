@@ -1,5 +1,6 @@
 import { useDeferredValue, useMemo, useState } from "react";
 import { computeLeague } from "../../engine/compute";
+import { ruleProblems } from "../../engine/rules";
 import type { LeagueRules, Player, StatWeights } from "../../engine/types";
 import { delta, money, shortTeam } from "../lib/format";
 import { BOARDS, COLUMNS, DEFAULT_PUBLIC, type PublicSettings } from "../lib/publicStats";
@@ -10,11 +11,12 @@ const WEIGHTS: [keyof StatWeights, string][] = [
   ["block", "D-Play"], ["drop", "Drop"], ["throwaway", "Throwaway"], ["gso", "GSO"],
 ];
 
-function Num({ label, value, onChange, step, hint }: { label: string; value: number; onChange: (n: number) => void; step?: number; hint?: string }) {
+function Num({ label, value, onChange, step, hint, min, max }: { label: string; value: number; onChange: (n: number) => void; step?: number; hint?: string; min?: number; max?: number }) {
   return (
     <label className="field">
       <span>{label}</span>
-      <input type="number" step={step ?? "any"} value={Number.isFinite(value) ? value : ""} onChange={(e) => onChange(Number(e.target.value))} />
+      <input type="number" step={step ?? "any"} min={min} max={max} value={Number.isFinite(value) ? value : ""}
+        onChange={(e) => onChange(e.target.value.trim() === "" ? NaN : Number(e.target.value))} />
       {hint && <small className="muted">{hint}</small>}
     </label>
   );
@@ -25,9 +27,11 @@ export function Setup() {
   const [draft, setDraft] = useState<LeagueRules>(input.rules);
   const deferred = useDeferredValue(draft);
   const dirty = JSON.stringify(draft) !== JSON.stringify(input.rules);
+  const problems = ruleProblems(draft);
   const w = input.throughWeek;
 
-  const preview = useMemo(() => (JSON.stringify(deferred) === JSON.stringify(input.rules) ? null : computeLeague({ ...input, rules: deferred })), [deferred, input]);
+  const preview = useMemo(() => (JSON.stringify(deferred) === JSON.stringify(input.rules) || ruleProblems(deferred).length
+    ? null : computeLeague({ ...input, rules: deferred })), [deferred, input]);
   const changes = preview ? input.players
     .map((p) => ({ p: p.name, d: preview.salary[p.name][w] - result.salary[p.name][w] }))
     .filter((x) => Math.abs(x.d) > 0.5).sort((a, b) => Math.abs(b.d) - Math.abs(a.d)) : [];
@@ -46,7 +50,7 @@ export function Setup() {
             <p className="muted small">What each stat adds to (or takes off) a player's salary, per game.</p>
             <div className="fields">
               {WEIGHTS.map(([k, l]) => <Num key={k} label={l} value={draft.weights[k]} step={50000} onChange={(n) => set("weights", { ...draft.weights, [k]: n })} />)}
-              <Num label="Tie pays (× win)" value={draft.tieWeightFactor} step={0.1} onChange={(n) => set("tieWeightFactor", n)} />
+              <Num label="Tie pays (× win)" value={draft.tieWeightFactor} step={0.1} min={0} max={1} onChange={(n) => set("tieWeightFactor", n)} />
             </div>
           </section>
 
@@ -54,8 +58,8 @@ export function Setup() {
             <h2>Absences</h2>
             <div className="fields">
               <Num label="Early-season estimate (share of start salary per week)" value={draft.absence.pctOfInitialPerWeek} step={0.05} onChange={(n) => setAbs("pctOfInitialPerWeek", n)} />
-              <Num label="Weeks using that estimate" value={draft.absence.pctRuleWeeks} step={1} onChange={(n) => setAbs("pctRuleWeeks", n)} />
-              <Num label="Games per team per week" value={draft.matchesPerWeek} step={1} onChange={(n) => set("matchesPerWeek", n)} />
+              <Num label="Weeks using that estimate" value={draft.absence.pctRuleWeeks} step={1} min={0} onChange={(n) => setAbs("pctRuleWeeks", n)} />
+              <Num label="Games per team per week" value={draft.matchesPerWeek} step={1} min={1} onChange={(n) => set("matchesPerWeek", n)} />
               <label className="field"><span>After that, an absence earns</span>
                 <select value={draft.absence.thereafter} onChange={(e) => setAbs("thereafter", e.target.value as any)}>
                   <option value="seasonAvgRetroactive">the player's season average (past weeks shift as weeks are added; matches the sheet)</option>
@@ -79,7 +83,7 @@ export function Setup() {
             <h2>Salary cap</h2>
             <p className="muted small">Cap = total league salary ÷ teams, plus a buffer, plus any one-off bumps.</p>
             <div className="fields">
-              <Num label="Teams in the average" value={draft.teamsForCapAverage} step={1} onChange={(n) => set("teamsForCapAverage", n)} />
+              <Num label="Teams in the average" value={draft.teamsForCapAverage} step={1} min={1} onChange={(n) => set("teamsForCapAverage", n)} />
               <Num label="Buffer" value={draft.capBuffer} step={50000} onChange={(n) => set("capBuffer", n)} />
               <label className="field"><span>One-off bumps by week</span>
                 <input defaultValue={capExtraText} placeholder="11: 500000, 13: 1000000" key={capExtraText}
@@ -100,7 +104,10 @@ export function Setup() {
         <aside>
           <section className="card sticky">
             <h2>Effect after week {w}</h2>
-            {!dirty ? <p className="muted">Change a rule to see who it moves before you save.</p> : !preview ? <p className="muted">Recalculating…</p> : (
+            {problems.length > 0 && (
+              <ul className="issues">{problems.map((p) => <li key={p} className="error">{p}</li>)}</ul>
+            )}
+            {!dirty ? <p className="muted">Change a rule to see who it moves before you save.</p> : problems.length ? null : !preview ? <p className="muted">Recalculating…</p> : (
               <>
                 <p>Cap {money(result.capByWeek[w])} → <strong>{money(preview.capByWeek[w])}</strong></p>
                 <table className="data compact">
@@ -114,7 +121,7 @@ export function Setup() {
               </>
             )}
             <div className="row gap">
-              <button className="primary" disabled={!dirty} onClick={() => update((inp) => ({ ...inp, rules: draft }))}>Save rules</button>
+              <button className="primary" disabled={!dirty || problems.length > 0} onClick={() => update((inp) => ({ ...inp, rules: draft }))}>Save rules</button>
               <button disabled={!dirty} onClick={() => setDraft(input.rules)}>Discard</button>
             </div>
           </section>

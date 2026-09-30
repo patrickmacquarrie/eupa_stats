@@ -1,6 +1,7 @@
 import type {
   EngineResult, GameLine, LeagueInput, PlayEvent, Player, RecordingSummary, StatLine, StatWeights,
 } from "./types";
+import { ruleProblems } from "./rules";
 
 const key = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
 const emptyLine = (): StatLine => ({
@@ -49,6 +50,8 @@ export function tallyRecording(events: PlayEvent[], canon: (n: string) => string
 
 export function computeLeague(input: LeagueInput): EngineResult {
   const { rules } = input;
+  const bad = ruleProblems(rules);
+  if (bad.length) throw new RangeError(`Invalid league rules: ${bad.join(" ")}`);
   const warnings: string[] = [];
 
   // --- identities -----------------------------------------------------------
