@@ -11,7 +11,7 @@ const escapeJson = (s: Snapshot | null) => JSON.stringify(s).replace(/</g, "\\u0
 
 /** The page content, as the Artifact tool publishes it (the host adds <html>/<head>/<body>). */
 export function pageBody(css: string, js: string, snapshot: Snapshot | null) {
-  return `<title>${PAGE_TITLE}</title>\n<style id="app-css">${css}</style>\n<div id="root"></div>\n` +
+  return `<title>${PAGE_TITLE}</title>\n<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&display=swap">\n<style id="app-css">${css}</style>\n<div id="root"></div>\n` +
     `<script type="application/json" id="stats-data">${escapeJson(snapshot)}</script>\n` +
     `<script type="module" id="app-js">${js}</script>\n`;
 }

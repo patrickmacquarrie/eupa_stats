@@ -24,10 +24,17 @@ function App() {
   }, []);
 
   return (
+    <>
+    <header className="pub-band"><div className="pub-band-inner">
+      <span className="brand-badge">EUPA</span>
+      <span className="pub-band-name">Edmonton Ultimate Players Association</span>
+      <span className="pub-band-sub">Player stats</span>
+    </div></header>
     <main className="page">
       {snapshot ? <PublicStatsView snapshot={snapshot} /> : <p className="empty">No stats have been published yet.</p>}
       {artifact && canEdit && <UpdatePanel artifact={artifact} onReadOnly={() => setCanEdit(false)} />}
     </main>
+    </>
   );
 }
 

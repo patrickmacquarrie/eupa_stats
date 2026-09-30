@@ -9,6 +9,7 @@ const js = [...html.matchAll(/<script type="module"[^>]*src="\.\/([^"]+)"/g)].ma
 if (!js.length) throw new Error("No entry script found in dist/index.html");
 const page = [
   "<title>EUPA Stats</title>",
+  '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&display=swap">',
   ...css.map((f) => `<link rel="stylesheet" href="${f}">`),
   '<div id="root"></div>',
   ...js.map((f) => `<script type="module" src="${f}"></script>`),

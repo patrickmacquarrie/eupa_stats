@@ -34,6 +34,12 @@ export function Home() {
   }
 
   return (
+    <>
+    <header className="pub-band"><div className="pub-band-inner">
+      <span className="brand-badge">EUPA</span>
+      <span className="pub-band-name">Stats</span>
+      <span className="pub-band-sub">Edmonton Ultimate Players Association</span>
+    </div></header>
     <main className="page narrow">
       <h1>Seasons</h1>
       <p className="muted">
@@ -81,5 +87,6 @@ export function Home() {
       </label>
       {error && <p className="error">{error}</p>}
     </main>
+    </>
   );
 }
