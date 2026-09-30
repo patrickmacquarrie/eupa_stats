@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { askConfirm } from "../lib/confirm";
 import { Link } from "react-router-dom";
 import { tallyRecording } from "../../engine/compute";
 import { genderOf } from "../../engine/pairing";
@@ -304,7 +305,7 @@ function Review({ draft, onBack, onDone }: { draft: Draft; onBack: () => void; o
   const download = () => downloadText(csvName, toTabletCsv(draft.events, draft.gameTimes));
 
   const save = async () => {
-    if (exists && !confirm(`${draft.team} already has a recording for ${draft.date}. Replace it with this one?`)) return;
+    if (exists && !(await askConfirm(`${draft.team} already has a recording for ${draft.date}. Replace it with this one?`, { ok: "Replace" }))) return;
     await updateSeason((x) => {
       const have = new Set(x.input.players.map((p) => nameKey(p.name)));
       const flags = (draft.flags ?? []).map((f) => ({
@@ -395,7 +396,7 @@ function Review({ draft, onBack, onDone }: { draft: Draft; onBack: () => void; o
         <button className="primary big" onClick={save}>Save to season</button>
         <button onClick={download}>Download CSV</button>
         <span className="grow" />
-        <button className="danger" onClick={() => { if (confirm("Throw this recording away? It can't be recovered.")) onDone(); }}>Discard</button>
+        <button className="danger" onClick={async () => { if (await askConfirm("Throw this recording away? It can't be recovered.", { ok: "Discard", danger: true })) onDone(); }}>Discard</button>
       </div>
     </main>
   );

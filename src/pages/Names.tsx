@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { askConfirm } from "../lib/confirm";
 import { Link } from "react-router-dom";
 import { computeLeague } from "../../engine/compute";
 import { genderOf } from "../../engine/pairing";
@@ -32,8 +33,8 @@ export function Names() {
   const [newGender, setNewGender] = useState<Record<string, string>>({});
   const genders = [...new Set(season.input.players.map((p) => genderOf(p.gender)).filter((g) => g !== "?"))];
 
-  const merge = (merges: Merge[], confirmText?: string) => {
-    if (confirmText && !confirm(confirmText)) return;
+  const merge = async (merges: Merge[], confirmText?: string) => {
+    if (confirmText && !(await askConfirm(confirmText, { ok: "Merge" }))) return;
     return updateSeason((s) => applyMerges(s, merges));
   };
   const ignore = (k: string) => updateSeason((s) => ({ ...s, ignoredNames: [...(s.ignoredNames ?? []), k] }));

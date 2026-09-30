@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { askConfirm } from "../lib/confirm";
 import { Link } from "react-router-dom";
 import { autoPairSubs, genderOf } from "../../engine/pairing";
 import type { GameLine, SubAssignment } from "../../engine/types";
@@ -61,8 +62,8 @@ export function Subs() {
         <label className="check"><input type="checkbox" checked={onlyDiff} onChange={(e) => setOnlyDiff(e.target.checked)} />
           Only where the rule disagrees or can't decide ({diffCount})</label>
         {diffCount > 0 && (
-          <button onClick={() => {
-            if (!confirm(`Replace the current pairing with the rule's suggestion in ${diffCount} game(s)? Flagged subs the rule can't place are left as they are.`)) return;
+          <button onClick={async () => {
+            if (!(await askConfirm(`Replace the current pairing with the rule's suggestion in ${diffCount} game(s)? Flagged subs the rule can't place are left as they are.`, { ok: "Apply the rule" }))) return;
             update((inp) => {
               let subs = inp.subAssignments;
               for (const g of groups.filter(differs)) {

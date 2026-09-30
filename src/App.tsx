@@ -1,4 +1,5 @@
 import { HashRouter, NavLink, Outlet, Route, Routes, useParams } from "react-router-dom";
+import { ConfirmHost } from "./lib/confirm";
 import { SeasonProvider, useSeason } from "./lib/SeasonContext";
 import { downloadJson } from "./lib/store";
 import { GameDetail } from "./pages/GameDetail";
@@ -17,6 +18,7 @@ import { Subs } from "./pages/Subs";
 export function App() {
   return (
     <HashRouter>
+      <ConfirmHost />
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/s/:id" element={<SeasonShell />}>

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { askConfirm } from "../lib/confirm";
 import { Link, useParams } from "react-router-dom";
 import { crossCheck } from "../../engine/crosscheck";
 import { PlayEditor } from "../components/PlayEditor";
@@ -133,8 +134,8 @@ function Side({ team, opp, week, lines, onEdit }: { team: string; opp: string; w
             {onEdit && !box && <button onClick={onEdit}>Edit possessions</button>}
             <button onClick={() => setEditing(true)}>{box ? "Edit box score" : "Correct with a box score"}</button>
             {box && (
-              <button className="danger" onClick={() => {
-                if (confirm("Remove this box score? The side goes back to its tablet recording, if there is one.")) {
+              <button className="danger" onClick={async () => {
+                if (await askConfirm("Remove this box score? The side goes back to its tablet recording, if there is one.", { ok: "Remove", danger: true })) {
                   update((inp) => ({ ...inp, boxScores: (inp.boxScores ?? []).filter((x) => x !== box) }));
                 }
               }}>Remove box score</button>

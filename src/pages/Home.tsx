@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { askConfirm } from "../lib/confirm";
 import { Link, useNavigate } from "react-router-dom";
 import fallUrl from "../../fixtures/fall-2026.json?url";
 import thursdayUrl from "../../fixtures/thursday-s1-2026.json?url";
@@ -52,7 +53,7 @@ export function Home() {
               </div>
               <button onClick={async () => { const x = await loadSeason(s.id); if (x) downloadJson(`${x.name}.json`, x); }}>Export</button>
               <button className="danger" onClick={async () => {
-                if (confirm(`Delete "${s.name}" from this browser? Export it first if you want a copy.`)) { await deleteSeason(s.id); refresh(); }
+                if (await askConfirm(`Delete "${s.name}" from this browser? Export it first if you want a copy.`, { ok: "Delete", danger: true })) { await deleteSeason(s.id); refresh(); }
               }}>Delete</button>
             </li>
           ))}

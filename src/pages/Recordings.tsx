@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { askConfirm } from "../lib/confirm";
 import { Link } from "react-router-dom";
 import { crossCheck } from "../../engine/crosscheck";
 import type { PlayEvent } from "../../engine/types";
@@ -154,8 +155,8 @@ export function Recordings() {
                   <td>{week ? <Link to={`../games/${week}/${encodeURIComponent(a)}/${encodeURIComponent(b)}`}>{shortTeam(team)}</Link> : shortTeam(team)} <span className="muted">v {shortTeam(opp)}</span></td>
                   <td className="num">{evs.length}</td>
                   <td className="num">{last.statScore}–{last.otherScore}</td>
-                  <td><button className="danger small-btn" onClick={() => {
-                    if (confirm(`Delete ${team}'s recording of ${date}? This can't be undone unless you have an export.`))
+                  <td><button className="danger small-btn" onClick={async () => {
+                    if (await askConfirm(`Delete ${team}'s recording of ${date}? This can't be undone unless you have an export.`, { ok: "Delete", danger: true }))
                       updateSeason((x) => ({ ...x, flags: withoutFlagsFor(x.flags, new Set([k])), input: { ...x.input, events: x.input.events.filter((e) => recKey(e) !== k) } }));
                   }}>Delete</button></td>
                 </tr>

@@ -1,4 +1,5 @@
 import { Fragment, useDeferredValue, useMemo, useState } from "react";
+import { askConfirm } from "../lib/confirm";
 import { computeLeague, tallyRecording } from "../../engine/compute";
 import type { PlayEvent, StatLine } from "../../engine/types";
 import { delta, shortTeam } from "../lib/format";
@@ -66,7 +67,7 @@ export function PlayEditor({ date, team, opp, focus, onClose }: { date: string; 
   }, [deferred, dirty]);
 
   const save = async () => {
-    if (issues.size && !confirm(`${issues.size} play(s) don't fit the flow of possessions (marked in red). Save anyway?`)) return;
+    if (issues.size && !(await askConfirm(`${issues.size} play(s) don't fit the flow of possessions (marked in red). Save anyway?`, { ok: "Save anyway" }))) return;
     await updateSeason((s) => ({
       ...s,
       input: { ...s.input, events: [...s.input.events.filter((e) => key(e) !== k), ...rows.map((r) => r.e)] },
@@ -87,12 +88,12 @@ export function PlayEditor({ date, team, opp, focus, onClose }: { date: string; 
     const at = i < poss.length ? poss[i].start : rows.length;
     setEditing({ start: at, count: 0, specs: [blankSpec(a), blankSpec(b)], inserting: true, allowOpen: false });
   };
-  const deletePair = (i: number) => {
+  const deletePair = async (i: number) => {
     const p = poss[i], q = poss[i + 1];
     const pair = q && q.ours !== p.ours;
     const end = pair ? q.end : p.end;
     const what = pair ? `this ${p.ours ? team : opp} possession and the ${q.ours ? team : opp} possession after it` : "this possession";
-    if (confirm(`Delete ${what}? Teams alternate, so possessions are removed in pairs.`)) apply(replacePossessions(rows, p.start, end - p.start + 1, []));
+    if (await askConfirm(`Delete ${what}? Teams alternate, so possessions are removed in pairs.`, { ok: "Delete", danger: true })) apply(replacePossessions(rows, p.start, end - p.start + 1, []));
   };
   const sideName = (ours: boolean) => shortTeam(ours ? team : opp);
 
@@ -105,7 +106,7 @@ export function PlayEditor({ date, team, opp, focus, onClose }: { date: string; 
         <h2 className="grow">Edit possessions: {team}'s tablet</h2>
         <label className="check small"><input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} /> Show all {poss.length}</label>
         <button disabled={!history.length} onClick={() => { setRows(history[history.length - 1]); setHistory(history.slice(0, -1)); setEditing(null); }}>Undo</button>
-        <button onClick={() => { if (!dirty || confirm("Discard these edits?")) onClose(); }}>Cancel</button>
+        <button onClick={async () => { if (!dirty || await askConfirm("Discard these edits?", { ok: "Discard", danger: true })) onClose(); }}>Cancel</button>
         <button className="primary" disabled={!dirty} onClick={save}>Save</button>
       </div>
       <p className="muted small">
