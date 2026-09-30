@@ -20,8 +20,7 @@ function Num({ label, value, onChange, step, hint }: { label: string; value: num
 }
 
 export function Setup() {
-  const { season, result, update } = useSeason();
-  const { input } = season;
+  const { input, result, update } = useSeason();
   const [draft, setDraft] = useState<LeagueRules>(input.rules);
   const deferred = useDeferredValue(draft);
   const dirty = JSON.stringify(draft) !== JSON.stringify(input.rules);

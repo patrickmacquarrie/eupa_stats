@@ -6,8 +6,7 @@ import { useSeason } from "../lib/SeasonContext";
 type SortKey = "name" | "team" | "salary" | "change" | "gp" | "goals" | "assists" | "blocks" | "turnovers";
 
 export function Players() {
-  const { season, result } = useSeason();
-  const { input } = season;
+  const { input, result } = useSeason();
   const [params, setParams] = useSearchParams();
   const team = params.get("team") ?? "";
   const [week, setWeek] = useState(input.throughWeek);

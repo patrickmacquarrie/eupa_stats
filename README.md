@@ -22,6 +22,7 @@ What's in the app (`src/`):
 | Players | Sortable salary and stat table by team and week; each player has a salary chart and game log |
 | Games | Every game with both tablets' scores; the game page shows the cross-check (which goals don't line up and why) and lets the admin replace either side with a box score |
 | Subs | The pairing override screen: current pick vs the same-gender rule, flags the rule can't settle, apply the rule per game or everywhere |
+| Names | Recorded spellings that match no player, with a suggested match (typos like Katelyn/Katelynn, short first names like Jess/Jessica); the sheet's old "Name Sub" records, merged in one click; likely duplicate player records. Merges are aliases applied when computing, so recordings keep the tablet's spelling and every merge can be undone |
 | Recordings | Upload tablet CSVs (one per team per game), preview problems and the cross-check before saving, delete recordings |
 | Setup | Edit the league rules with a live preview of who moves before saving; schedule, counted-through week, add players |
 

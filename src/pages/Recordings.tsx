@@ -7,6 +7,7 @@ import sample1b from "../../fixtures/disputes/2026-08-31_T3vT2_team3.csv?raw";
 import sample2a from "../../fixtures/disputes/2026-09-21_T3vT1_team1.csv?raw";
 import sample2b from "../../fixtures/disputes/2026-09-21_T3vT1_team3.csv?raw";
 import { tabletCsvToEvents } from "../lib/csv";
+import { nameKey, suggestPlayer } from "../lib/names";
 import { shortTeam } from "../lib/format";
 import { recordingsOf, weekOfDate } from "../lib/season";
 import { useSeason } from "../lib/SeasonContext";
@@ -28,7 +29,7 @@ export function Recordings() {
 
   const existing = useMemo(() => recordingsOf(input.events), [input.events]);
   const teams = new Set(input.teams.map((t) => t.name));
-  const known = new Set(input.players.map((p) => p.name.trim().toLowerCase()));
+  const known = new Set([...input.players.map((p) => nameKey(p.name)), ...(season.aliases ?? []).map((a) => nameKey(a.from))]);
 
   const addFiles = (files: [string, string][]) => {
     setMsg(null);
@@ -50,7 +51,7 @@ export function Recordings() {
     return out;
   };
   const unknownNames = (p: Pending) => [...new Set(p.events.flatMap((e) => [e.player, e.lastPlayer, e.secLastPlayer])
-    .filter((n): n is string => !!n && !known.has(n.trim().toLowerCase())))];
+    .filter((n): n is string => !!n && !known.has(nameKey(n))))];
 
   const ok = pending.filter((p) => problems(p).length === 0);
   // Two pending files for the same game: show the cross-check before anything is saved.
@@ -105,7 +106,10 @@ export function Recordings() {
                       <td className="small">
                         {probs.map((x, j) => <div key={j} className="error">{x}</div>)}
                         {!probs.length && (existing.has(recKey(e)) ? <span className="attn">replaces the saved recording</span> : <span className="muted">new</span>)}
-                        {unk.length > 0 && <div className="attn">Not in the player list: {unk.join(", ")}</div>}
+                        {unk.length > 0 && <div className="attn">Not in the player list: {unk.map((n) => {
+                          const sg = suggestPlayer(n, input.players);
+                          return sg ? `${n} (probably ${sg.name})` : n;
+                        }).join(", ")}. Sort these out on the <Link to="../names">Names</Link> tab after adding.</div>}
                       </td>
                       <td><button className="icon" aria-label={`Remove ${p.file}`} onClick={() => setPending(pending.filter((_, j) => j !== i))}>×</button></td>
                     </tr>

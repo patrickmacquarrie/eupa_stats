@@ -1,6 +1,7 @@
 // A season as the app stores it: the engine's raw inputs plus a little metadata.
 // Nothing derived (salaries, cap, box scores) is stored; the engine rebuilds it on load.
 import type { BoxScore, LeagueInput, PlayEvent } from "../../engine/types";
+import type { Alias } from "./names";
 
 export interface Season {
   id: string;
@@ -9,6 +10,10 @@ export interface Season {
   createdAt: string;
   updatedAt: string;
   input: LeagueInput;
+  /** Recorded spellings mapped to players (typos, old "Name Sub" records). */
+  aliases?: Alias[];
+  /** Name flags the admin dismissed: a spelling, or "a|b" for a pair of players that really are different people. */
+  ignoredNames?: string[];
 }
 
 export interface SeasonMeta { id: string; name: string; source: string; updatedAt: string }
@@ -51,6 +56,13 @@ export function seasonFromFixture(fx: any, name?: string): { season: Season; not
   const events: PlayEvent[] = fx.events ?? [];
   // The sheets' schedule block also holds time-slot rows ("19:20-19:45"); only dated rows are weeks.
   const schedule = (fx.schedule as { week: number; date: string }[]).filter((s) => /^\d{4}-\d{2}-\d{2}$/.test(s.date));
+  // Some sheets never filled in week 1's date; take it from the earliest recording before week 2.
+  const first = [...schedule].sort((a, b) => a.week - b.week)[0];
+  const earliest = events.map((e) => e.date).sort()[0];
+  if (first && first.week > 1 && earliest && earliest < first.date) {
+    schedule.push({ week: first.week - 1, date: earliest });
+    notes.push(`Week ${first.week - 1} had no date in the sheet; using the earliest recording (${earliest}).`);
+  }
   const have = new Set(events.map((e) => `${weekOfDate(schedule, e.date)}|${e.statTeam}|${e.otherTeam}`));
   const lost = new Set(entries.map((e) => `${e.week}|${e.team}|${e.opp}`).filter((g) => !have.has(g)));
   if (lost.size) notes.push(`${lost.size} recording(s) had no events and were loaded from the sheet as box scores.`);

@@ -5,8 +5,7 @@ import { useSeason } from "../lib/SeasonContext";
 
 export function PlayerDetail() {
   const { name = "" } = useParams();
-  const { season, result } = useSeason();
-  const { input } = season;
+  const { input, result } = useSeason();
   const p = input.players.find((x) => x.name === name);
   if (!p) return <main className="page"><p>No player called “{name}”. <Link to="../players">All players</Link></p></main>;
 

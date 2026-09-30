@@ -5,8 +5,7 @@ import { money, moneyShort, shortTeam } from "../lib/format";
 import { teamPayroll, useSeason } from "../lib/SeasonContext";
 
 export function Overview() {
-  const { season, result, games, computeMs } = useSeason();
-  const { input } = season;
+  const { season, input, result, games, computeMs, nameIssueCount } = useSeason();
   const last = input.throughWeek;
   const [week, setWeek] = useState(last);
   const w = Math.min(week, last);
@@ -31,6 +30,12 @@ export function Overview() {
       </div>
 
       {notes && <p className="note">{notes}</p>}
+      {nameIssueCount > 0 && (
+        <p className="note attn-note">
+          {nameIssueCount} name issue(s) to review: spellings that don't match a player, or old “Name Sub” records.{" "}
+          <Link to="names">Review names</Link>
+        </p>
+      )}
 
       <section className="tiles">
         <div className="tile"><span className="tile-label">Salary cap</span><span className="tile-value">{money(cap)}</span></div>

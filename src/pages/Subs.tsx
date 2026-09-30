@@ -12,8 +12,7 @@ const same = (x: string, y: string) => x.toLowerCase() === y.toLowerCase();
  * (same gender; best sub night covers the highest salary); the admin's pick is what counts.
  */
 export function Subs() {
-  const { season, result, update } = useSeason();
-  const { input } = season;
+  const { input, result, update, resolveName } = useSeason();
   const [week, setWeek] = useState<number | "all">("all");
   const [onlyDiff, setOnlyDiff] = useState(false);
 
@@ -43,7 +42,7 @@ export function Subs() {
     update((inp) => ({
       ...inp,
       subAssignments: [
-        ...inp.subAssignments.filter((s) => !(s.week === week && s.team === team && s.opp === opp && next.some((n) => same(n.sub, s.sub)))),
+        ...inp.subAssignments.filter((s) => !(s.week === week && s.team === team && s.opp === opp && next.some((n) => same(n.sub, resolveName(s.sub))))),
         ...next.filter((n) => n.subbedFor).map((n): SubAssignment => ({ week, team, opp, ...n })),
       ],
     }));
@@ -68,7 +67,7 @@ export function Subs() {
               let subs = inp.subAssignments;
               for (const g of groups.filter(differs)) {
                 const { week, team, opp } = g.lines[0];
-                subs = subs.filter((s) => !(s.week === week && s.team === team && s.opp === opp && g.assignments.some((a) => same(a.sub, s.sub))));
+                subs = subs.filter((s) => !(s.week === week && s.team === team && s.opp === opp && g.assignments.some((a) => same(a.sub, resolveName(s.sub)))));
                 subs = [...subs, ...g.assignments];
               }
               return { ...inp, subAssignments: subs };

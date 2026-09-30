@@ -4,6 +4,7 @@ import { downloadJson } from "./lib/store";
 import { GameDetail } from "./pages/GameDetail";
 import { Games } from "./pages/Games";
 import { Home } from "./pages/Home";
+import { Names } from "./pages/Names";
 import { Overview } from "./pages/Overview";
 import { PlayerDetail } from "./pages/PlayerDetail";
 import { Players } from "./pages/Players";
@@ -24,6 +25,7 @@ export function App() {
           <Route path="games" element={<Games />} />
           <Route path="games/:week/:a/:b" element={<GameDetail />} />
           <Route path="subs" element={<Subs />} />
+          <Route path="names" element={<Names />} />
           <Route path="recordings" element={<Recordings />} />
           <Route path="setup" element={<Setup />} />
         </Route>
@@ -44,9 +46,9 @@ function SeasonShell() {
 }
 
 function Header() {
-  const { season } = useSeason();
+  const { season, nameIssueCount } = useSeason();
   const base = `/s/${season.id}`;
-  const tabs: [string, string][] = [["", "Overview"], ["/players", "Players"], ["/games", "Games"], ["/subs", "Subs"], ["/recordings", "Recordings"], ["/setup", "Setup"]];
+  const tabs: [string, string][] = [["", "Overview"], ["/players", "Players"], ["/games", "Games"], ["/subs", "Subs"], ["/names", "Names"], ["/recordings", "Recordings"], ["/setup", "Setup"]];
   return (
     <header className="app-header">
       <div className="header-top">
@@ -56,7 +58,9 @@ function Header() {
         <button className="small-btn" onClick={() => downloadJson(`${season.name}.json`, season)}>Export</button>
       </div>
       <nav className="tabs">
-        {tabs.map(([to, label]) => <NavLink key={to} to={base + to} end={to === ""}>{label}</NavLink>)}
+        {tabs.map(([to, label]) => <NavLink key={to} to={base + to} end={to === ""}>
+          {label}{to === "/names" && nameIssueCount > 0 && <span className="badge" aria-label={`${nameIssueCount} to review`}>{nameIssueCount}</span>}
+        </NavLink>)}
       </nav>
     </header>
   );

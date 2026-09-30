@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { computeLeague } from "../../engine/compute";
 import type { EngineResult, LeagueInput, RecordingSummary } from "../../engine/types";
+import { aliasMap, findNameIssues, resolveInput } from "./names";
 import type { Season } from "./season";
 import { loadSeason, saveSeason } from "./store";
 
@@ -13,11 +14,18 @@ export interface Game {
 
 interface Ctx {
   season: Season;
+  /** What the engine sees: the season's input with recorded names resolved through its aliases. */
+  input: LeagueInput;
   result: EngineResult;
+  /** Names that need a look (unknown spellings, old "Sub" records, likely duplicates). */
+  nameIssueCount: number;
+  /** Maps a stored spelling to the player it counts for. */
+  resolveName: (n: string) => string;
   games: Game[];
   computeMs: number;
   /** Replace the season's inputs; the engine reruns and the change is saved. */
   update: (fn: (input: LeagueInput) => LeagueInput, patch?: Partial<Pick<Season, "name">>) => Promise<void>;
+  updateSeason: (fn: (s: Season) => Season) => Promise<void>;
 }
 
 const SeasonCtx = createContext<Ctx | null>(null);
@@ -55,13 +63,17 @@ export function teamPayroll(input: LeagueInput, res: EngineResult, week: number)
   return out;
 }
 
-export function useComputed(input: LeagueInput | undefined) {
+export function useComputed(season: Season | null | undefined) {
   return useMemo(() => {
-    if (!input) return null;
+    if (!season) return null;
     const t0 = performance.now();
+    const input = resolveInput(season.input, season.aliases);
     const result = computeLeague(input);
-    return { result, games: gamesOf(result.recordings), computeMs: performance.now() - t0 };
-  }, [input]);
+    const computeMs = performance.now() - t0;
+    const issues = findNameIssues(season.input, season.aliases, season.ignoredNames);
+    const nameIssueCount = issues.unknown.length + issues.subRecords.length + issues.dupes.length;
+    return { input, result, games: gamesOf(result.recordings), computeMs, nameIssueCount, resolveName: aliasMap(season.aliases) };
+  }, [season]);
 }
 
 export function SeasonProvider({ id, children }: { id: string; children: ReactNode }) {
@@ -73,7 +85,7 @@ export function SeasonProvider({ id, children }: { id: string; children: ReactNo
     return () => { live = false; };
   }, [id]);
 
-  const computed = useComputed(season?.input);
+  const computed = useComputed(season);
 
   const update = useCallback<Ctx["update"]>(async (fn, patch) => {
     if (!season) return;
@@ -81,10 +93,15 @@ export function SeasonProvider({ id, children }: { id: string; children: ReactNo
     setSeason(next);
   }, [season]);
 
+  const updateSeason = useCallback<Ctx["updateSeason"]>(async (fn) => {
+    if (!season) return;
+    setSeason(await saveSeason(fn(season)));
+  }, [season]);
+
   if (season === undefined) return <p className="muted pad">Loading season…</p>;
   if (season === null || !computed) return <p className="pad">That season isn't in this browser. <a href="#/">Back to seasons</a></p>;
   return (
-    <SeasonCtx.Provider value={{ season, update, ...computed }}>
+    <SeasonCtx.Provider value={{ season, update, updateSeason, ...computed }}>
       {children}
     </SeasonCtx.Provider>
   );

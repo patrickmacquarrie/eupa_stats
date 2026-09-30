@@ -14,8 +14,7 @@ const STATS: [keyof StatLine, string][] = [
 export function GameDetail() {
   const { week: wk = "", a = "", b = "" } = useParams();
   const week = Number(wk);
-  const { season, result } = useSeason();
-  const { input } = season;
+  const { input, result } = useSeason();
 
   const eventsFor = (team: string, opp: string) =>
     input.events.filter((e) => e.statTeam === team && e.otherTeam === opp && weekOfDate(input.schedule, e.date) === week);
