@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 import { tallyRecording } from "../engine/compute";
 import type { PlayEvent } from "../engine/types";
 import { tabletCsvToEvents } from "../src/lib/csv";
-import { changed, insertRow, problems, remapIndex, removeRow, rowsOf, setAction, setPlayer } from "../src/lib/playlog";
+import { changed, insertRow, pairAt, problems, remapIndex, removeRow, replacePossessions, rowsOf, setAction, setPlayer, specOf, specProblem } from "../src/lib/playlog";
+import { possessions } from "../src/lib/recorder";
 import { recordingsOf } from "../src/lib/season";
 
 const sample = () => tabletCsvToEvents(readFileSync("fixtures/disputes/2026-08-31_T3vT2_team2.csv", "utf8"));
@@ -79,4 +80,50 @@ it("appends a missing final point", () => {
   expect(evs[9]).toMatchObject({ action: "Touch", player: "Aven Unger", statScore: 1 });
   const rows = insertRow(rowsOf(evs), evs.length, "Point", null);
   expect(rows.at(-1)!.e).toMatchObject({ action: "Point", player: "Aven Unger", lastPlayer: "James Cannon", statScore: 1 });
+});
+
+describe("editing by possession", () => {
+  it("rewrites one of our possessions and derives the assists", () => {
+    const evs = sample();
+    const ps = possessions(evs);
+    const p = ps.find((x) => x.ours && evs[x.end].action === "Point")!;
+    const rows = replacePossessions(rowsOf(evs), p.start, p.end - p.start + 1, [{ side: "ours", touches: ["Masha Parshykova", "Alex Wong", "Aven Unger"], outcome: "Point" }]);
+    expect(rows.slice(p.start, p.start + 4).map((r) => [r.e.action, r.e.player, r.e.lastPlayer, r.e.secLastPlayer])).toEqual([
+      ["Touch", "Masha Parshykova", null, null], ["Touch", "Alex Wong", "Masha Parshykova", null],
+      ["Touch", "Aven Unger", "Alex Wong", "Masha Parshykova"], ["Point", "Aven Unger", "Alex Wong", "Masha Parshykova"],
+    ]);
+    expect(rows.at(-1)!.e.statScore).toBe(evs.at(-1)!.statScore);
+  });
+
+  it("inserts a pair that keeps the teams alternating, and deletes one", () => {
+    const evs = sample();
+    const ps = possessions(evs);
+    const after = ps[0]; // ours, ends in a Drop
+    const [a, b] = pairAt(after.ours, ps[1].ours);
+    expect([a, b]).toEqual([false, true]);
+    const rows = replacePossessions(rowsOf(evs), after.end + 1, 0, [
+      { side: "theirs", outcome: "GSO", player: "Masha Parshykova" },
+      { side: "ours", touches: ["Mika Uusnakki", "James Cannon"], outcome: "Point" },
+    ]);
+    expect(problems(rows).size).toBe(0);
+    expect([rows.at(-1)!.e.statScore - evs.at(-1)!.statScore, rows.at(-1)!.e.otherScore - evs.at(-1)!.otherScore]).toEqual([1, 1]);
+    expect(rows[after.end + 4].e).toMatchObject({ action: "Point", player: "James Cannon", lastPlayer: "Mika Uusnakki" });
+    const back = replacePossessions(rows, after.end + 1, 4, []);
+    expect(back.map((r) => r.e)).toEqual(evs);
+  });
+
+  it("round-trips every possession of a real recording unchanged", () => {
+    const evs = sample();
+    for (const p of possessions(evs)) {
+      const rows = replacePossessions(rowsOf(evs), p.start, p.end - p.start + 1, [specOf(evs.slice(p.start, p.end + 1), p.ours)]);
+      expect(rows.map((r) => r.e)).toEqual(evs);
+    }
+  });
+
+  it("explains what's missing", () => {
+    expect(specProblem({ side: "ours", touches: [], outcome: "Point" })).toMatch(/scorer/);
+    expect(specProblem({ side: "ours", touches: ["A"], outcome: "Drop", droppedBy: "A" })).toMatch(/own throw/);
+    expect(specProblem({ side: "theirs", outcome: "D-Play" })).toMatch(/D-Play/);
+    expect(specProblem({ side: "theirs", outcome: "GSO" })).toBeNull();
+  });
 });

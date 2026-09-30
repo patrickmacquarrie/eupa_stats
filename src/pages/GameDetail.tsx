@@ -130,7 +130,7 @@ function Side({ team, opp, week, lines, onEdit }: { team: string; opp: string; w
             </tbody>
           </table>
           <div className="row gap">
-            {onEdit && !box && <button onClick={onEdit}>Edit plays</button>}
+            {onEdit && !box && <button onClick={onEdit}>Edit possessions</button>}
             <button onClick={() => setEditing(true)}>{box ? "Edit box score" : "Correct with a box score"}</button>
             {box && (
               <button className="danger" onClick={() => {
@@ -220,14 +220,14 @@ function Flags({ week, a, b, onEdit }: { week: number; a: string; b: string; onE
   return (
     <section className="card">
       <h2>Flagged by the stat-taker ({open} open)</h2>
-      <p className="muted small">Possessions marked as wrong during the game. Fix them in the play editor (or with a box score for that side), then mark them resolved.</p>
+      <p className="muted small">Possessions marked as wrong during the game. Fix them in the possession editor (or with a box score for that side), then mark them resolved.</p>
       {flags.map((f, i) => {
         const plays = input.events.filter((e) => e.date === f.date && e.statTeam === f.team && e.otherTeam === f.opp).slice(f.start, f.end + 1);
         return (
           <div key={i} className={"flag-item" + (f.resolved ? " resolved" : "")}>
             <div className="row">
               <strong className="grow">⚑ {f.team}'s tablet, {f.clock}</strong>
-              {!f.resolved && <button className="small-btn" onClick={() => onEdit(f.team, f.opp, f.date, f.start)}>Edit these plays</button>}{" "}
+              {!f.resolved && <button className="small-btn" onClick={() => onEdit(f.team, f.opp, f.date, f.start)}>Edit this possession</button>}{" "}
               <button className="small-btn" onClick={() => setResolved(f, !f.resolved)}>{f.resolved ? "Reopen" : "Mark resolved"}</button>
             </div>
             {f.note && <p className="small">“{f.note}”</p>}

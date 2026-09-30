@@ -41,13 +41,14 @@ function counts(rows: Row[]) {
 }
 
 /**
- * After an edit at `from`: re-derive players/assists to the end of that possession, and shift
+ * After an edit at `from`: re-derive players/assists to the end of that possession (or of the
+ * possession holding `through`, when several were replaced), and shift
  * each later play's recorded score by however many Points/GSOs the edit added or removed before
  * it. Scores are shifted, never recomputed, because old recordings carry quirks (the scorer's
  * Touch showing the new score a moment early, sometimes as the recording's last play) that
  * decide the final score.
  */
-function repair(before: Row[], rows: Row[], from: number): Row[] {
+function repair(before: Row[], rows: Row[], from: number, through = from): Row[] {
   const out = rows.map((r) => ({ ...r, e: { ...r.e } }));
   let chain = chainBefore(out, from);
   for (let j = from; j < out.length; j++) {
@@ -58,7 +59,7 @@ function repair(before: Row[], rows: Row[], from: number): Row[] {
     if (e.action === "T-Away" && chain[0]) e.player = chain[0];
     if (["D-Play", "GSO", "O-Error"].includes(e.action)) { e.lastPlayer = null; e.secLastPlayer = null; }
     if (e.action === "O-Error") e.player = null;
-    if (ENDS.has(e.action)) break;
+    if (ENDS.has(e.action)) { if (j >= through) break; chain = []; }
   }
   const was = counts(before), now = counts(out);
   for (let j = 0; j < out.length; j++) {
@@ -132,3 +133,73 @@ export const changed = (r: Row, original: PlayEvent[]) => {
   return o.action !== r.e.action || o.player !== r.e.player || o.lastPlayer !== r.e.lastPlayer ||
     o.secLastPlayer !== r.e.secLastPlayer || o.statScore !== r.e.statScore || o.otherScore !== r.e.otherScore;
 };
+
+/* ---------------------------------------------------------------- possessions */
+
+/** Our possession: the catches in order, then how it ended. A Point is scored by the last catch. */
+export interface OursSpec { side: "ours"; touches: string[]; outcome: "Point" | "Drop" | "T-Away" | "open"; droppedBy?: string }
+/** Their possession, as our tablet sees it: how we got the disc back, or that they scored. */
+export interface TheirsSpec { side: "theirs"; outcome: "D-Play" | "O-Error" | "GSO"; player?: string | null }
+export type Spec = OursSpec | TheirsSpec;
+
+export function specOf(events: PlayEvent[], ours: boolean): Spec {
+  const last = events[events.length - 1];
+  if (!ours) return { side: "theirs", outcome: last.action as TheirsSpec["outcome"], player: last.player ?? null };
+  const touches = events.filter((e) => e.action === "Touch").map((e) => e.player ?? "");
+  if (last.action === "Point" || last.action === "T-Away") return { side: "ours", touches, outcome: last.action };
+  if (last.action === "Drop") return { side: "ours", touches, outcome: "Drop", droppedBy: last.player ?? "" };
+  return { side: "ours", touches, outcome: "open" };
+}
+
+/** Why a possession can't be saved yet, or null. */
+export function specProblem(s: Spec): string | null {
+  if (s.side === "theirs") return s.outcome === "D-Play" && !s.player ? "Pick who got the D-Play" : null;
+  if (s.touches.some((t) => !t)) return "Pick a player for every catch";
+  if (s.outcome === "Point" && !s.touches.length) return "A Point needs at least the scorer's catch";
+  if ((s.outcome === "Drop" || s.outcome === "T-Away") && !s.touches.length) return "Someone has to have the disc first";
+  if (s.outcome === "Drop" && !s.droppedBy) return "Pick who dropped it";
+  if (s.outcome === "Drop" && s.droppedBy === s.touches[s.touches.length - 1]) return "The thrower can't drop their own throw";
+  if (s.outcome === "open" && !s.touches.length) return "Add at least one catch";
+  return null;
+}
+
+/** Events for a possession; assists and scores are filled in by `repair`. */
+function eventsOf(s: Spec, template: PlayEvent): PlayEvent[] {
+  const ev = (action: string, player: string | null): PlayEvent => ({ ...template, action, player, lastPlayer: null, secLastPlayer: null });
+  if (s.side === "theirs") return [ev(s.outcome, s.outcome === "O-Error" ? null : s.player ?? null)];
+  const out = s.touches.map((t) => ev("Touch", t));
+  if (s.outcome === "Point") out.push(ev("Point", s.touches[s.touches.length - 1]));
+  if (s.outcome === "T-Away") out.push(ev("T-Away", s.touches[s.touches.length - 1]));
+  if (s.outcome === "Drop") out.push(ev("Drop", s.droppedBy ?? null));
+  return out;
+}
+
+/**
+ * Replaces `count` plays starting at `start` with the given possessions (count 0 inserts,
+ * no specs deletes). Where a rewritten play is the same kind of play as the one it replaces, the
+ * original is kept (its time, which the tablet cross-check lines up on, and its recorded score);
+ * only the players and assists change. Truly new plays take the nearest recorded time.
+ */
+export function replacePossessions(rows: Row[], start: number, count: number, specs: Spec[]): Row[] {
+  const template = rows[start]?.e ?? rows[start - 1]?.e;
+  if (!template) throw new Error("Nothing to edit");
+  const old = rows.slice(start, start + count);
+  const events = specs.flatMap((s) => eventsOf(s, template));
+  const lastOld = old[old.length - 1];
+  const fresh: Row[] = events.map((e, k) => {
+    // Line the new plays up with the old ones: touches in order, and the last play with the last.
+    const o = k === events.length - 1 && lastOld && e.action !== "Touch" ? lastOld : old[k];
+    if (o && o.e.action === e.action) return { ...o, e: { ...o.e, player: e.player } };
+    return { uid: nextUid++, orig: null, e: { ...e, clock: (o ?? lastOld)?.e.clock ?? e.clock } };
+  });
+  const next = [...rows.slice(0, start), ...fresh, ...rows.slice(start + count)];
+  return repair(rows, next, start, start + Math.max(0, fresh.length - 1));
+}
+
+/** The pair to insert between two possessions so the teams keep alternating. */
+export function pairAt(prevOurs: boolean | null, nextOurs: boolean | null): [boolean, boolean] {
+  const first = prevOurs !== null ? !prevOurs : nextOurs !== null ? nextOurs : true;
+  return [first, !first];
+}
+
+export const blankSpec = (ours: boolean): Spec => (ours ? { side: "ours", touches: [""], outcome: "Point" } : { side: "theirs", outcome: "GSO", player: null });
