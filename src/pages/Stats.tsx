@@ -1,16 +1,23 @@
 import { useMemo, useState } from "react";
 import { PublicStatsView } from "../components/PublicStatsView";
 import { DEFAULT_PUBLIC, buildSnapshot } from "../lib/publicStats";
+import { askConfirm } from "../lib/confirm";
 import { useSeason } from "../lib/SeasonContext";
 
 /** The player-facing stats, as the public page will show them, and the way to update that page. */
 export function Stats() {
-  const { season, input, result } = useSeason();
-  const snapshot = useMemo(() => buildSnapshot(season.name, input, result, season.publicStats ?? DEFAULT_PUBLIC), [season, input, result]);
+  const { season, input, result, provisional } = useSeason();
+  const snapshot = useMemo(() => {
+    const s = buildSnapshot(season.name, input, result, season.publicStats ?? DEFAULT_PUBLIC);
+    const weeks = provisional.filter((w) => w <= input.throughWeek);
+    return weeks.length ? { ...s, provisionalWeeks: weeks } : s;
+  }, [season, input, result, provisional]);
   const [copied, setCopied] = useState<"yes" | "manual" | null>(null);
   const text = JSON.stringify(snapshot);
 
   const copy = async () => {
+    const weeks = snapshot.provisionalWeeks ?? [];
+    if (weeks.length && !(await askConfirm(`Week ${weeks.join(", ")} still ${weeks.length > 1 ? "have" : "has"} open items (see Overview), so those numbers can change. Copy anyway? The public page will say they're provisional.`, { ok: "Copy anyway" }))) return;
     try { await navigator.clipboard.writeText(text); setCopied("yes"); }
     catch { setCopied("manual"); }
   };

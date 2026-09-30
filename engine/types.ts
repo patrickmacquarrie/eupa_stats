@@ -112,6 +112,11 @@ export interface LeagueInput {
    * player with no plays is treated as absent; with one, they get a zero stat line and the result.
    */
   presentWithoutPlays?: { week: number; team: string; opp: string; player: string }[];
+  /**
+   * Scores an administrator set when the two tablets disagreed. The official score decides the
+   * result for BOTH sides (each tablet's own stats still count); `scoreA` is team `a`'s.
+   */
+  officialScores?: { week: number; a: string; b: string; scoreA: number; scoreB: number }[];
   /** Games up to and including this week are counted. */
   throughWeek: number;
 }
@@ -140,6 +145,8 @@ export interface RecordingSummary {
   finalScore: number; finalOppScore: number;
   result: number;          // 1 / 0.5 / 0 for `team`
   eventCount: number;
+  /** True when an administrator's official score set this result. */
+  official?: boolean;
 }
 
 export interface EngineResult {

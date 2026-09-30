@@ -4,7 +4,7 @@ import { Link, useParams } from "react-router-dom";
 import { crossCheck } from "../../engine/crosscheck";
 import { PlayEditor } from "../components/PlayEditor";
 import type { BoxScore, GameLine, StatLine } from "../../engine/types";
-import { delta, money, resultLabel } from "../lib/format";
+import { delta, money, resultLabel, shortTeam } from "../lib/format";
 import { weekOfDate, type SavedFlag } from "../lib/season";
 import { describe } from "../lib/recorder";
 import { useSeason } from "../lib/SeasonContext";
@@ -43,8 +43,9 @@ export function GameDetail() {
           <p>
             {a}'s tablet says <strong>{check.finalA}</strong>; {b}'s tablet says <strong>{check.finalB}</strong> ({a} first).
             {check.agree ? " They agree." : <> Proposed final: <strong>{check.proposed.a}–{check.proposed.b}</strong>
-              {check.proposed.needsAdmin ? ", with conflicts for you to decide." : ", no admin decision needed."}</>}
+              {check.proposed.needsAdmin ? ", with conflicts for you to decide." : "."}</>}
           </p>
+          {!check.agree && <OfficialScore week={week} a={a} b={b} proposed={[check.proposed.a, check.proposed.b]} />}
           {check.unmatched.length > 0 ? (
             <table className="data">
               <thead><tr><th>Time</th><th>Only on</th><th>What</th><th>Score after</th><th>Verdict</th><th>Why</th></tr></thead>
@@ -61,7 +62,7 @@ export function GameDetail() {
               </tbody>
             </table>
           ) : <p className="muted small">Every Point on one tablet lines up with a GSO on the other.</p>}
-          <p className="muted small">Each side's salaries use that tablet's own score. To settle a disagreement, correct a side below with a box score.</p>
+          <p className="muted small">Until an official score is set, each side's win or loss comes from its own tablet, so both teams can be credited the win. The week stays provisional until it's settled.</p>
         </section>
       )}
 
@@ -102,6 +103,7 @@ function Side({ team, opp, week, lines, onEdit }: { team: string; opp: string; w
       </div>
       <p className="muted small">
         {!rec ? "No recording for this side." : box ? "From an admin box score." : `From ${rec.eventCount} tablet events.`}
+        {rec?.official && " Result from the official score."}
       </p>
       {editing ? (
         <BoxEditor team={team} opp={opp} week={week} lines={lines} initial={box} onDone={() => setEditing(false)} />
@@ -237,5 +239,30 @@ function Flags({ week, a, b, onEdit }: { week: number; a: string; b: string; onE
         );
       })}
     </section>
+  );
+}
+
+/** The administrator's call on a disputed game: decides the result for both sides. */
+function OfficialScore({ week, a, b, proposed }: { week: number; a: string; b: string; proposed: [number, number] }) {
+  const { season, update } = useSeason();
+  const current = (season.input.officialScores ?? []).find((o) => o.week === week && ((o.a === a && o.b === b) || (o.a === b && o.b === a)));
+  const cur: [number, number] | null = current ? (current.a === a ? [current.scoreA, current.scoreB] : [current.scoreB, current.scoreA]) : null;
+  const [sa, setSa] = useState(String(cur?.[0] ?? proposed[0]));
+  const [sb, setSb] = useState(String(cur?.[1] ?? proposed[1]));
+  const ok = /^\d+$/.test(sa) && /^\d+$/.test(sb);
+  const others = (list: typeof season.input.officialScores) => (list ?? []).filter((o) => !(o.week === week && ((o.a === a && o.b === b) || (o.a === b && o.b === a))));
+  return (
+    <div className={"official" + (cur ? " set" : "")}>
+      {cur ? <p><strong>Official score: {a} {cur[0]}–{cur[1]} {b}.</strong> Both teams' results follow it; each tablet's own stats still count.</p>
+        : <p><strong>Settle it:</strong> set the official score. Both teams' results follow it; each tablet's own stats still count.</p>}
+      <div className="row gap-sm wrap">
+        <label className="field inline"><span>{shortTeam(a)}</span><input className="num-in" inputMode="numeric" value={sa} onChange={(e) => setSa(e.target.value)} aria-label={`${a} official score`} /></label>
+        <span>–</span>
+        <label className="field inline"><span>{shortTeam(b)}</span><input className="num-in" inputMode="numeric" value={sb} onChange={(e) => setSb(e.target.value)} aria-label={`${b} official score`} /></label>
+        <button className="primary" disabled={!ok} onClick={() => update((inp) => ({ ...inp, officialScores: [...others(inp.officialScores), { week, a, b, scoreA: Number(sa), scoreB: Number(sb) }] }))}>
+          {cur ? "Update official score" : "Set official score"}</button>
+        {cur && <button onClick={() => update((inp) => ({ ...inp, officialScores: others(inp.officialScores) }))}>Clear</button>}
+      </div>
+    </div>
   );
 }

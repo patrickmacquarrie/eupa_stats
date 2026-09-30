@@ -32,6 +32,8 @@ export interface Snapshot {
   generatedAt: string;
   settings: PublicSettings;
   rows: PublicRow[];
+  /** Weeks included here whose numbers could still change (disputes, flags and so on still open). */
+  provisionalWeeks?: number[];
 }
 
 type Def = { key: string; label: string; short?: string; value: (r: PublicRow) => number | null; perGame?: boolean };
@@ -144,6 +146,7 @@ export function snapshotProblems(d: any): string[] {
     if (!Number.isInteger(st.topN) || st.topN < 1 || st.topN > 50) out.push("Players per leaderboard must be 1 to 50.");
     if (!Number.isInteger(st.minGames) || st.minGames < 1) out.push("The minimum games must be at least 1.");
   }
+  if (d.provisionalWeeks !== undefined && (!Array.isArray(d.provisionalWeeks) || d.provisionalWeeks.some((w: unknown) => !Number.isInteger(w) || (w as number) < 1))) out.push("The snapshot's provisional weeks aren't week numbers.");
   if (!Array.isArray(d.rows)) return [...out, "The snapshot has no players."];
   const seen = new Set<string>();
   d.rows.forEach((r: any, i: number) => {

@@ -2,10 +2,11 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { LineChart } from "../components/LineChart";
 import { money, moneyShort, shortTeam } from "../lib/format";
+import { describeItems } from "../lib/review";
 import { teamPayroll, useSeason } from "../lib/SeasonContext";
 
 export function Overview() {
-  const { season, input, result, games, computeMs, nameIssueCount } = useSeason();
+  const { season, input, result, games, computeMs, nameIssueCount, open, provisional } = useSeason();
   const last = input.throughWeek;
   const [week, setWeek] = useState(last);
   const w = Math.min(week, last);
@@ -23,13 +24,28 @@ export function Overview() {
       <div className="toolbar">
         <label>Salaries after
           <select value={w} onChange={(e) => setWeek(+e.target.value)}>
-            {weeks.map((wk) => <option key={wk} value={wk}>{wk === 0 ? "start of season" : `week ${wk}`}</option>)}
+            {weeks.map((wk) => <option key={wk} value={wk}>{wk === 0 ? "start of season" : `week ${wk}${provisional.includes(wk) ? " (provisional)" : ""}`}</option>)}
           </select>
         </label>
         <span className="muted small">Engine ran in {Math.round(computeMs)} ms · {input.events.length.toLocaleString()} events</span>
       </div>
 
       {notes && <p className="note">{notes}</p>}
+      {provisional.length > 0 && (
+        <section className="card open-items" aria-labelledby="open-title">
+          <h2 id="open-title">Provisional: week{provisional.length > 1 ? "s" : ""} {provisional.join(", ")}</h2>
+          <p className="muted small">These salaries can still change. Settle each item below and the week becomes final.</p>
+          {provisional.map((wk) => {
+            const items = open.filter((i) => i.week === wk);
+            return (
+              <details key={wk} open={provisional.length === 1}>
+                <summary><strong>Week {wk}</strong>: {describeItems(items)}</summary>
+                <ul className="plain small">{items.map((i, n) => <li key={n}><Link to={i.to}>{i.label}</Link></li>)}</ul>
+              </details>
+            );
+          })}
+        </section>
+      )}
       {nameIssueCount > 0 && (
         <p className="note attn-note">
           {nameIssueCount} name issue(s) to review: spellings that don't match a player, or old “Name Sub” records.{" "}
@@ -46,7 +62,7 @@ export function Overview() {
       </section>
 
       <section className="card scroll-x">
-        <h2>Payroll vs cap</h2>
+        <h2>Payroll vs cap{provisional.includes(w) && <span className="pill warn heading-pill">provisional</span>}</h2>
         <table className="data">
           <thead><tr><th>Team</th><th>GM</th><th className="num">Payroll</th><th className="num">Cap space</th></tr></thead>
           <tbody>

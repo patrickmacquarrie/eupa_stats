@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { computeLeague } from "../../engine/compute";
 import type { EngineResult, LeagueInput, RecordingSummary } from "../../engine/types";
 import { aliasMap, findNameIssues, resolveInput } from "./names";
+import { openItems, provisionalWeeks, type OpenItem } from "./review";
 import type { Season } from "./season";
 import { loadSeason, saveSeason } from "./store";
 
@@ -19,6 +20,9 @@ interface Ctx {
   result: EngineResult;
   /** Names that need a look (unknown spellings, old "Sub" records, likely duplicates). */
   nameIssueCount: number;
+  /** What still needs an administrator, by week; a week with any is provisional. */
+  open: OpenItem[];
+  provisional: number[];
   /** Maps a stored spelling to the player it counts for. */
   resolveName: (n: string) => string;
   games: Game[];
@@ -72,7 +76,9 @@ export function useComputed(season: Season | null | undefined) {
     const computeMs = performance.now() - t0;
     const issues = findNameIssues(season.input, season.aliases, season.ignoredNames);
     const nameIssueCount = issues.unknown.length + issues.subRecords.length + issues.dupes.length;
-    return { input, result, games: gamesOf(result.recordings), computeMs, nameIssueCount, resolveName: aliasMap(season.aliases) };
+    const games = gamesOf(result.recordings);
+    const open = openItems(season, input, result, games);
+    return { input, result, games, computeMs, nameIssueCount, open, provisional: provisionalWeeks(open), resolveName: aliasMap(season.aliases) };
   }, [season]);
 }
 

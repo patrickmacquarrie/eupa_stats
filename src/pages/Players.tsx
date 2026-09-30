@@ -6,7 +6,7 @@ import { useSeason } from "../lib/SeasonContext";
 type SortKey = "name" | "team" | "salary" | "change" | "gp" | "goals" | "assists" | "blocks" | "turnovers";
 
 export function Players() {
-  const { input, result } = useSeason();
+  const { input, result, provisional } = useSeason();
   const [params, setParams] = useSearchParams();
   const team = params.get("team") ?? "";
   const [week, setWeek] = useState(input.throughWeek);
@@ -58,7 +58,7 @@ export function Players() {
         </select>
         <label>After
           <select value={week} onChange={(e) => setWeek(+e.target.value)}>
-            {Array.from({ length: input.throughWeek + 1 }, (_, i) => <option key={i} value={i}>{i === 0 ? "start" : `week ${i}`}</option>)}
+            {Array.from({ length: input.throughWeek + 1 }, (_, i) => <option key={i} value={i}>{i === 0 ? "start" : `week ${i}${provisional.includes(i) ? " (provisional)" : ""}`}</option>)}
           </select>
         </label>
         <label className="check"><input type="checkbox" checked={showSubs} onChange={(e) => setShowSubs(e.target.checked)} /> Sub pool</label>

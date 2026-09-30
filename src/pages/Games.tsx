@@ -10,6 +10,7 @@ const score = (r?: RecordingSummary, flip = false) =>
 export function gameStatus(g: Game, openFlags = 0): { label: string; tone: "ok" | "warn" | "info" } {
   if (openFlags) return { label: `${openFlags} flagged`, tone: "warn" };
   if (!g.recA || !g.recB) return { label: "one side only", tone: "warn" };
+  if (g.recA.official || g.recB.official) return { label: "official score set", tone: "ok" };
   if (!g.recA.eventCount || !g.recB.eventCount) return { label: "box score", tone: "info" };
   const agree = g.recA.finalScore === g.recB.finalOppScore && g.recA.finalOppScore === g.recB.finalScore;
   return agree ? { label: "tablets agree", tone: "ok" } : { label: "tablets disagree", tone: "warn" };

@@ -119,10 +119,21 @@ export function computeLeague(input: LeagueInput): EngineResult {
     });
   }
 
+  // An official score (set when the tablets disagreed) decides the result for both sides.
+  const officialFor = (week: number, team: string, opp: string) => {
+    for (const o of input.officialScores ?? []) {
+      if (o.week !== week) continue;
+      if (o.a === team && o.b === opp) return { us: o.scoreA, them: o.scoreB };
+      if (o.a === opp && o.b === team) return { us: o.scoreB, them: o.scoreA };
+    }
+    return null;
+  };
   for (const t of sources.values()) {
     const { week, team, opp } = t;
     if (week > input.throughWeek) continue;
-    recordings.push({ week, team, opp, finalScore: t.finalScore, finalOppScore: t.finalOppScore, result: t.result, eventCount: t.eventCount });
+    const off = officialFor(week, team, opp);
+    if (off) Object.assign(t, { finalScore: off.us, finalOppScore: off.them, result: off.us > off.them ? 1 : off.us === off.them ? 0.5 : 0 });
+    recordings.push({ week, team, opp, finalScore: t.finalScore, finalOppScore: t.finalOppScore, result: t.result, eventCount: t.eventCount, ...(off ? { official: true } : {}) });
 
     const roster = rosterOf(team, week);
     const rosterNames = new Set(roster.map((p) => p.name));

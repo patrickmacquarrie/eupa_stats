@@ -96,3 +96,32 @@ describe("public stats snapshots", () => {
     expect(bad((x) => { x.rows.push({ ...x.rows[0] }); })).toThrow(/twice/);
   });
 });
+
+describe("official scores and provisional weeks", () => {
+  it("an official score decides the result for both sides and closes the dispute", async () => {
+    const { tabletCsvToEvents } = await import("../src/lib/csv");
+    const { gamesOf } = await import("../src/lib/SeasonContext");
+    const { openItems, provisionalWeeks, isDisputed } = await import("../src/lib/review");
+    const { season } = seasonFromFixture(fall());
+    // Swap in the Sep 21 dispute pair (Team 1 tablet says 12-14, Team 3 tablet says 13-16).
+    const a = tabletCsvToEvents(readFileSync("fixtures/disputes/2026-09-21_T3vT1_team1.csv", "utf8"));
+    const b = tabletCsvToEvents(readFileSync("fixtures/disputes/2026-09-21_T3vT1_team3.csv", "utf8"));
+    const keys = new Set([a[0], b[0]].map((e) => `${e.date}|${e.statTeam}|${e.otherTeam}`));
+    const input = { ...season.input, events: [...season.input.events.filter((e) => !keys.has(`${e.date}|${e.statTeam}|${e.otherTeam}`)), ...a, ...b] };
+    const before = computeLeague(input);
+    const g = gamesOf(before.recordings).find((x) => x.week === 3 && isDisputed(x))!;
+    expect(g).toBeTruthy();
+    const items = openItems({ ...season, input }, input, before, gamesOf(before.recordings));
+    expect(items.some((i) => i.kind === "dispute" && i.week === 3)).toBe(true);
+    expect(provisionalWeeks(items)).toContain(3);
+
+    const withOfficial = { ...input, officialScores: [{ week: 3, a: "EUPA Fall - Team 1", b: "EUPA Fall - Team 3", scoreA: 13, scoreB: 16 }] };
+    const after = computeLeague(withOfficial);
+    const r1 = after.recordings.find((r) => r.week === 3 && r.team === "EUPA Fall - Team 1" && r.opp === "EUPA Fall - Team 3")!;
+    const r3 = after.recordings.find((r) => r.week === 3 && r.team === "EUPA Fall - Team 3" && r.opp === "EUPA Fall - Team 1")!;
+    expect([r1.result, r3.result, r1.official]).toEqual([0, 1, true]);
+    expect([r1.finalScore, r1.finalOppScore]).toEqual([13, 16]);
+    const items2 = openItems({ ...season, input: withOfficial }, withOfficial, after, gamesOf(after.recordings));
+    expect(items2.some((i) => i.kind === "dispute")).toBe(false);
+  });
+});

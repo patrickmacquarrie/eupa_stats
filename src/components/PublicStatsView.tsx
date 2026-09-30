@@ -29,6 +29,9 @@ export function PublicStatsView({ snapshot }: { snapshot: Snapshot }) {
       <header className="pub-head">
         <h1>{snapshot.season}</h1>
         <p className="muted">Player stats through week {snapshot.throughWeek} · updated {new Date(snapshot.generatedAt).toLocaleDateString("en-CA", { month: "long", day: "numeric", year: "numeric" })}</p>
+        {snapshot.provisionalWeeks?.length ? (
+          <p className="note attn-note small">Week {snapshot.provisionalWeeks.join(", ")} {snapshot.provisionalWeeks.length > 1 ? "are" : "is"} still being checked, so these numbers may change.</p>
+        ) : null}
       </header>
 
       {groups.length > 1 && (
