@@ -152,4 +152,6 @@ export interface EngineResult {
   teamBonus: Record<string, number[]>;
   teamOf: (player: string, week: number) => string | null;
   warnings: string[];
+  /** Last week the salary and cap arrays cover (indexes 0..horizon). */
+  horizon: number;
 }

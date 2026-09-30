@@ -2,7 +2,6 @@ import type {
   EngineResult, GameLine, LeagueInput, PlayEvent, Player, RecordingSummary, StatLine, StatWeights,
 } from "./types";
 
-const MAX_WEEKS = 16;
 const key = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
 const emptyLine = (): StatLine => ({
   goals: 0, assists: 0, secondAssists: 0, blocks: 0, drops: 0, throwaways: 0, gso: 0, touches: 0,
@@ -190,11 +189,22 @@ export function computeLeague(input: LeagueInput): EngineResult {
   }
   for (const l of lines) delete (l as any)._result;
 
+  // --- horizon ----------------------------------------------------------------
+  // Every week anything in the season refers to: the schedule, the counted-through week, trades
+  // and cap bumps, and any game, box score, sub pick or presence entry.
+  const horizon = Math.max(1, input.throughWeek,
+    ...sched.map((s) => s.week),
+    ...trades.map((t) => Math.max(t.afterWeek + 1, t.effectiveWeek ?? 0)),
+    ...Object.keys(rules.capExtraByWeek).map(Number).filter(Number.isFinite),
+    ...lines.map((l) => l.week),
+    ...input.subAssignments.map((a) => a.week),
+    ...(input.presentWithoutPlays ?? []).map((x) => x.week));
+
   // --- weekly salaries ------------------------------------------------------
   const salary: Record<string, number[]> = {};
   for (const p of input.players) {
     const row: number[] = [startSalary(p)];
-    for (let w = 1; w <= MAX_WEEKS; w++) {
+    for (let w = 1; w <= horizon; w++) {
       const growth = lines.filter((l) => l.player === p.name && l.week === w && l.role !== "sub")
         .reduce((a, l) => a + l.growth, 0);
       const adds = trades.filter((t) => canon(t.player) === p.name && t.afterWeek === w && w > 0)
@@ -217,14 +227,14 @@ export function computeLeague(input: LeagueInput): EngineResult {
   for (const r of recordings) {
     if (!tb) break;
     const v = r.result === 1 ? tb.win : r.result === 0.5 ? tb.win * tb.tieFactor : 0;
-    teamBonus[r.team] ??= Array(MAX_WEEKS + 1).fill(0);
-    for (let w = r.week; w <= MAX_WEEKS; w++) teamBonus[r.team][w] += v;
+    teamBonus[r.team] ??= Array(horizon + 1).fill(0);
+    for (let w = r.week; w <= horizon; w++) teamBonus[r.team][w] += v;
   }
-  const capByWeek = Array.from({ length: MAX_WEEKS + 1 }, (_, w) => {
+  const capByWeek = Array.from({ length: horizon + 1 }, (_, w) => {
     const total = input.players.reduce((a, p) => a + salary[p.name][w], 0) +
       Object.values(teamBonus).reduce((a, t) => a + t[w], 0);
     return total / rules.teamsForCapAverage + rules.capBuffer + (rules.capExtraByWeek[String(w)] ?? 0);
   });
 
-  return { lines, recordings, salary, capByWeek, teamBonus, teamOf, warnings };
+  return { lines, recordings, salary, capByWeek, teamBonus, teamOf, warnings, horizon };
 }
