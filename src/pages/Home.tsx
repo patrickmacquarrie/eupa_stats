@@ -18,7 +18,7 @@ export function Home() {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const nav = useNavigate();
-  const refresh = () => listSeasons().then(setSeasons);
+  const refresh = () => listSeasons().then(setSeasons).catch((e) => { setSeasons([]); setError((e as Error).message); });
   useEffect(() => { refresh(); }, []);
 
   async function importFrom(label: string, get: () => Promise<any>, name: string) {
@@ -59,7 +59,9 @@ export function Home() {
               </div>
               <button onClick={async () => { const x = await loadSeason(s.id); if (x) downloadJson(`${x.name}.json`, x); }}>Export</button>
               <button className="danger" onClick={async () => {
-                if (await askConfirm(`Delete "${s.name}" from this browser? Export it first if you want a copy.`, { ok: "Delete", danger: true })) { await deleteSeason(s.id); refresh(); }
+                if (await askConfirm(`Delete "${s.name}" from this browser? Export it first if you want a copy.`, { ok: "Delete", danger: true })) {
+                  try { await deleteSeason(s.id); refresh(); } catch (e) { setError((e as Error).message); }
+                }
               }}>Delete</button>
             </li>
           ))}

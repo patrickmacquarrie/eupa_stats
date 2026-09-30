@@ -432,3 +432,9 @@ table.data th { text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.
 .official { border-top: 1px solid var(--border); margin-top: 10px; padding-top: 10px; }
 .official.set p { color: var(--good); }
 .field.inline { flex-direction: row; align-items: center; gap: 6px; }
+
+/* failures */
+.crash h1 { font-size: 1.5rem; }
+.crash-msg { white-space: pre-wrap; background: var(--surface-2); border-radius: 6px; padding: 10px; font-size: 0.85rem; }
+.save-error { background: var(--bad-bg); color: var(--text-primary); border-bottom: 2px solid var(--bad); padding: 10px 16px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.save-error strong { color: var(--bad); }

@@ -1,4 +1,5 @@
-import { HashRouter, NavLink, Outlet, Route, Routes, useParams } from "react-router-dom";
+import { HashRouter, NavLink, Outlet, Route, Routes, useLocation, useParams } from "react-router-dom";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { ConfirmHost } from "./lib/confirm";
 import { SeasonProvider, useSeason } from "./lib/SeasonContext";
 import { downloadJson } from "./lib/store";
@@ -45,11 +46,24 @@ export function App() {
 
 function SeasonShell() {
   const { id = "" } = useParams();
+  const { pathname } = useLocation();
   return (
-    <SeasonProvider id={id}>
-      <Header />
+    <ErrorBoundary reset={id}>
+      <SeasonProvider id={id}>
+        <Header />
+        <SeasonScreen reset={pathname} />
+      </SeasonProvider>
+    </ErrorBoundary>
+  );
+}
+
+/** One screen's crash stays in that screen; the header and the season remain usable. */
+function SeasonScreen({ reset }: { reset: string }) {
+  const { season } = useSeason();
+  return (
+    <ErrorBoundary reset={reset} onExport={() => downloadJson(`${season.name}.json`, season)}>
       <Outlet />
-    </SeasonProvider>
+    </ErrorBoundary>
   );
 }
 

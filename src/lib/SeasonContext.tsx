@@ -4,7 +4,7 @@ import type { EngineResult, LeagueInput, RecordingSummary } from "../../engine/t
 import { aliasMap, findNameIssues, resolveInput } from "./names";
 import { openItems, provisionalWeeks, type OpenItem } from "./review";
 import type { Season } from "./season";
-import { loadSeason, saveSeason } from "./store";
+import { downloadJson, loadSeason, saveSeason } from "./store";
 
 export interface Game {
   week: number;
@@ -72,7 +72,8 @@ export function useComputed(season: Season | null | undefined) {
     if (!season) return null;
     const t0 = performance.now();
     const input = resolveInput(season.input, season.aliases);
-    const result = computeLeague(input);
+    let result;
+    try { result = computeLeague(input); } catch (e) { return { error: (e as Error).message } as const; }
     const computeMs = performance.now() - t0;
     const issues = findNameIssues(season.input, season.aliases, season.ignoredNames);
     const nameIssueCount = issues.unknown.length + issues.subRecords.length + issues.dupes.length;
@@ -87,27 +88,49 @@ export function SeasonProvider({ id, children }: { id: string; children: ReactNo
   useEffect(() => {
     let live = true;
     setSeason(undefined);
-    loadSeason(id).then((s) => live && setSeason(s ?? null));
+    loadSeason(id).then((s) => live && setSeason(s ?? null)).catch((e) => { if (live) { setLoadError((e as Error).message); setSeason(null); } });
     return () => { live = false; };
   }, [id]);
 
   const computed = useComputed(season);
 
-  const update = useCallback<Ctx["update"]>(async (fn, patch) => {
-    if (!season) return;
-    const next = await saveSeason({ ...season, ...patch, input: fn(season.input) });
+  // A failed save must not lose the change on screen: keep it, and say it isn't stored yet.
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const persist = useCallback(async (next: Season) => {
     setSeason(next);
-  }, [season]);
-
+    try { setSeason(await saveSeason(next)); setSaveError(null); }
+    catch (e) { setSaveError((e as Error).message); }
+  }, []);
+  const update = useCallback<Ctx["update"]>(async (fn, patch) => {
+    if (season) await persist({ ...season, ...patch, input: fn(season.input) });
+  }, [season, persist]);
   const updateSeason = useCallback<Ctx["updateSeason"]>(async (fn) => {
-    if (!season) return;
-    setSeason(await saveSeason(fn(season)));
-  }, [season]);
+    if (season) await persist(fn(season));
+  }, [season, persist]);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   if (season === undefined) return <p className="muted pad">Loading season…</p>;
-  if (season === null || !computed) return <p className="pad">That season isn't in this browser. <a href="#/">Back to seasons</a></p>;
+  if (season === null) return <p className="pad">{loadError ?? "That season isn't in this browser."} <a href="#/">Back to seasons</a></p>;
+  if (!computed) return null;
+  if ("error" in computed) {
+    return (
+      <main className="page narrow"><section className="card crash" role="alert">
+        <h1>This season's numbers can't be calculated</h1>
+        <pre className="crash-msg">{computed.error}</pre>
+        <p>Its data is still stored. Export it to keep a copy, then fix the rules or data it names.</p>
+        <div className="row gap-sm"><button className="primary" onClick={() => downloadJson(`${season.name}.json`, season)}>Export this season</button><a href="#/">Back to seasons</a></div>
+      </section></main>
+    );
+  }
   return (
     <SeasonCtx.Provider value={{ season, update, updateSeason, ...computed }}>
+      {saveError && (
+        <div className="save-error" role="alert">
+          <strong>Not saved.</strong> {saveError.replace(/^Not saved: /, "")} Your changes are on this screen only: export the season now to keep them.
+          <button className="small-btn" onClick={() => downloadJson(`${season.name}.json`, season)}>Export</button>
+          <button className="small-btn" onClick={() => persist(season)}>Try again</button>
+        </div>
+      )}
       {children}
     </SeasonCtx.Provider>
   );

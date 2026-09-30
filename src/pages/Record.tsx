@@ -22,15 +22,17 @@ export function Record() {
   const [reviewing, setReviewing] = useState(false);
   useEffect(() => { loadDraft(season.id).then((d) => setDraft(d ?? null)); }, [season.id]);
 
+  // Every tap is saved twice (localStorage and IndexedDB); if both fail, the stat-taker is told.
+  const [unsafe, setUnsafe] = useState(false);
   const change = (d: Draft | null) => {
     setDraft(d);
-    if (d) saveDraft(d); else clearDraft(season.id);
+    if (d) saveDraft(d).then((r) => setUnsafe(!r.local && !r.db)); else clearDraft(season.id).catch(() => {});
   };
 
   if (draft === undefined) return <main className="page"><p className="muted">Loading…</p></main>;
   if (!draft || !draft.events || draft.present === undefined) return <GameSetup onStart={(d) => change(d)} />;
   if (reviewing) return <Review draft={draft} onBack={() => setReviewing(false)} onDone={() => { change(null); setReviewing(false); }} />;
-  return <Live draft={draft} onChange={change} onFinish={() => setReviewing(true)} />;
+  return <Live draft={draft} onChange={change} onFinish={() => setReviewing(true)} unsafe={unsafe} />;
 }
 
 /* ------------------------------------------------------------------ setup */
@@ -176,7 +178,7 @@ function AddSub({ exclude, pending, onAdd }: { exclude: string[]; pending: Playe
 
 /* ------------------------------------------------------------------ live */
 
-function Live({ draft, onChange, onFinish }: { draft: Draft; onChange: (d: Draft) => void; onFinish: () => void }) {
+function Live({ draft, onChange, onFinish, unsafe }: { draft: Draft; onChange: (d: Draft) => void; onFinish: () => void; unsafe?: boolean }) {
   const [msg, setMsg] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [, tick] = useState(0);
@@ -290,7 +292,8 @@ function Live({ draft, onChange, onFinish }: { draft: Draft; onChange: (d: Draft
       )}
 
       <div className="row gap live-foot">
-        <span className="muted small">{shortTeam(draft.team)} v {shortTeam(draft.opp)} · {draft.date} · {draft.events.length} plays{draft.flags?.length ? ` · ${draft.flags.length} flagged` : ""}, saved on this device</span>
+        <span className="muted small">{shortTeam(draft.team)} v {shortTeam(draft.opp)} · {draft.date} · {draft.events.length} plays{draft.flags?.length ? ` · ${draft.flags.length} flagged` : ""}{unsafe ? "" : ", saved on this device"}</span>
+        {unsafe && <span className="error small" role="alert">This device isn't saving the game (storage blocked or full). Don't close or refresh: finish and save, or download the CSV.</span>}
         <span className="grow" />
         <button className="primary" disabled={!draft.events.length} onClick={onFinish}>Finish game</button>
       </div>
