@@ -8,6 +8,7 @@ import { Names } from "./pages/Names";
 import { Overview } from "./pages/Overview";
 import { PlayerDetail } from "./pages/PlayerDetail";
 import { Players } from "./pages/Players";
+import { Record } from "./pages/Record";
 import { Recordings } from "./pages/Recordings";
 import { Setup } from "./pages/Setup";
 import { Subs } from "./pages/Subs";
@@ -20,6 +21,7 @@ export function App() {
         <Route path="/" element={<Home />} />
         <Route path="/s/:id" element={<SeasonShell />}>
           <Route index element={<Overview />} />
+          <Route path="record" element={<Record />} />
           <Route path="players" element={<Players />} />
           <Route path="players/:name" element={<PlayerDetail />} />
           <Route path="games" element={<Games />} />
@@ -48,7 +50,7 @@ function SeasonShell() {
 function Header() {
   const { season, nameIssueCount } = useSeason();
   const base = `/s/${season.id}`;
-  const tabs: [string, string][] = [["", "Overview"], ["/players", "Players"], ["/games", "Games"], ["/subs", "Subs"], ["/names", "Names"], ["/recordings", "Recordings"], ["/setup", "Setup"]];
+  const tabs: [string, string][] = [["", "Overview"], ["/record", "Record"], ["/players", "Players"], ["/games", "Games"], ["/subs", "Subs"], ["/names", "Names"], ["/recordings", "Recordings"], ["/setup", "Setup"]];
   return (
     <header className="app-header">
       <div className="header-top">

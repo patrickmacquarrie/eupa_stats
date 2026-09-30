@@ -18,6 +18,7 @@ What's in the app (`src/`):
 | Tab | What it does |
 |---|---|
 | Seasons | Start from one of the three demo seasons, import a season export or a master-sheet fixture, export, delete |
+| Record | Live stat entry for one team's side, on a tablet: check in who's here, add subs (anyone in the league, or a first-time player; a new name that looks like an existing player is questioned first), then tap plays the way the old tablet app worked. Saved on every tap; resumes after a refresh. Finish shows the box score, then saves to the season and/or downloads the old app's CSV |
 | Overview | Payroll vs cap per team after any week, payroll-by-week chart, engine warnings |
 | Players | Sortable salary and stat table by team and week; each player has a salary chart and game log |
 | Games | Every game with both tablets' scores; the game page shows the cross-check (which goals don't line up and why) and lets the admin replace either side with a box score |
