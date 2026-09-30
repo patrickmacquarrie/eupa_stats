@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { tallyRecording } from "../engine/compute";
 import type { PlayEvent } from "../engine/types";
 import { tabletCsvToEvents } from "../src/lib/csv";
-import { canTap, eventFor, press, stateOf, toTabletCsv, undoPress, type Draft, type Tap } from "../src/lib/recorder";
+import { canTap, eventFor, possessions, press, stateOf, toggleFlag, toTabletCsv, undoPress, type Draft, type Tap } from "../src/lib/recorder";
 
 const draft = (over: Partial<Draft> = {}): Draft => ({
   seasonId: "x", date: "2026-10-05", team: "A", opp: "B", startOn: "offense", gameLengthMin: 25,
@@ -72,18 +72,31 @@ describe("row buttons", () => {
     expect(one.events.at(-1)).toMatchObject({ action: "Point", player: "Cy", lastPlayer: "Bo", secLastPlayer: "Ann", statScore: 1 });
   });
 
-  it("a drop on the holder takes back the touch and matches dropping before the catch", () => {
-    const late = run(d0(), { kind: "touch", player: "Ann" }, { kind: "touch", player: "Bo" }, { kind: "touch", player: "Cy" }, { kind: "drop", player: "Cy" });
-    const onTime = run(d0(), { kind: "touch", player: "Ann" }, { kind: "touch", player: "Bo" }, { kind: "drop", player: "Cy" });
-    expect(late.events).toEqual(onTime.events);
-    expect(late.events.at(-1)).toMatchObject({ action: "Drop", player: "Cy", lastPlayer: "Bo", secLastPlayer: "Ann" });
-    expect(stateOf(late).phase).toBe("defense");
+  it("drop is for receivers; the holder's third button is throwaway", () => {
+    const d = run(d0(), { kind: "touch", player: "Ann" }, { kind: "touch", player: "Bo" });
+    expect(press(d, { kind: "drop", player: "Bo" })).toMatch(/own throw/);
+    expect(run(d, { kind: "drop", player: "Cy" }).events.at(-1)).toMatchObject({ action: "Drop", player: "Cy", lastPlayer: "Bo", secLastPlayer: "Ann" });
+    expect(run(d, { kind: "throwaway" }).events.at(-1)).toMatchObject({ action: "T-Away", player: "Bo" });
   });
 
-  it("undo reverts a whole press, including a replaced touch", () => {
+  it("undo reverts a whole press", () => {
     const before = run(d0(), { kind: "touch", player: "Ann" }, { kind: "touch", player: "Bo" });
     expect(undoPress(run(before, { kind: "goal", player: "Cy" })).events).toEqual(before.events);
-    expect(undoPress(run(before, { kind: "drop", player: "Bo" })).events).toEqual(before.events);
+    expect(undoPress(run(before, { kind: "drop", player: "Cy" })).events).toEqual(before.events);
+  });
+
+  it("groups possessions and keeps flags until their possession is undone", () => {
+    let d = run(d0(), { kind: "touch", player: "Ann" }, { kind: "touch", player: "Bo" }, { kind: "goal", player: "Cy" },
+      { kind: "scoredOn", player: "Ann" }, { kind: "touch", player: "Bo" });
+    const ps = possessions(d.events);
+    expect(ps.map((p) => [p.ours, p.open, p.summary])).toEqual([
+      [true, false, "Ann → Bo → Cy · Point"], [false, false, "GSO Ann"], [true, true, "Bo"],
+    ]);
+    d = toggleFlag(d, ps[2]);
+    d = run(d, { kind: "touch", player: "Cy" });
+    expect(undoPress(d).flags).toHaveLength(1);          // possession still there
+    expect(undoPress(undoPress(d)).flags).toHaveLength(0); // its only touch undone
+    expect(toggleFlag(toggleFlag(d, ps[0]), ps[0]).flags).toEqual(d.flags);
   });
 
   it("defense rows: block, scored on, and their turnover", () => {
@@ -93,6 +106,5 @@ describe("row buttons", () => {
     expect(press(d, { kind: "block", player: "Bo" })).toMatch(/offense/);
     const t = run(draft({ startOn: "defense" }), { kind: "offensiveError" });
     expect(t.events[0].action).toBe("O-Error");
-    expect(press(run(d0(), { kind: "touch", player: "Ann" }), { kind: "drop", player: "Ann" })).toMatch(/no throw/);
   });
 });

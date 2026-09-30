@@ -221,9 +221,9 @@ button.big { padding: 12px 22px; font-size: 1.05rem; }
 .live-top { display: flex; align-items: center; gap: 10px; margin: 12px 0 8px; }
 .live-top .prompt { flex: 1; margin: 0; font-size: 1.1rem; color: var(--text-secondary); }
 .roster { display: flex; flex-direction: column; gap: 6px; }
-.prow { display: grid; grid-template-columns: minmax(150px, 1.3fr) repeat(4, minmax(0, 1fr)); gap: 6px; align-items: stretch;
+.prow { display: grid; grid-template-columns: minmax(140px, 1.3fr) repeat(3, minmax(0, 1fr)); gap: 6px; align-items: stretch;
   background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 4px; }
-.roster.defense .prow { grid-template-columns: minmax(150px, 1.3fr) repeat(2, minmax(0, 1fr)); }
+.roster.defense .prow { grid-template-columns: minmax(140px, 1.3fr) repeat(2, minmax(0, 1fr)); }
 .prow.holder { border: 2px solid var(--accent); background: var(--info-bg); }
 .prow.thrower .pname { color: var(--accent); }
 .prow.add { display: block; border-style: dashed; color: var(--text-secondary); min-height: 52px; font-weight: 500; }
@@ -237,12 +237,9 @@ button.big { padding: 12px 22px; font-size: 1.05rem; }
 .rbtn.gso { background: var(--bad-bg); color: var(--bad); border-color: transparent; }
 .rbtn.turnover { min-width: 170px; background: var(--good-bg); color: var(--good); border-color: transparent; }
 .rbtn.quiet { min-height: 44px; font-weight: 500; color: var(--text-secondary); min-width: 90px; }
-.feed { list-style: none; padding: 0; margin: 16px 0 0; border-top: 1px solid var(--border); }
-.feed li { padding: 6px 2px; border-bottom: 1px solid var(--border); display: flex; gap: 10px; align-items: baseline; }
-.feed li:first-child { font-weight: 600; }
 .live-foot { margin-top: 14px; }
 @media (max-width: 700px) {
-  .prow { grid-template-columns: 1fr 1fr 1fr 1fr; }
+  .prow { grid-template-columns: 1fr 1fr 1fr; }
   .roster.defense .prow { grid-template-columns: 1fr 1fr; }
   .pname { grid-column: 1 / -1; padding: 4px 6px; }
   .rbtn { min-height: 48px; font-size: 0.88rem; }
@@ -251,3 +248,31 @@ button.big { padding: 12px 22px; font-size: 1.05rem; }
 }
 .noplays { border-top: 1px solid var(--border); margin-top: 10px; padding-top: 6px; }
 label.presence { margin-top: 4px; font-size: 0.8rem; }
+
+/* record: possession log beside the roster */
+.live-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 280px); gap: 12px; align-items: start; }
+.log { position: sticky; top: 100px; background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 8px 10px; max-height: calc(100vh - 120px); overflow-y: auto; }
+.log-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+.log ol { list-style: none; margin: 0; padding: 0; }
+.log li { padding: 6px 4px 7px 8px; border-bottom: 1px solid var(--border); border-left: 3px solid transparent; }
+.log li:last-child { border-bottom: none; }
+.log li.ours { border-left-color: var(--good); }
+.log li.theirs { border-left-color: var(--bad); }
+.log li.flagged { background: var(--warn-bg); }
+.log li.open .log-text { color: var(--text-secondary); }
+.log-meta { display: flex; align-items: center; gap: 8px; }
+.log .side { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+.log .side.ours { color: var(--good); }
+.log .side.theirs { color: var(--bad); }
+.log-text { font-size: 0.9rem; line-height: 1.35; margin-top: 2px; }
+button.flag { margin-left: auto; min-width: 44px; min-height: 36px; padding: 0 10px; font-size: 1.05rem; color: var(--text-muted); border-color: transparent; background: transparent; }
+button.flag.on { color: var(--warn); background: var(--surface-1); border-color: var(--warn); }
+@media (max-width: 700px) {
+  .live-body { grid-template-columns: 1fr; }
+  .log { position: static; max-height: none; }
+}
+.flag-review { display: flex; flex-direction: column; gap: 4px; padding: 8px 0; border-top: 1px solid var(--border); }
+.flag-review input { width: 100%; }
+.flag-item { border-top: 1px solid var(--border); padding: 10px 0; }
+.flag-item.resolved { opacity: 0.55; }
+.flag-item .plays { margin: 6px 0 0; padding-left: 18px; }

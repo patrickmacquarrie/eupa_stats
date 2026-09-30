@@ -5,8 +5,8 @@ import { genderOf } from "../../engine/pairing";
 import type { Player } from "../../engine/types";
 import { shortTeam } from "../lib/format";
 import { nameKey, suggestPlayer } from "../lib/names";
-import { describe, elapsedMs, gameTime, press, stateOf, toTabletCsv, undoPress, type Draft, type Phase, type Press } from "../lib/recorder";
-import { weekOfDate } from "../lib/season";
+import { elapsedMs, gameTime, possessions, press, stateOf, toggleFlag, toTabletCsv, undoPress, type Draft, type Phase, type Press } from "../lib/recorder";
+import { weekOfDate, withoutFlagsFor } from "../lib/season";
 import { useSeason } from "../lib/SeasonContext";
 import { clearDraft, downloadText, loadDraft, saveDraft } from "../lib/store";
 
@@ -194,6 +194,7 @@ function Live({ draft, onChange, onFinish }: { draft: Draft; onChange: (d: Draft
     : { runningSince: Date.now(), elapsedMs: draft.clock.elapsedMs } });
 
   const offense = s.phase === "offense";
+  const poss = possessions(draft.events);
   const prompt = offense
     ? (holder ? `${holder} has the disc` : "Who picks up the disc?")
     : "On defense";
@@ -218,29 +219,54 @@ function Live({ draft, onChange, onFinish }: { draft: Draft; onChange: (d: Draft
       </div>
       {msg && <p className="error small center">{msg}</p>}
 
-      <div className={"roster " + s.phase}>
-        {draft.present.map((n) => {
-          const isHolder = offense && n === holder;
-          return (
-            <div key={n} className={"prow" + (isHolder ? " holder" : offense && n === thrower ? " thrower" : "")}>
-              <span className="pname">{n}{draft.subs.includes(n) && <span className="tag">sub</span>}{isHolder && <span className="disc" aria-label="has the disc">●</span>}</span>
-              {offense ? (
-                <>
-                  <button className="rbtn" disabled={isHolder} onClick={() => go({ kind: "touch", player: n })}>Touch</button>
-                  <button className="rbtn goal" onClick={() => go({ kind: "goal", player: n })}>Point</button>
-                  <button className="rbtn drop" disabled={isHolder ? !thrower : !holder} onClick={() => go({ kind: "drop", player: n })}>Drop</button>
-                  <button className="rbtn ta" disabled={!isHolder} onClick={() => go({ kind: "throwaway" })}>Throwaway</button>
-                </>
-              ) : (
-                <>
-                  <button className="rbtn block" onClick={() => go({ kind: "block", player: n })}>D-Play</button>
-                  <button className="rbtn gso" onClick={() => go({ kind: "scoredOn", player: n })}>GSO</button>
-                </>
-              )}
-            </div>
-          );
-        })}
-        <button className="prow add" onClick={() => setShowAdd(!showAdd)}>+ Add a sub</button>
+      <div className="live-body">
+        <div className={"roster " + s.phase}>
+          {draft.present.map((n) => {
+            const isHolder = offense && n === holder;
+            return (
+              <div key={n} className={"prow" + (isHolder ? " holder" : offense && n === thrower ? " thrower" : "")}>
+                <span className="pname">{n}{draft.subs.includes(n) && <span className="tag">sub</span>}{isHolder && <span className="disc" aria-label="has the disc">●</span>}</span>
+                {offense ? (
+                  <>
+                    <button className="rbtn" disabled={isHolder} onClick={() => go({ kind: "touch", player: n })}>Touch</button>
+                    <button className="rbtn goal" onClick={() => go({ kind: "goal", player: n })}>Point</button>
+                    {isHolder
+                      ? <button className="rbtn ta" onClick={() => go({ kind: "throwaway" })}>Throwaway</button>
+                      : <button className="rbtn drop" disabled={!holder} onClick={() => go({ kind: "drop", player: n })}>Drop</button>}
+                  </>
+                ) : (
+                  <>
+                    <button className="rbtn block" onClick={() => go({ kind: "block", player: n })}>D-Play</button>
+                    <button className="rbtn gso" onClick={() => go({ kind: "scoredOn", player: n })}>GSO</button>
+                  </>
+                )}
+              </div>
+            );
+          })}
+          <button className="prow add" onClick={() => setShowAdd(!showAdd)}>+ Add a sub</button>
+        </div>
+
+        <aside className="log" aria-label="Recent possessions">
+          <div className="log-head"><strong>Possessions</strong><span className="muted small">⚑ flag one to fix later</span></div>
+          {poss.length === 0 && <p className="muted small">Nothing recorded yet.</p>}
+          <ol>
+            {poss.slice(-8).reverse().map((p) => {
+              const flagged = draft.flags?.some((f) => f.start === p.start);
+              const end = draft.events[p.end];
+              return (
+                <li key={p.start} className={(p.ours ? "ours" : "theirs") + (flagged ? " flagged" : "") + (p.open ? " open" : "")}>
+                  <div className="log-meta">
+                    <span className={"side " + (p.ours ? "ours" : "theirs")}>{p.ours ? shortTeam(draft.team) : shortTeam(draft.opp)}</span>
+                    <span className="muted small">{(end.clock ?? "").slice(0, 5)} · {end.statScore}–{end.otherScore}</span>
+                    <button className={"flag" + (flagged ? " on" : "")} aria-pressed={!!flagged} aria-label={flagged ? "Remove flag" : "Flag this possession"}
+                      onClick={() => onChange(toggleFlag(draft, p))}>⚑</button>
+                  </div>
+                  <div className="log-text">{p.summary}{p.open && <span className="muted"> …</span>}</div>
+                </li>
+              );
+            })}
+          </ol>
+        </aside>
       </div>
 
       {showAdd && (
@@ -252,14 +278,8 @@ function Live({ draft, onChange, onFinish }: { draft: Draft; onChange: (d: Draft
         </section>
       )}
 
-      <ol className="feed" reversed>
-        {draft.events.slice(-8).reverse().map((e, i) => (
-          <li key={draft.events.length - i}><span className="muted small">{(e.clock ?? "").slice(0, 8)}</span> {describe(e)} <span className="muted small">{e.statScore}–{e.otherScore}</span></li>
-        ))}
-      </ol>
-
       <div className="row gap live-foot">
-        <span className="muted small">{shortTeam(draft.team)} v {shortTeam(draft.opp)} · {draft.date} · {draft.events.length} plays, saved on this device</span>
+        <span className="muted small">{shortTeam(draft.team)} v {shortTeam(draft.opp)} · {draft.date} · {draft.events.length} plays{draft.flags?.length ? ` · ${draft.flags.length} flagged` : ""}, saved on this device</span>
         <span className="grow" />
         <button className="primary" disabled={!draft.events.length} onClick={onFinish}>Finish game</button>
       </div>
@@ -273,6 +293,8 @@ function Review({ draft, onBack, onDone }: { draft: Draft; onBack: () => void; o
   const { season, updateSeason } = useSeason();
   const [saved, setSaved] = useState<{ week: number } | null>(null);
   const [here, setHere] = useState<Set<string>>(new Set());
+  const [notes, setNotes] = useState<Record<number, string>>(() => Object.fromEntries((draft.flags ?? []).map((f) => [f.start, f.note ?? ""])));
+  const poss = possessions(draft.events);
   const tally = useMemo(() => tallyRecording(draft.events, (n) => n), [draft.events]);
   const s = stateOf(draft);
   const key = `${draft.date}|${draft.team}|${draft.opp}`;
@@ -285,7 +307,11 @@ function Review({ draft, onBack, onDone }: { draft: Draft; onBack: () => void; o
     if (exists && !confirm(`${draft.team} already has a recording for ${draft.date}. Replace it with this one?`)) return;
     await updateSeason((x) => {
       const have = new Set(x.input.players.map((p) => nameKey(p.name)));
-      return { ...x, input: {
+      const flags = (draft.flags ?? []).map((f) => ({
+        date: draft.date, team: draft.team, opp: draft.opp, start: f.start,
+        end: poss.find((p) => p.start === f.start)?.end ?? f.end, clock: f.clock, note: notes[f.start]?.trim() || undefined,
+      }));
+      return { ...x, flags: [...withoutFlagsFor(x.flags, new Set([key])), ...flags], input: {
         ...x.input,
         players: [...x.input.players, ...draft.newPlayers.filter((p) => !have.has(nameKey(p.name)))],
         events: [...x.input.events.filter((e) => `${e.date}|${e.statTeam}|${e.otherTeam}` !== key), ...draft.events],
@@ -348,6 +374,22 @@ function Review({ draft, onBack, onDone }: { draft: Draft; onBack: () => void; o
           </div>
         )}
       </section>
+      {(draft.flags?.length ?? 0) > 0 && (
+        <section className="card">
+          <h2>Flagged possessions ({draft.flags!.length})</h2>
+          <p className="muted small">These go to the game page for the admin to check. A note helps: what went wrong?</p>
+          {draft.flags!.map((f) => {
+            const p = poss.find((x) => x.start === f.start);
+            return (
+              <div key={f.start} className="flag-review">
+                <div><span className="muted small">{f.clock}</span> {p?.summary ?? "(possession removed)"}</div>
+                <input placeholder="Note (optional), e.g. missed a touch before the point" value={notes[f.start] ?? ""}
+                  onChange={(e) => setNotes({ ...notes, [f.start]: e.target.value })} aria-label={`Note for the possession at ${f.clock}`} />
+              </div>
+            );
+          })}
+        </section>
+      )}
       {exists && <p className="attn">This replaces the recording already saved for {draft.team} on {draft.date}.</p>}
       <div className="row gap wrap">
         <button className="primary big" onClick={save}>Save to season</button>

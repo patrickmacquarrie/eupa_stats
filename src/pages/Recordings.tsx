@@ -9,7 +9,7 @@ import sample2b from "../../fixtures/disputes/2026-09-21_T3vT1_team3.csv?raw";
 import { tabletCsvToEvents } from "../lib/csv";
 import { nameKey, suggestPlayer } from "../lib/names";
 import { shortTeam } from "../lib/format";
-import { recordingsOf, weekOfDate } from "../lib/season";
+import { recordingsOf, weekOfDate, withoutFlagsFor } from "../lib/season";
 import { useSeason } from "../lib/SeasonContext";
 
 interface Pending { file: string; events: PlayEvent[]; error?: string }
@@ -22,7 +22,7 @@ const SAMPLES = [
 const recKey = (e: PlayEvent) => `${e.date}|${e.statTeam}|${e.otherTeam}`;
 
 export function Recordings() {
-  const { season, update } = useSeason();
+  const { season, updateSeason } = useSeason();
   const { input } = season;
   const [pending, setPending] = useState<Pending[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
@@ -61,10 +61,14 @@ export function Recordings() {
   const save = async () => {
     const keys = new Set(ok.map((p) => recKey(p.events[0])));
     const weeks = ok.map((p) => weekOfDate(input.schedule, p.events[0].date) ?? 0);
-    await update((inp) => ({
-      ...inp,
-      events: [...inp.events.filter((e) => !keys.has(recKey(e))), ...ok.flatMap((p) => p.events)],
-      throughWeek: Math.max(inp.throughWeek, ...weeks),
+    await updateSeason((x) => ({
+      ...x,
+      flags: withoutFlagsFor(x.flags, keys),
+      input: {
+        ...x.input,
+        events: [...x.input.events.filter((e) => !keys.has(recKey(e))), ...ok.flatMap((p) => p.events)],
+        throughWeek: Math.max(x.input.throughWeek, ...weeks),
+      },
     }));
     setMsg(`Added ${ok.length} recording(s). Salaries, cap and box scores are recalculated.`);
     setPending(pending.filter((p) => problems(p).length > 0));
@@ -152,7 +156,7 @@ export function Recordings() {
                   <td className="num">{last.statScore}–{last.otherScore}</td>
                   <td><button className="danger small-btn" onClick={() => {
                     if (confirm(`Delete ${team}'s recording of ${date}? This can't be undone unless you have an export.`))
-                      update((inp) => ({ ...inp, events: inp.events.filter((e) => recKey(e) !== k) }));
+                      updateSeason((x) => ({ ...x, flags: withoutFlagsFor(x.flags, new Set([k])), input: { ...x.input, events: x.input.events.filter((e) => recKey(e) !== k) } }));
                   }}>Delete</button></td>
                 </tr>
               );

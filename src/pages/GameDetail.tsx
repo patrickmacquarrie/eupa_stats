@@ -3,7 +3,8 @@ import { Link, useParams } from "react-router-dom";
 import { crossCheck } from "../../engine/crosscheck";
 import type { BoxScore, GameLine, StatLine } from "../../engine/types";
 import { delta, money, resultLabel } from "../lib/format";
-import { weekOfDate } from "../lib/season";
+import { weekOfDate, type SavedFlag } from "../lib/season";
+import { describe } from "../lib/recorder";
 import { useSeason } from "../lib/SeasonContext";
 
 const STATS: [keyof StatLine, string][] = [
@@ -56,6 +57,8 @@ export function GameDetail() {
           <p className="muted small">Each side's salaries use that tablet's own score. To settle a disagreement, correct a side below with a box score.</p>
         </section>
       )}
+
+      <Flags week={week} a={a} b={b} />
 
       <div className="two-col">
         <Side team={a} opp={b} week={week} lines={result.lines.filter((l) => l.week === week && l.team === a && l.opp === b)} />
@@ -195,5 +198,34 @@ function BoxEditor({ team, opp, week, lines, initial, onDone }:
         <button className="primary" onClick={save}>Save box score</button>
       </div>
     </div>
+  );
+}
+
+function Flags({ week, a, b }: { week: number; a: string; b: string }) {
+  const { season, input, updateSeason } = useSeason();
+  const flags = (season.flags ?? []).filter((f) => (f.team === a || f.team === b) && (f.opp === a || f.opp === b) &&
+    weekOfDate(input.schedule, f.date) === week);
+  if (!flags.length) return null;
+  const open = flags.filter((f) => !f.resolved).length;
+  const setResolved = (f: SavedFlag, resolved: boolean) =>
+    updateSeason((x) => ({ ...x, flags: (x.flags ?? []).map((g) => (g === f ? { ...g, resolved } : g)) }));
+  return (
+    <section className="card">
+      <h2>Flagged by the stat-taker ({open} open)</h2>
+      <p className="muted small">Possessions marked as wrong during the game. Fix them with a box score for that side, then mark them resolved.</p>
+      {flags.map((f, i) => {
+        const plays = input.events.filter((e) => e.date === f.date && e.statTeam === f.team && e.otherTeam === f.opp).slice(f.start, f.end + 1);
+        return (
+          <div key={i} className={"flag-item" + (f.resolved ? " resolved" : "")}>
+            <div className="row">
+              <strong className="grow">⚑ {f.team}'s tablet, {f.clock}</strong>
+              <button className="small-btn" onClick={() => setResolved(f, !f.resolved)}>{f.resolved ? "Reopen" : "Mark resolved"}</button>
+            </div>
+            {f.note && <p className="small">“{f.note}”</p>}
+            <ol className="small plays">{plays.map((e, j) => <li key={j}><span className="muted">{(e.clock ?? "").slice(0, 8)}</span> {describe(e)} <span className="muted">{e.statScore}–{e.otherScore}</span></li>)}</ol>
+          </div>
+        );
+      })}
+    </section>
   );
 }

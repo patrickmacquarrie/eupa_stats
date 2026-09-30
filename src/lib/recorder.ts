@@ -24,7 +24,9 @@ export interface Draft {
   /** Game clock at each event (parallel to `events`), for the CSV export. */
   gameTimes: string[];
   /** One entry per button press, so Undo reverts a whole press (see `press`). */
-  undo?: { added: number; replaced?: { event: PlayEvent; gameTime: string } }[];
+  undo?: { added: number }[];
+  /** Possessions flagged as wrong during the game. */
+  flags?: Flag[];
   clock: { runningSince: number | null; elapsedMs: number };
 }
 
@@ -129,55 +131,103 @@ export type Press =
   | { kind: "throwaway" | "offensiveError" };
 
 /**
- * What a row button does, given who has the disc:
+ * What a row button does, given who has the disc. On offense each row shows Touch, Point and a
+ * third button that is Throwaway on the holder's row and Drop on everyone else's:
  *  point on a receiver    → their catch (Touch) and the Point, in one press
  *  point on the holder    → the Point
  *  drop on a receiver     → their drop of the holder's throw
- *  drop on the holder     → the touch just credited is taken back and recorded as their drop of
- *                           the previous thrower's pass (the stat-taker tapped the catch too soon)
+ *  throwaway (holder)     → the holder's throwaway
  * Returns the updated draft, or the reason the press doesn't fit the possession.
  */
 export function press(d: Draft, p: Press, clock = new Date().toTimeString(), now = Date.now()): Draft | string {
   const s = stateOf(d);
-  const holder = s.chain[0];
   const gt = gameTime(d, now);
-  let base = d, replaced: { event: PlayEvent; gameTime: string } | undefined;
   const taps: Tap[] = [];
   switch (p.kind) {
     case "touch": taps.push({ action: "Touch", player: p.player }); break;
     case "goal":
-      if (s.phase === "offense" && p.player !== holder) taps.push({ action: "Touch", player: p.player });
+      if (s.phase === "offense" && p.player !== s.chain[0]) taps.push({ action: "Touch", player: p.player });
       taps.push({ action: "Point" });
       break;
-    case "drop":
-      if (s.phase === "offense" && p.player === holder) {
-        if (!s.chain[1]) return `${p.player} picked it up; there's no throw to drop`;
-        replaced = { event: d.events[d.events.length - 1], gameTime: d.gameTimes[d.gameTimes.length - 1] ?? "" };
-        base = { ...d, events: d.events.slice(0, -1), gameTimes: d.gameTimes.slice(0, -1) };
-      }
-      taps.push({ action: "Drop", player: p.player });
-      break;
+    case "drop": taps.push({ action: "Drop", player: p.player }); break;
     case "throwaway": taps.push({ action: "T-Away" }); break;
     case "block": taps.push({ action: "D-Play", player: p.player }); break;
     case "scoredOn": taps.push({ action: "GSO", player: p.player }); break;
     case "offensiveError": taps.push({ action: "O-Error" }); break;
   }
-  let next = base;
+  let next = d;
   for (const t of taps) {
     const why = canTap(stateOf(next), t);
     if (why) return why;
     next = { ...next, events: [...next.events, eventFor(next, t, clock)], gameTimes: [...next.gameTimes, gt] };
   }
-  return { ...next, undo: [...(d.undo ?? []), { added: taps.length, replaced }] };
+  return { ...next, undo: [...(d.undo ?? []), { added: taps.length }] };
 }
 
 /** Reverts the last press (or the last event, for drafts saved before presses were tracked). */
 export function undoPress(d: Draft): Draft {
   const stack = d.undo ?? [];
-  const last = stack[stack.length - 1];
-  const n = last?.added ?? 1;
-  let events = d.events.slice(0, Math.max(0, d.events.length - n));
-  let gameTimes = d.gameTimes.slice(0, Math.max(0, d.gameTimes.length - n));
-  if (last?.replaced) { events = [...events, last.replaced.event]; gameTimes = [...gameTimes, last.replaced.gameTime]; }
-  return { ...d, events, gameTimes, undo: stack.slice(0, -1) };
+  const n = stack[stack.length - 1]?.added ?? 1;
+  const keep = Math.max(0, d.events.length - n);
+  return {
+    ...d,
+    events: d.events.slice(0, keep),
+    gameTimes: d.gameTimes.slice(0, keep),
+    undo: stack.slice(0, -1),
+    // A flag on a possession that no longer exists goes with it.
+    flags: d.flags?.filter((f) => f.start < keep),
+  };
+}
+
+export interface Possession {
+  /** Event indexes, inclusive. */
+  start: number; end: number;
+  ours: boolean;
+  /** Still going: we have the disc and nothing has ended the possession yet. */
+  open: boolean;
+  summary: string;
+}
+
+/** Groups a recording into possessions: ours (touches up to a Point or turnover) and theirs. */
+export function possessions(events: PlayEvent[]): Possession[] {
+  const out: Possession[] = [];
+  let start = 0;
+  for (let i = 0; i < events.length; i++) {
+    const e = events[i];
+    if (!ENDS_POSSESSION.has(e.action)) continue;
+    const ours = ["Point", "Drop", "T-Away"].includes(e.action);
+    const evs = events.slice(start, i + 1);
+    out.push({ start, end: i, ours, open: false, summary: summarize(evs) });
+    start = i + 1;
+  }
+  if (start < events.length) out.push({ start, end: events.length - 1, ours: true, open: true, summary: summarize(events.slice(start)) });
+  return out;
+}
+
+function summarize(evs: PlayEvent[]) {
+  const touches = evs.filter((e) => e.action === "Touch").map((e) => e.player);
+  const last = evs[evs.length - 1];
+  const chain = touches.join(" → ");
+  switch (last.action) {
+    case "Touch": return chain;
+    case "Point": return `${chain} · Point`;
+    case "Drop": return `${chain}${chain ? " → " : ""}Drop ${last.player}`;
+    case "T-Away": return `${chain} · Throwaway`;
+    default: return describe(last);
+  }
+}
+
+/**
+ * A possession the stat-taker marked as wrong, to fix after the game. Keyed by the possession's
+ * first event; `end` is refreshed when the game is saved, since an open possession keeps growing.
+ */
+export interface Flag { start: number; end: number; clock: string; note?: string }
+
+export function toggleFlag(d: Draft, p: Possession): Draft {
+  const on = d.flags?.some((f) => f.start === p.start);
+  return {
+    ...d,
+    flags: on ? d.flags!.filter((f) => f.start !== p.start)
+      : [...(d.flags ?? []), { start: p.start, end: p.end, clock: (d.events[p.end]?.clock ?? "").slice(0, 8) }],
+  };
 }

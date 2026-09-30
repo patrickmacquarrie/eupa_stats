@@ -14,7 +14,20 @@ export interface Season {
   aliases?: Alias[];
   /** Name flags the admin dismissed: a spelling, or "a|b" for a pair of players that really are different people. */
   ignoredNames?: string[];
+  /** Possessions a stat-taker flagged as wrong, for the admin to check. Indexes are within that recording. */
+  flags?: SavedFlag[];
 }
+
+export interface SavedFlag {
+  date: string; team: string; opp: string;
+  start: number; end: number; clock: string;
+  note?: string;
+  resolved?: boolean;
+}
+
+/** Flags on a recording that's being replaced or deleted no longer point at the right plays. */
+export const withoutFlagsFor = (flags: SavedFlag[] | undefined, keys: Set<string>) =>
+  (flags ?? []).filter((f) => !keys.has(`${f.date}|${f.team}|${f.opp}`));
 
 export interface SeasonMeta { id: string; name: string; source: string; updatedAt: string }
 
