@@ -168,6 +168,16 @@ test("a season moved online gets a tablet's recording live, with and without a s
   await expect(tablet.locator("[data-sync]")).toHaveText("Synced", { timeout: 15_000 });
   await tablet.close();
 
+  // The tablet reopens at the site's main address: its open game is one tap away, as it was.
+  const reopened = await tabletCtx.newPage();
+  reopened.on("pageerror", (e) => errors.push(e.message));
+  await reopened.goto("/");
+  await expect(reopened.locator(".continue-game")).toContainText("Team B v Team A");
+  await reopened.getByRole("link", { name: "Continue recording" }).click();
+  await expect(reopened.locator(".score-team strong").first()).toHaveText("1");
+  await expect(reopened.locator(".flag-note")).toHaveValue("Bo may have caught it out");
+  await reopened.close();
+
   // Two days later an admin sees the game wasn't finished, with its plays and the flag's note in.
   const later = await (await browser.newContext()).newPage();
   later.on("pageerror", (e) => errors.push(e.message));

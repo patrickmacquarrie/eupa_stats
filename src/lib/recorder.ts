@@ -29,6 +29,8 @@ export interface Draft {
   undo?: { added: number }[];
   /** Possessions flagged as wrong during the game. */
   flags?: Flag[];
+  /** On the Finish screen, with the checked-in players with no plays ticked as here so far. */
+  finishing?: { here: string[] };
   /** `started`: the clock has run at least once (it starts itself on the first play; pausing keeps this true). */
   clock: { runningSince: number | null; elapsedMs: number; started?: boolean };
 }

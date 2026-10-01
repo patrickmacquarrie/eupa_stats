@@ -27,6 +27,22 @@ test("create season, record, refresh recovery, finish, dispute, correct, export 
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
 
+  // A stand-in for the tablet's "keep the screen on" request, which the tablet drops when it locks.
+  await page.addInitScript(() => {
+    const locks: any[] = ((window as any).__locks = []);
+    Object.defineProperty(navigator, "wakeLock", { configurable: true, value: { request: () => {
+      const l: any = { ls: [], addEventListener: (_: string, f: () => void) => l.ls.push(f), release: () => { l.ls.forEach((f: () => void) => f()); return Promise.resolve(); } };
+      locks.push(l);
+      return Promise.resolve(l);
+    } } });
+  });
+  const locks = () => page.evaluate(() => (window as any).__locks.length as number);
+  const setVisible = (v: boolean) => page.evaluate((v) => {
+    Object.defineProperty(document, "visibilityState", { configurable: true, get: () => (v ? "visible" : "hidden") });
+    if (!v) (window as any).__locks.at(-1)?.release();
+    document.dispatchEvent(new Event("visibilitychange"));
+  }, v);
+
   // 1. Create a season from a pasted roster.
   await page.goto("/#/admin");
   await page.getByRole("link", { name: /New season/ }).click();
@@ -61,6 +77,13 @@ test("create season, record, refresh recovery, finish, dispute, correct, export 
   await tap(page, "Amy Ash", "Point");                 // 2–1
   expect(await score(page)).toBe("2–1");
 
+  // The screen stays on while recording, and after the tablet locks and unlocks it asks again.
+  await expect.poll(locks).toBe(1);
+  await setVisible(false);
+  await setVisible(true);
+  await expect.poll(locks).toBe(2);
+  expect(await score(page)).toBe("2–1");
+
   // 3. A refresh mid-game resumes exactly where it was.
   await page.reload();
   await expect(page.locator(".scorebar")).toBeVisible();
@@ -68,6 +91,13 @@ test("create season, record, refresh recovery, finish, dispute, correct, export 
 
   // 4. Finish: the CSV download is a valid tablet recording; save to the season.
   await page.click("text=Finish game");
+  // Closing the browser on the Finish screen comes back to it, ticks and all.
+  const ada = page.locator(".noplays label", { hasText: "Ada Alto" }).locator("input");
+  await ada.check();
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Save to season" })).toBeVisible();
+  await expect(ada).toBeChecked();
+  await ada.uncheck();
   const [csvDownload] = await Promise.all([page.waitForEvent("download"), page.click("text=Download CSV")]);
   const csvPath = testInfo.outputPath("teamA.csv");
   await csvDownload.saveAs(csvPath);

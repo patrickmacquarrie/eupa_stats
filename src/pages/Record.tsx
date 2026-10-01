@@ -24,7 +24,6 @@ function savedFlags(d: Draft, notes?: Record<number, string>): SavedFlag[] {
 export function Record() {
   const { draftKey, canRecord, online } = useSeason();
   const [draft, setDraft] = useState<Draft | null | undefined>(undefined);
-  const [reviewing, setReviewing] = useState(false);
 
   // Every tap is saved on this device first (localStorage and IndexedDB); if both fail, the
   // stat-taker is told. For an online season the recording is also sent to the league a few
@@ -82,8 +81,9 @@ export function Record() {
   }
   if (draft === undefined) return <main className="page"><p className="muted">Loading…</p></main>;
   if (!draft || !draft.events || draft.present === undefined) return <GameSetup onStart={(d) => change(d, true)} />;
-  if (reviewing) return <Review draft={draft} cancelSend={cancelSend} onSaved={saved} onBack={() => setReviewing(false)} onDone={() => { change(null); setReviewing(false); }} />;
-  return <Live draft={draft} onChange={change} onFinish={() => setReviewing(true)} unsafe={unsafe} syncError={syncError} waiting={waiting} />;
+  // The Finish screen is part of the saved game, so closing the browser there comes back to it.
+  if (draft.finishing) return <Review draft={draft} onChange={change} cancelSend={cancelSend} onSaved={saved} onBack={() => change({ ...draft, finishing: undefined })} onDone={() => change(null)} />;
+  return <Live draft={draft} onChange={change} onFinish={() => change({ ...draft, finishing: { here: [] } })} unsafe={unsafe} syncError={syncError} waiting={waiting} />;
 }
 
 const syncProblem = (e: unknown) => ((e as { code?: string }).code === "permission-denied"
@@ -261,10 +261,31 @@ function Live({ draft, onChange, onFinish, unsafe, syncError, waiting }: { draft
 
   useEffect(() => { if (!running) return; const t = setInterval(() => tick((x) => x + 1), 1000); return () => clearInterval(t); }, [running]);
   // Keep the tablet's screen on while recording.
-  const lock = useRef<any>(null);
+  // The tablet drops the request whenever its screen locks or the browser goes to the background,
+  // so it's asked again on the way back, and on any tap if a request didn't take.
   useEffect(() => {
-    (navigator as any).wakeLock?.request("screen").then((l: any) => { lock.current = l; }).catch(() => {});
-    return () => { lock.current?.release?.().catch?.(() => {}); };
+    let lock: any = null, asking = false, live = true;
+    const ask = () => {
+      if (lock || asking || document.visibilityState !== "visible") return;
+      const wl = (navigator as any).wakeLock;
+      if (!wl) return;
+      asking = true;
+      wl.request("screen").then((l: any) => {
+        asking = false;
+        if (!live) { l.release?.().catch?.(() => {}); return; }
+        lock = l;
+        l.addEventListener?.("release", () => { lock = null; });
+      }).catch(() => { asking = false; });
+    };
+    ask();
+    document.addEventListener("visibilitychange", ask);
+    document.addEventListener("pointerdown", ask);
+    return () => {
+      live = false;
+      document.removeEventListener("visibilitychange", ask);
+      document.removeEventListener("pointerdown", ask);
+      lock?.release?.().catch?.(() => {});
+    };
   }, []);
 
   const go = (p: Press) => {
@@ -420,12 +441,15 @@ function ClockAdjust({ draft, onApply, onCancel }: { draft: Draft; onApply: (d: 
 
 /* ------------------------------------------------------------------ review */
 
-function Review({ draft, cancelSend, onSaved, onBack, onDone }: { draft: Draft; cancelSend: () => void; onSaved: () => void; onBack: () => void; onDone: () => void }) {
+function Review({ draft, onChange, cancelSend, onSaved, onBack, onDone }: { draft: Draft; onChange: (d: Draft) => void; cancelSend: () => void; onSaved: () => void; onBack: () => void; onDone: () => void }) {
   const { season, updateSeason, online } = useSeason();
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<{ week: number } | null>(null);
-  const [here, setHere] = useState<Set<string>>(new Set());
-  const [notes, setNotes] = useState<Record<number, string>>(() => Object.fromEntries((draft.flags ?? []).map((f) => [f.start, f.note ?? ""])));
+  // Ticks and notes are saved with the game as they're made.
+  const here = new Set(draft.finishing?.here ?? []);
+  const setHere = (x: Set<string>) => onChange({ ...draft, finishing: { here: [...x] } });
+  const notes: Record<number, string> = Object.fromEntries((draft.flags ?? []).map((f) => [f.start, f.note ?? ""]));
+  const setNotes = (n: Record<number, string>) => onChange({ ...draft, flags: (draft.flags ?? []).map((f) => ({ ...f, note: n[f.start] })) });
   const poss = possessions(draft.events);
   const tally = useMemo(() => tallyRecording(draft.events, (n) => n), [draft.events]);
   const s = stateOf(draft);
