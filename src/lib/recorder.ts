@@ -119,15 +119,18 @@ export function describe(e: PlayEvent) {
   }
 }
 
-/** The old tablet app's CSV format, so a recording can go to another device or the old tools. */
+/**
+ * The old tablet app's CSV format, byte for byte (LF line ends, no final newline), so a recording
+ * can go to another device or the old tools, and a downloaded file matches what the tablet sent.
+ */
 export function toTabletCsv(events: PlayEvent[], gameTimes?: string[]) {
   const q = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
   const head = ["date", "time", "gameTime", "statTeam", "otherTeam", "statTeamScore", "otherTeamScore", "action", "player", "lastPlayer", "secLastPlayer", "turnover"];
   const rows = events.map((e, i) => [
-    new Date(e.date + "T12:00:00").toDateString(), e.clock ?? "", gameTimes?.[i] ?? "", e.statTeam, e.otherTeam, e.statScore, e.otherScore,
+    new Date(e.date + "T12:00:00").toDateString(), e.clock ?? "", gameTimes?.[i] ?? e.gameTime ?? "", e.statTeam, e.otherTeam, e.statScore, e.otherScore,
     e.action, e.player ?? "", e.lastPlayer ?? "", e.secLastPlayer ?? "", ENDS_POSSESSION.has(e.action) ? "true" : "false",
   ]);
-  return "﻿" + [head, ...rows].map((r) => r.map(q).join(",")).join("\r\n") + "\r\n";
+  return "﻿" + [head, ...rows].map((r) => r.map(q).join(",")).join("\n");
 }
 
 /** A button on a player's row, or the team-level "Offensive error" (O-Error). */
@@ -164,7 +167,7 @@ export function press(d: Draft, p: Press, clock = new Date().toTimeString(), now
   for (const t of taps) {
     const why = canTap(stateOf(next), t);
     if (why) return why;
-    next = { ...next, events: [...next.events, eventFor(next, t, clock)], gameTimes: [...next.gameTimes, gt] };
+    next = { ...next, events: [...next.events, { ...eventFor(next, t, clock), gameTime: gt }], gameTimes: [...next.gameTimes, gt] };
   }
   // The game clock starts itself with the first recorded play.
   const neverRun = !d.clock.runningSince && !(d.clock.started ?? d.clock.elapsedMs > 0);
@@ -241,6 +244,10 @@ export function toggleFlag(d: Draft, p: Possession): Draft {
       : [...(d.flags ?? []), { start: p.start, end: p.end, clock: (d.events[p.end]?.clock ?? "").slice(0, 8) }],
   };
 }
+
+/** A recording's CSV file name: "2026-09-28_Team2_v_Team1.csv". */
+export const csvName = (date: string, team: string, opp: string, short: (t: string) => string) =>
+  `${date}_${short(team)}_v_${short(opp)}.csv`.replace(/\s+/g, "");
 
 /** Start or pause the game clock by hand. */
 export function toggleClock(d: Draft, now = Date.now()): Draft {

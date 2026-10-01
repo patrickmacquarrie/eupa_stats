@@ -6,7 +6,9 @@ import { PlayEditor } from "../components/PlayEditor";
 import type { BoxScore, GameLine, StatLine } from "../../engine/types";
 import { delta, money, resultLabel, shortTeam } from "../lib/format";
 import { weekOfDate, type SavedFlag } from "../lib/season";
-import { describe } from "../lib/recorder";
+import { csvName, describe, toTabletCsv } from "../lib/recorder";
+import { downloadText } from "../lib/store";
+import type { PlayEvent } from "../../engine/types";
 import { useSeason } from "../lib/SeasonContext";
 import { clearOfficial, needsReconfirming, officialFor, setOfficial } from "../lib/official";
 import { recommend, tabletsText } from "../lib/scoreDiff";
@@ -38,6 +40,7 @@ function GameSummary() {
       <div className="two-col">
         {[[a, b], [b, a]].map(([team, opp]) => {
           const rec = result.recordings.find((r) => r.week === week && r.team === team && r.opp === opp);
+          const events = input.events.filter((e) => e.statTeam === team && e.otherTeam === opp && weekOfDate(input.schedule, e.date) === week);
           const lines = result.lines.filter((l) => l.week === week && l.team === team && l.opp === opp && l.role !== "absent")
             .sort((x, y) => Number(x.role === "sub") - Number(y.role === "sub") || x.player.localeCompare(y.player));
           return (
@@ -55,6 +58,7 @@ function GameSummary() {
                   ))}</tbody>
                 </table>
               )}
+              {events.length > 0 && <CsvButton team={team} opp={opp} events={events} />}
             </section>
           );
         })}
@@ -123,14 +127,19 @@ function GameAdmin() {
       {edit && <PlayEditor key={`${edit.team}|${edit.focus}`} {...edit} onClose={() => setEdit(null)} />}
 
       <div className="two-col">
-        <Side team={a} opp={b} week={week} onEdit={evA.length ? () => openEditor(a, b, evA[0].date) : undefined} lines={result.lines.filter((l) => l.week === week && l.team === a && l.opp === b)} />
-        <Side team={b} opp={a} week={week} onEdit={evB.length ? () => openEditor(b, a, evB[0].date) : undefined} lines={result.lines.filter((l) => l.week === week && l.team === b && l.opp === a)} />
+        <Side team={a} opp={b} week={week} events={evA} onEdit={evA.length ? () => openEditor(a, b, evA[0].date) : undefined} lines={result.lines.filter((l) => l.week === week && l.team === a && l.opp === b)} />
+        <Side team={b} opp={a} week={week} events={evB} onEdit={evB.length ? () => openEditor(b, a, evB[0].date) : undefined} lines={result.lines.filter((l) => l.week === week && l.team === b && l.opp === a)} />
       </div>
     </main>
   );
 }
 
-function Side({ team, opp, week, lines, onEdit }: { team: string; opp: string; week: number; lines: GameLine[]; onEdit?: () => void }) {
+/** The side's tablet recording as the old app's CSV, exactly as the tablet wrote it. */
+function CsvButton({ team, opp, events }: { team: string; opp: string; events: PlayEvent[] }) {
+  return <button onClick={() => downloadText(csvName(events[0].date, team, opp, shortTeam), toTabletCsv(events))}>Download CSV</button>;
+}
+
+function Side({ team, opp, week, lines, events, onEdit }: { team: string; opp: string; week: number; lines: GameLine[]; events: PlayEvent[]; onEdit?: () => void }) {
   const { season, input, result, update, updateSeason, resolveName } = useSeason();
   const rec = result.recordings.find((r) => r.week === week && r.team === team && r.opp === opp);
   const box = season.input.boxScores?.find((x) => x.week === week && x.team === team && x.opp === opp);
@@ -192,6 +201,7 @@ function Side({ team, opp, week, lines, onEdit }: { team: string; opp: string; w
           </table>
           <div className="row gap">
             {onEdit && !box && <button onClick={onEdit}>Edit possessions</button>}
+            {events.length > 0 && !box && <CsvButton team={team} opp={opp} events={events} />}
             <button onClick={() => setEditing(true)}>{box ? "Edit box score" : "Correct with a box score"}</button>
             {box && (
               <button className="danger" onClick={async () => {

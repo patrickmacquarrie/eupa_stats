@@ -7,6 +7,8 @@ import { tabletCsvToEvents } from "../lib/csv";
 import { recordingProblems, summarize } from "../lib/validate";
 import { nameKey, suggestPlayer } from "../lib/names";
 import { shortTeam } from "../lib/format";
+import { csvName, toTabletCsv } from "../lib/recorder";
+import { downloadText } from "../lib/store";
 import { recordingsOf, weekOfDate, withoutFlagsFor } from "../lib/season";
 import { useSeason } from "../lib/SeasonContext";
 
@@ -157,10 +159,12 @@ export function Recordings() {
                   <td>{week ? <Link to={`../games/${week}/${encodeURIComponent(a)}/${encodeURIComponent(b)}`}>{shortTeam(team)}</Link> : shortTeam(team)} <span className="muted">v {shortTeam(opp)}</span></td>
                   <td className="num">{evs.length}</td>
                   <td className="num">{last.statScore}–{last.otherScore}</td>
-                  <td><button className="danger small-btn" onClick={async () => {
+                  <td><div className="row gap-sm"><button className="small-btn" aria-label={`Download ${team}'s ${date} recording as CSV`}
+                    onClick={() => downloadText(csvName(date, team, opp, shortTeam), toTabletCsv(evs))}>CSV</button>
+                  <button className="danger small-btn" onClick={async () => {
                     if (await askConfirm(`Delete ${team}'s recording of ${date}? This can't be undone unless you have an export.`, { ok: "Delete", danger: true }))
                       updateSeason((x) => ({ ...x, flags: withoutFlagsFor(x.flags, new Set([k])), input: { ...x.input, events: x.input.events.filter((e) => recKey(e) !== k) } }));
-                  }}>Delete</button></td>
+                  }}>Delete</button></div></td>
                 </tr>
               );
             })}
