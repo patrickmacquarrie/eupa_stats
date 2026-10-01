@@ -6,7 +6,7 @@ import { EUPA_RULES, buildNewSeason, parseRoster, scheduleProblem, skipWeek, wee
 import { checkSeason, type SeasonMeta } from "../lib/season";
 import { listSeasons, loadSeason, saveSeason } from "../lib/store";
 
-const EXAMPLE = "Player\tGender\tTeam\tStarting Salary\nGreg Wentworth\tM\tTeam 1\t$7,500,000\nJennifer Blaser\tF\tTeam 1\t$4,050,000\nVanessa Chow\tF\tSub\t";
+const EXAMPLE = "Player\tGender\tTeam\tStarting Salary\nAvery Example\tM\tTeam 1\t$7,500,000\nBlair Sample\tF\tTeam 1\t$4,050,000\nCasey Reserve\tF\tSub\t";
 const nextMonday = () => {
   const d = new Date(); d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7));
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;

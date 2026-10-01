@@ -92,8 +92,9 @@ scripts/
   validate.ts          diffs the engine against the sheet's own numbers
   experiments.ts       what-ifs: auto pairing, fixed plug, to-date absence average
   dispute.ts           two tablet CSVs for one game → where they disagree and a proposed score
+  anonymise-fixtures.ts  replaces real names in fixtures/ with stable fakes (see below)
 fixtures/              Fall 2026 (weeks 1–4), Thursday S1 2026 (weeks 1–8), Premier League 2025
-                       (weeks 1–15, 39k events), disputes/ (tablet CSV pairs)
+                       (weeks 1–15, 39k events), disputes/ (tablet CSV pairs); names anonymised
 ```
 
 Run: `npm i && npx tsx scripts/validate.ts fixtures/*.json` (add `--boxscore` to feed the sheet's
@@ -109,12 +110,19 @@ own stat lines instead of the event log), `npx tsx scripts/experiments.ts`.
 | Weekly salaries, rebuilt from the raw event log | 180 / 180 exact | same 4 errors, plus drift from week 3 on: the archive for weeks 5–7 is missing about a third of the assists, and the retroactive absence average carries that back into weeks 3–4 | not run |
 | Cap by week | exact | follows from the above | within 0.1% (includes the $2M team win bonus) |
 
-Sheet errors the engine surfaced (Thursday S1):
-- Kenny Bedecki, week 2: no absence rows entered for either game (underpaid $240,000).
-- Jared Dembicki, week 5: his own-team game was recorded under "Jared Dembicki Sub" and his
-  sub appearance for Team 3 under his real name, so he earned $0 for a game he played.
-- Masha Parshykova, week 4: Vanessa Chow's sub credit ($500,000) didn't reach her (manual rows).
-- Jessica Van Os, week 4 vs Team 2: growth shows $0; her stat line is worth −$300,000.
+The fixtures' player, GM and team names are fakes from `scripts/anonymise-fixtures.ts`. It
+uses one mapping across every fixture and CSV, so a person keeps the same fake everywhere, and it
+keeps every pair the Names screen links (typos, short first names, "Name Sub" records) linked
+for the same reason. Run it on a newly extracted fixture before committing; its mapping file
+(`fixtures/.anonymise-map.json`) is git-ignored and must never be committed. Anonymising
+changed no count above, only the names in the mismatch lines.
+
+Sheet errors the engine surfaced (Thursday S1; names are the fixtures' anonymised ones):
+- Dashiell Oakenshaw, week 2: no absence rows entered for either game (underpaid $240,000).
+- Alder Oakenshaw, week 5: their own-team game was recorded under "Alder Oakenshaw Sub" and their
+  sub appearance for Team 3 under their real name, so they earned $0 for a game they played.
+- Ignatius Lindqvist, week 4: Leopold Rookwood's sub credit ($500,000) never reached them (manual rows).
+- Ravenna Lindqvist, week 4 vs Team 2: growth shows $0; their stat line is worth −$300,000.
 
 Rule settings live in `LeagueRules`; the sheet's behaviour is reproduced with
 `absence.thereafter = "seasonAvgRetroactive"` and `plugMode = "asAbsentPlayer"`.

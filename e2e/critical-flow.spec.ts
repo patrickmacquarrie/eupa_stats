@@ -6,7 +6,7 @@ const ROSTER = [
   "Player\tGender\tTeam\tStarting Salary",
   "Ann Arbour\tF\tTeam A\t$2,000,000", "Al Ames\tM\tTeam A\t$1,500,000", "Amy Ash\tF\tTeam A\t$1,000,000", "Art Aldo\tM\tTeam A\t$500,000",
   "Bea Brook\tF\tTeam B\t$2,000,000", "Bo Birch\tM\tTeam B\t$1,500,000", "Bree Bell\tF\tTeam B\t$1,000,000", "Ben Bay\tM\tTeam B\t$500,000",
-  "Cass Sub\tF\tSub\t",
+  "Casey Sub\tF\tSub\t",
 ].join("\n");
 
 const tap = (page: Page, player: string, button: string) => page.click(`.prow:has(.pname:text-is("${player}")) >> button:text-is("${button}")`);
@@ -74,7 +74,7 @@ test("create season, record, refresh recovery, finish, dispute, correct, export 
   await page.setInputFiles('label.file-drop input[type="file"]', { name: "teamB.csv", mimeType: "text/csv", buffer: Buffer.from(teamBTablet()) });
   await page.click("text=/Add 1 recording/");
   await page.click("nav.tabs >> text=Admin");
-  // The dispute, plus the roster's "Cass Sub", which Names flags as an old "Name Sub" record.
+  // The dispute, plus the roster's "Casey Sub", which Names flags as an old "Name Sub" record.
   await expect(page.locator(".tabs .badge.alert")).toHaveText("2");
   await expect(page.locator(".open-items h2")).toHaveText("Provisional: week 1");
   await expect(page.locator(".open-items summary")).toContainText("1 score dispute");

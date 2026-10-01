@@ -67,7 +67,7 @@ export function likelySame(x: string, y: string): string | null {
   if (a === b) return nameKey(x) === nameKey(y) ? null : "same name apart from “Sub”";
   const d = editDistance(a, b);
   if (d <= (Math.min(a.length, b.length) >= 8 ? 2 : 1)) return `spelling differs by ${d} letter${d > 1 ? "s" : ""}`;
-  // Short first name: "Jess Van Os" / "Jessica Van Os".
+  // Short first name: "Jess Smith" / "Jessica Smith".
   const [fa, ...la] = a.split(" "), [fb, ...lb] = b.split(" ");
   if (la.length && la.join(" ") === lb.join(" ") && Math.min(fa.length, fb.length) >= 3 && (fa.startsWith(fb) || fb.startsWith(fa)))
     return "short form of the first name";

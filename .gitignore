@@ -5,3 +5,6 @@ dist
 dist-share
 test-results
 playwright-report
+
+# Real-name mapping written by scripts/anonymise-fixtures.ts. Never commit it.
+fixtures/.anonymise-map.json
