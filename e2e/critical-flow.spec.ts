@@ -4,7 +4,7 @@ import { tabletCsvToEvents } from "../src/lib/csv";
 
 const ROSTER = [
   "Player\tGender\tTeam\tStarting Salary",
-  "Ann Arbour\tF\tTeam A\t$2,000,000", "Al Ames\tM\tTeam A\t$1,500,000", "Amy Ash\tF\tTeam A\t$1,000,000", "Art Aldo\tM\tTeam A\t$500,000",
+  "Ann Arbour\tF\tTeam A\t$2,000,000", "Al Ames\tM\tTeam A\t$1,500,000", "Amy Ash\tF\tTeam A\t$1,000,000", "Art Aldo\tM\tTeam A\t$500,000", "Ada Alto\tF\tTeam A\t$500,000",
   "Bea Brook\tF\tTeam B\t$2,000,000", "Bo Birch\tM\tTeam B\t$1,500,000", "Bree Bell\tF\tTeam B\t$1,000,000", "Ben Bay\tM\tTeam B\t$500,000",
   "Casey Sub\tF\tSub\t",
 ].join("\n");
@@ -104,6 +104,17 @@ test("create season, record, refresh recovery, finish, dispute, correct, export 
   await expect(page.locator(".open-items")).toHaveCount(0);
   await expect(page.locator(".tabs .badge.alert")).toHaveText("1");
   await expect(page.locator(".subtabs .badge.alert")).toHaveText("1");    // on Names
+
+  // Ada didn't play; ticking "Was here" makes her an admin item, which the admin acknowledges.
+  await page.click("nav.tabs >> text=Games");
+  await page.click("text=Team A v Team B");
+  await page.locator("tr", { hasText: "Ada Alto" }).locator("text=Was here").click();
+  await page.click("nav.tabs >> text=Admin");
+  await expect(page.locator(".tabs .badge.alert")).toHaveText("2");
+  await expect(page.locator("#quiet-title + p + ul li")).toContainText("Ada Alto was marked present for Team A v Team B (week 1) but has no stats");
+  await expect(page.locator(".open-items")).toHaveCount(0);                 // not provisional
+  await page.getByRole("button", { name: "Acknowledge" }).click();
+  await expect(page.locator(".tabs .badge.alert")).toHaveText("1");
 
   // 7. Export, delete, import: everything comes back.
   const [jsonDownload] = await Promise.all([page.waitForEvent("download"), page.click("header >> text=Export")]);

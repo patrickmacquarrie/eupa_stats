@@ -29,6 +29,8 @@ export interface Season {
   gameLengthMin?: number;
   /** Fill in a match for every sub without a saved pick (see autoMatch.ts). Missing means on. */
   autoMatchSubs?: boolean;
+  /** "Present with no stats" items the admin has seen and accepted (review.quietKey). */
+  acknowledgedQuiet?: string[];
 }
 
 export const autoMatchOn = (s: Pick<Season, "autoMatchSubs">) => s.autoMatchSubs !== false;
@@ -145,6 +147,8 @@ export function migrateSeason(raw: any): Season {
 export function checkSeason(season: Season): string[] {
   if (typeof season.name !== "string" || !season.name.trim()) throw new Error("The season has no name.");
   if (season.autoMatchSubs !== undefined && typeof season.autoMatchSubs !== "boolean") throw new Error("The season's auto-match subs setting is damaged.");
+  if (season.acknowledgedQuiet !== undefined && !(Array.isArray(season.acknowledgedQuiet) && season.acknowledgedQuiet.every((k) => typeof k === "string")))
+    throw new Error("The season's acknowledged \"present with no stats\" list is damaged.");
   const problems = seasonInputProblems(season.input);
   const blocking = problems.filter((p) => p.blocking);
   if (blocking.length) throw new Error(`This season can't be used as it is:\n${summarize(blocking).join("\n")}`);

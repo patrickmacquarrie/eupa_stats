@@ -174,3 +174,26 @@ describe("a goal the other tablet contradicts", () => {
     expect(r.goals).toEqual([{ text: "A goal at 19:39:28 (Al), only on A's tablet: B's tablet shows a turnover (D-Play Bo) at 19:39:30. Left out.", counted: false }]);
   });
 });
+
+describe("players marked present with no stats", () => {
+  it("are an admin item that counts in the bubble, never makes a week provisional, and can be acknowledged", async () => {
+    const { adminCounts, provisionalWeeks, quietKey } = await import("../src/lib/review");
+    const withAmy = (input: LeagueInput): LeagueInput => ({ ...input, players: [...input.players, { name: "Amy Ash", gender: "F", initialSalary: 1_000_000, team: "A", isSub: false }] });
+    const stored = withAmy(base([...tabletA, ...tabletB2], {
+      subAssignments: [{ week: 1, team: "A", opp: "B", sub: "Sid", subbedFor: "" }],
+      presentWithoutPlays: [{ week: 1, team: "A", opp: "B", player: "Amy Ash" }],
+    }));
+    const run = (acknowledgedQuiet: string[] = []) => {
+      const result = computeLeague(stored);
+      const season = { input: stored, flags: [], ignoredNames: [], acknowledgedQuiet } as unknown as Season;
+      return openItems(season, stored, result, gamesOf(result.recordings));
+    };
+    const items = run();
+    expect(items.map((i) => [i.kind, i.label, i.to])).toEqual([
+      ["quiet", "Amy Ash was marked present for A v B (week 1) but has no stats", "games/1/A/B"],
+    ]);
+    expect(provisionalWeeks(items)).toEqual([]);
+    expect(adminCounts(items, 0, 0)).toMatchObject({ review: 1, total: 1 });
+    expect(run([quietKey(1, "A", "B", "amy ash")])).toEqual([]);
+  });
+});

@@ -29,11 +29,12 @@ export function AdminFrame({ children }: { children: ReactNode }) {
 
 /** Everything that keeps a week provisional, plus the engine's own warnings. */
 export function AdminReview() {
-  const { season, input, result, games, computeMs, nameIssueCount, open, provisional, update } = useSeason();
+  const { season, input, result, games, computeMs, nameIssueCount, open, provisional, update, updateSeason } = useSeason();
+  const quiet = open.filter((i) => i.kind === "quiet");
   const last = input.throughWeek;
   const disputed = games.filter((g) => g.week <= last && isDisputed(g)).length;
   const notes = sessionStorage.getItem(`notes:${season.id}`);
-  const clear = !provisional.length && !nameIssueCount && !result.warnings.length;
+  const clear = !provisional.length && !nameIssueCount && !result.warnings.length && !quiet.length;
 
   return (
     <main className="page">
@@ -52,7 +53,7 @@ export function AdminReview() {
           <h2 id="open-title">Provisional: week{provisional.length > 1 ? "s" : ""} {provisional.join(", ")}</h2>
           <p className="muted small">These salaries and standings can still change. Settle each item below and the week becomes final.</p>
           {provisional.map((wk) => {
-            const items = open.filter((i) => i.week === wk);
+            const items = open.filter((i) => i.week === wk && i.kind !== "quiet");
             return (
               <details key={wk} open={provisional.length === 1}>
                 <summary><strong>Week {wk}</strong>: {describeItems(items)}</summary>
@@ -73,6 +74,21 @@ export function AdminReview() {
               </details>
             );
           })}
+        </section>
+      )}
+
+      {quiet.length > 0 && (
+        <section className="card" aria-labelledby="quiet-title">
+          <h2 id="quiet-title">Present with no stats</h2>
+          <p className="muted small">These players were marked present but have no recorded plays. Their salary already counts them as present; check they really played, then acknowledge, or untick them on the game page.</p>
+          <ul className="plain small item-list">{quiet.map((i) => (
+            <li key={i.quietKey}>
+              <Link to={`../${i.to}`}>{i.label}</Link>
+              <span className="approve-inline">
+                <button className="small-btn" onClick={() => updateSeason((s) => ({ ...s, acknowledgedQuiet: [...(s.acknowledgedQuiet ?? []), i.quietKey!] }))}>Acknowledge</button>
+              </span>
+            </li>
+          ))}</ul>
         </section>
       )}
 

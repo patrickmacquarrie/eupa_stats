@@ -8,11 +8,13 @@ import type { Season } from "./season";
 import { weekOfDate } from "./season";
 import type { Game } from "./SeasonContext";
 
-export type OpenKind = "dispute" | "official" | "flag" | "name" | "sub";
+export type OpenKind = "dispute" | "official" | "flag" | "name" | "sub" | "quiet";
 export interface OpenItem {
   week: number; kind: OpenKind; label: string;
   /** Route relative to the season. */
   to: string;
+  /** For "quiet" items: the key the admin acknowledges it under. */
+  quietKey?: string;
   /** A score difference's recommended score, which the admin can approve in one click. */
   approve?: { a: string; b: string; scoreA: number; scoreB: number; conflicts: number };
 }
@@ -71,14 +73,31 @@ export function openItems(season: Season, input: LeagueInput, result: EngineResu
       : auto ? "no absent player of the same gender is left to cover" : "isn't matched to an absent player yet";
     out.push({ week: l.week, kind: "sub", label: `${l.player} played for ${l.team} v ${l.opp}, but ${why}`.replace(", but isn't", " but isn't"), to: "admin/subs" });
   }
+  // Marked present (at Finish, or "Was here" on the game page) but no stats recorded. Worth a
+  // look, but the salary outcome is already decided, so it doesn't make the week provisional.
+  const acked = new Set(season.acknowledgedQuiet ?? []);
+  const STATS = ["goals", "assists", "secondAssists", "blocks", "drops", "throwaways", "gso", "touches"] as const;
+  for (const x of input.presentWithoutPlays ?? []) {
+    if (x.week > w) continue;
+    const key = quietKey(x.week, x.team, x.opp, x.player);
+    if (acked.has(key)) continue;
+    const line = result.lines.find((l) => l.week === x.week && l.team === x.team && l.opp === x.opp && nameKey(l.player) === nameKey(x.player));
+    if (line && STATS.some((k) => line[k] > 0)) continue;
+    out.push({ week: x.week, kind: "quiet", quietKey: key, to: gameLink(x.week, x.team, x.opp),
+      label: `${x.player} was marked present for ${x.team} v ${x.opp} (week ${x.week}) but has no stats` });
+  }
   return out.sort((a, b) => a.week - b.week || a.kind.localeCompare(b.kind));
 }
 
-export const provisionalWeeks = (items: OpenItem[]) => [...new Set(items.map((i) => i.week))].sort((a, b) => a - b);
+export const quietKey = (week: number, team: string, opp: string, player: string) => `${week}|${team}|${opp}|${nameKey(player)}`;
+
+/** Weeks whose salaries can still change. A "quiet" item doesn't count: its outcome is decided. */
+export const provisionalWeeks = (items: OpenItem[]) => [...new Set(items.filter((i) => i.kind !== "quiet").map((i) => i.week))].sort((a, b) => a - b);
 
 const NOUN: Record<OpenKind, [string, string]> = {
   dispute: ["score difference", "score differences"], official: ["official score to reconfirm", "official scores to reconfirm"], flag: ["flagged possession", "flagged possessions"],
   name: ["unknown name", "unknown names"], sub: ["unmatched sub", "unmatched subs"],
+  quiet: ["player present with no stats", "players present with no stats"],
 };
 /** "1 score dispute, 2 unmatched subs" */
 export function describeItems(items: OpenItem[]) {

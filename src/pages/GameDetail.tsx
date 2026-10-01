@@ -10,6 +10,7 @@ import { describe } from "../lib/recorder";
 import { useSeason } from "../lib/SeasonContext";
 import { clearOfficial, needsReconfirming, officialFor, setOfficial } from "../lib/official";
 import { recommend, tabletsText } from "../lib/scoreDiff";
+import { quietKey } from "../lib/review";
 
 const STATS: [keyof StatLine, string][] = [
   ["goals", "G"], ["assists", "A"], ["secondAssists", "2A"], ["blocks", "D"],
@@ -84,7 +85,7 @@ export function GameDetail() {
 }
 
 function Side({ team, opp, week, lines, onEdit }: { team: string; opp: string; week: number; lines: GameLine[]; onEdit?: () => void }) {
-  const { season, input, result, update, resolveName } = useSeason();
+  const { season, input, result, update, updateSeason, resolveName } = useSeason();
   const rec = result.recordings.find((r) => r.week === week && r.team === team && r.opp === opp);
   const box = season.input.boxScores?.find((x) => x.week === week && x.team === team && x.opp === opp);
   const [editing, setEditing] = useState(false);
@@ -93,12 +94,17 @@ function Side({ team, opp, week, lines, onEdit }: { team: string; opp: string; w
   const isMarked = (x: { week: number; team: string; opp: string; player: string }, player: string) =>
     x.week === week && x.team === team && x.opp === opp && x.player.toLowerCase() === player.toLowerCase();
   const marked = (player: string) => (input.presentWithoutPlays ?? []).some((x) => isMarked(x, player));
-  const setPresent = (player: string, on: boolean) => update((inp) => ({
-    ...inp,
-    presentWithoutPlays: [
-      ...(inp.presentWithoutPlays ?? []).filter((x) => !isMarked({ ...x, player: resolveName(x.player) }, player)),
-      ...(on ? [{ week, team, opp, player }] : []),
-    ],
+  // Unticking also clears any "present with no stats" acknowledgement, so a later tick asks again.
+  const setPresent = (player: string, on: boolean) => updateSeason((s) => ({
+    ...s,
+    acknowledgedQuiet: on ? s.acknowledgedQuiet : (s.acknowledgedQuiet ?? []).filter((k) => k !== quietKey(week, team, opp, player)),
+    input: {
+      ...s.input,
+      presentWithoutPlays: [
+        ...(s.input.presentWithoutPlays ?? []).filter((x) => !isMarked({ ...x, player: resolveName(x.player) }, player)),
+        ...(on ? [{ week, team, opp, player }] : []),
+      ],
+    },
   }));
 
   return (

@@ -8,6 +8,7 @@ import { shortTeam } from "../lib/format";
 import { nameKey, suggestPlayer } from "../lib/names";
 import { elapsedMs, gameTime, parseClock, possessions, press, setClock, stateOf, toggleClock, toggleFlag, toTabletCsv, undoPress, type Draft, type Phase, type Press } from "../lib/recorder";
 import { weekOfDate, withoutFlagsFor } from "../lib/season";
+import { quietKey } from "../lib/review";
 import { useSeason } from "../lib/SeasonContext";
 import { clearDraft, downloadText, loadDraft, saveDraft } from "../lib/store";
 
@@ -355,7 +356,11 @@ function Review({ draft, onBack, onDone }: { draft: Draft; onBack: () => void; o
         date: draft.date, team: draft.team, opp: draft.opp, start: f.start,
         end: poss.find((p) => p.start === f.start)?.end ?? f.end, clock: f.clock, note: notes[f.start]?.trim() || undefined,
       }));
-      return { ...x, flags: [...withoutFlagsFor(x.flags, new Set([key])), ...flags], input: {
+      // A player no longer ticked loses any "present with no stats" acknowledgement for this game.
+      const ticked = new Set([...here].map((p) => quietKey(week, draft.team, draft.opp, p)));
+      const gamePrefix = `${week}|${draft.team}|${draft.opp}|`;
+      const acknowledgedQuiet = (x.acknowledgedQuiet ?? []).filter((k) => !k.startsWith(gamePrefix) || ticked.has(k));
+      return { ...x, acknowledgedQuiet, flags: [...withoutFlagsFor(x.flags, new Set([key])), ...flags], input: {
         ...x.input,
         players: [...x.input.players, ...draft.newPlayers.filter((p) => !have.has(nameKey(p.name)))],
         events: [...x.input.events.filter((e) => `${e.date}|${e.statTeam}|${e.otherTeam}` !== key), ...draft.events],
