@@ -105,12 +105,23 @@ test("create season, record, refresh recovery, finish, dispute, correct, export 
   expect(events.at(-1)).toMatchObject({ statTeam: "Team A", statScore: 2, otherScore: 1, action: "Point", player: "Amy Ash", lastPlayer: "Ann Arbour" });
   await page.click("text=Save to season");
   await expect(page.locator("text=Saved")).toBeVisible();
+  // Once it's in the season, the game page downloads the same file, byte for byte.
+  await page.getByRole("link", { name: "Open the game" }).click();
+  const [again] = await Promise.all([page.waitForEvent("download"), page.locator("section", { hasText: "From 10 tablet events" }).getByRole("button", { name: "Download CSV" }).click()]);
+  const againPath = testInfo.outputPath("teamA-again.csv");
+  await again.saveAs(againPath);
+  expect(readFileSync(againPath, "utf8")).toBe(readFileSync(csvPath, "utf8"));
 
   // 5. Team B's tablet disagrees (3–1): the week goes provisional.
   await page.click("nav.tabs >> text=Admin");
   await page.click(".subtabs >> text=Recordings");
   await page.setInputFiles('label.file-drop input[type="file"]', { name: "teamB.csv", mimeType: "text/csv", buffer: Buffer.from(teamBTablet()) });
   await page.click("text=/Add 1 recording/");
+  // The Recordings list downloads each recording as a CSV with the same plays as the upload.
+  const [bDownload] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: /Download Team B's .* recording as CSV/ }).click()]);
+  const bPath = testInfo.outputPath("teamB-again.csv");
+  await bDownload.saveAs(bPath);
+  expect(tabletCsvToEvents(readFileSync(bPath, "utf8"))).toEqual(tabletCsvToEvents(teamBTablet()));
   await page.click("nav.tabs >> text=Admin");
   // The dispute, plus the roster's "Casey Sub", which Names flags as an old "Name Sub" record.
   await expect(page.locator(".tabs .badge.alert")).toHaveText("2");
