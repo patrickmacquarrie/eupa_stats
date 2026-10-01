@@ -16,20 +16,25 @@
     "build:artifact": "npm run build:demo && node scripts/build-artifact.mjs",
     "build:share": "tsc --noEmit && vite build --config vite.share.config.ts && tsx scripts/build-share.ts",
     "build:demo": "tsc --noEmit && vite build --mode demo",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "test:rules": "firebase emulators:exec --only firestore --project demo-eupa-stats \"vitest run --config vitest.rules.config.ts\"",
+    "e2e:online": "firebase emulators:exec --only firestore,auth --project demo-eupa-stats \"playwright test -c playwright.online.config.ts\""
   },
   "dependencies": {
+    "firebase": "^12.19.0",
     "idb-keyval": "^6.2.2",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "react-router-dom": "^7.18.4"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.2",
     "@playwright/test": "^1.56.1",
     "@types/node": "^26.6.3",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^6.1.1",
+    "firebase-tools": "^15.32.1",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vite": "^8.3.1",

@@ -16,6 +16,8 @@ npm run build:demo   # the same, plus the three demo seasons and sample CSVs
 npm run build:share  # the shareable player stats page, one file in dist-share/
 npm run e2e          # browser test: create a season, record, refresh mid-game, finish,
                      # settle a dispute, export and re-import, then reload offline
+npm run test:rules   # Firestore security rules, in the Firebase emulator (needs Java)
+npm run e2e:online   # two devices on one online league, in the Firebase emulators
 ```
 
 What's in the app (`src/`). The header has five tabs (Overview, Players, Games, Player stats, Admin) and, on the right, **Track Stats** for stat-takers. Admin's red bubble counts everything waiting on an admin.
@@ -35,6 +37,15 @@ What's in the app (`src/`). The header has five tabs (Overview, Players, Games, 
 | Track Stats | Live stat entry for one team's side, on a tablet: check in who's here, add subs, then record with buttons behind each name, like the old tablet app: Touch / Point / Drop on offense (Drop becomes Throwaway on the row of whoever has the disc), D-Play / GSO on defense, plus an Offensive error button. Point on a receiver records the catch and the point in one press. Undo reverts a whole press. Beside the roster is a log of recent possessions; flagging one (⚑) sends it to the game page for the admin. Saved on every tap; resumes after a refresh. The clock starts with the first play. Finish shows the box score and lists checked-in players with no plays (absent unless ticked), then saves to the season and/or downloads the old app's CSV |
 
 The shareable player stats page is a separate single-file page (`npm run build:share` → `dist-share/stats-page.html`) containing only the stats view and a snapshot of player totals, so sharing its link exposes nothing else. Its owner updates it by pasting a snapshot from the Player stats tab; the page republishes itself with the new numbers.
+
+**Leagues online** (Firebase project `eupa-stats`). A league has a name, a link name (`/l/eupa-fall`)
+and seasons. Anyone with the link can read it. Two passwords unlock changes: the stats-entry
+password (Track Stats) and the admin password (everything). A device enters a password once and
+remembers it. There are no accounts and no server: each password is stored as a salted SHA-256
+key in a document no browser can read, a device unlocks by writing its own member record with the
+key, and `firestore.rules` allows that write only when the key matches. Every check compares the
+device's key with the current one, so changing a password (on the league page) locks out every
+device that used the old one. `tests-rules/` covers the rules against the emulator.
 
 Seasons are stored in the browser's IndexedDB, one per key, so nothing leaves the device. Export a
 season to back it up or hand it to another admin. There is no server or login yet. If the

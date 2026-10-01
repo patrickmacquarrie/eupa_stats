@@ -21,6 +21,8 @@ const Setup = lazy(() => import("./pages/Setup").then((m) => ({ default: m.Setup
 const Stats = lazy(() => import("./pages/Stats").then((m) => ({ default: m.Stats })));
 const AdminFrame = lazy(() => import("./pages/Admin").then((m) => ({ default: m.AdminFrame })));
 const AdminReview = lazy(() => import("./pages/Admin").then((m) => ({ default: m.AdminReview })));
+const NewLeague = lazy(() => import("./pages/League").then((m) => ({ default: m.NewLeague })));
+const LeagueHome = lazy(() => import("./pages/League").then((m) => ({ default: m.LeagueHome })));
 const Subs = lazy(() => import("./pages/Subs").then((m) => ({ default: m.Subs })));
 
 /** Catches crashes outside a season (Seasons, New season) and pages that fail to load; resets on navigation. */
@@ -38,6 +40,8 @@ export function App() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/new" element={<NewSeason />} />
+        <Route path="/new-league" element={<NewLeague />} />
+        <Route path="/l/:slug" element={<LeagueHome />} />
         <Route path="/s/:id" element={<SeasonShell />}>
           <Route index element={<Overview />} />
           <Route path="record" element={<Record />} />

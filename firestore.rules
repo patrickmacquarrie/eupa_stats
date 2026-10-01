@@ -1,0 +1,80 @@
+rules_version = '2';
+
+// EUPA Stats: anyone can read; two league passwords unlock changes.
+//
+//   leagues/{league}                      name, link name, salt, season list
+//   leagues/{league}/secrets/keys         { statKey, adminKey }: never readable by anyone
+//   leagues/{league}/members/{uid}        { role: "stat" | "admin", key }
+//   leagues/{league}/seasons/{season}     rules, players, schedule, overrides (no plays)
+//   leagues/{league}/seasons/{season}/recordings/{id}   one team's side of one game
+//   leagues/{league}/public/{season}      the player stats page's snapshot
+//
+// A key is sha256(salt + ":" + password), computed in the browser. A device unlocks by writing
+// its member record with the key; the write is allowed only if the key matches the stored one.
+// Every check compares the member's key with the current one, so changing a password locks out
+// every device that unlocked with the old one.
+service cloud.firestore {
+  match /databases/{db}/documents {
+    function leaguePath(l) { return /databases/$(db)/documents/leagues/$(l); }
+    function keysPath(l) { return /databases/$(db)/documents/leagues/$(l)/secrets/keys; }
+    function memberPath(l) { return /databases/$(db)/documents/leagues/$(l)/members/$(request.auth.uid); }
+    function keyFor(keys, role) { return role == "admin" ? keys.adminKey : keys.statKey; }
+
+    // A device's record counts only while its key matches the current password's.
+    function unlocked(l) {
+      return request.auth != null && exists(memberPath(l)) && exists(keysPath(l))
+        && get(memberPath(l)).data.key == keyFor(get(keysPath(l)).data, get(memberPath(l)).data.role);
+    }
+    function isAdmin(l) { return unlocked(l) && get(memberPath(l)).data.role == "admin"; }
+    function canRecord(l) { return unlocked(l) && get(memberPath(l)).data.role in ["stat", "admin"]; }
+
+    match /leagues/{l} {
+      allow read: if true;
+      // A new league is created in one batch with its keys and its creator's admin record.
+      allow create: if request.auth != null && !exists(leaguePath(l))
+        && existsAfter(keysPath(l)) && request.resource.data.slug == l;
+      allow update: if isAdmin(l) && request.resource.data.slug == resource.data.slug
+        && request.resource.data.salt == resource.data.salt;
+      allow delete: if false;
+
+      match /secrets/{doc} {
+        allow read: if false;
+        allow create: if doc == "keys" && request.auth != null && !exists(leaguePath(l)) && existsAfter(leaguePath(l))
+          && request.resource.data.keys().hasOnly(["statKey", "adminKey"]);
+        allow update: if doc == "keys" && isAdmin(l) && request.resource.data.keys().hasOnly(["statKey", "adminKey"]);
+        allow delete: if false;
+      }
+
+      match /members/{uid} {
+        allow read: if request.auth != null && (request.auth.uid == uid || isAdmin(l));
+        // Unlock: only your own record, only with the current key for the role you claim.
+        allow create, update: if request.auth != null && request.auth.uid == uid
+          && request.resource.data.keys().hasOnly(["role", "key", "at"])
+          && request.resource.data.role in ["stat", "admin"]
+          && existsAfter(keysPath(l))
+          && request.resource.data.key == keyFor(getAfter(keysPath(l)).data, request.resource.data.role);
+        // Lock this device, or (admin) lock out devices after a password change.
+        allow delete: if request.auth != null && (request.auth.uid == uid || isAdmin(l));
+      }
+
+      match /seasons/{s} {
+        allow read: if true;
+        allow write: if isAdmin(l);
+
+        match /recordings/{r} {
+          allow read: if true;
+          // A stat-taker writes their own device's recordings; an admin can change any.
+          allow create: if canRecord(l) && request.resource.data.uid == request.auth.uid;
+          allow update: if isAdmin(l)
+            || (canRecord(l) && resource.data.uid == request.auth.uid && request.resource.data.uid == request.auth.uid);
+          allow delete: if isAdmin(l);
+        }
+      }
+
+      match /public/{s} {
+        allow read: if true;
+        allow write: if isAdmin(l);
+      }
+    }
+  }
+}

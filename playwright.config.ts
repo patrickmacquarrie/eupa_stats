@@ -3,6 +3,7 @@ import { defineConfig, devices } from "@playwright/test";
 // Browser tests of the critical flows, against a production build (no demo data).
 export default defineConfig({
   testDir: "e2e",
+  testIgnore: /online\.spec\.ts/,
   timeout: 120_000,
   fullyParallel: false,
   retries: 0,

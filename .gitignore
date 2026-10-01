@@ -8,3 +8,8 @@ playwright-report
 
 # Real-name mapping written by scripts/anonymise-fixtures.ts. Never commit it.
 fixtures/.anonymise-map.json
+
+# Firebase emulator and CLI logs
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
