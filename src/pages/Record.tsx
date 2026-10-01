@@ -6,7 +6,7 @@ import { genderOf } from "../../engine/pairing";
 import type { Player } from "../../engine/types";
 import { shortTeam, todayIso as today } from "../lib/format";
 import { nameKey, suggestPlayer } from "../lib/names";
-import { elapsedMs, gameTime, parseClock, possessions, press, setClock, stateOf, toggleClock, toggleFlag, toTabletCsv, undoPress, type Draft, type Phase, type Press } from "../lib/recorder";
+import { elapsedMs, gameTime, parseClock, possessions, press, setClock, stateOf, toggleClock, toggleFlag, toTabletCsv, undoPress, csvName, type Draft, type Phase, type Press } from "../lib/recorder";
 import { weekOfDate, withoutFlagsFor, type SavedFlag } from "../lib/season";
 import { quietKey } from "../lib/review";
 import { useSeason } from "../lib/SeasonContext";
@@ -458,8 +458,7 @@ function Review({ draft, onChange, cancelSend, onSaved, onBack, onDone }: { draf
   const owner = online?.owners.get(key);
   const exists = online ? !!owner && owner !== online.uid : season.input.events.some((e) => `${e.date}|${e.statTeam}|${e.otherTeam}` === key);
   const week = weekOfDate(season.input.schedule, draft.date) ?? 0;
-  const csvName = `${draft.date}_${shortTeam(draft.team)}_v_${shortTeam(draft.opp)}.csv`.replace(/\s+/g, "");
-  const download = () => downloadText(csvName, toTabletCsv(draft.events, draft.gameTimes));
+  const download = () => downloadText(csvName(draft.date, draft.team, draft.opp, shortTeam), toTabletCsv(draft.events, draft.gameTimes));
 
   const save = async () => {
     if (online) {

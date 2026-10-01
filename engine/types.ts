@@ -15,6 +15,7 @@ export interface PlayEvent {
   player?: string | null;        // actor (scorer for Point, dropper for Drop, etc.)
   lastPlayer?: string | null;    // thrower of the goal (assist) on a Point
   secLastPlayer?: string | null; // 2nd assist on a Point
+  gameTime?: string;       // time left on the game clock ("00:24:52"), kept for the tablet CSV
 }
 
 export interface StatWeights {

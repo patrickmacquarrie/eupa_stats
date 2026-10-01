@@ -59,5 +59,6 @@ export function tabletCsvToEvents(text: string): PlayEvent[] {
     player: get(r, "player") || null,
     lastPlayer: get(r, "lastPlayer") || null,
     secLastPlayer: get(r, "secLastPlayer") || null,
+    ...(get(r, "gameTime") ? { gameTime: get(r, "gameTime") } : {}),
   }));
 }

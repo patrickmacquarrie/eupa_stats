@@ -201,3 +201,109 @@ test("a season moved online gets a tablet's recording live, with and without a s
   await expect(later.locator(".pill")).not.toHaveText("not finished");
   expect(errors).toEqual([]);
 });
+
+// Stress: 200 random taps on a tablet with undos, reloads, screen locks and lost signal thrown in.
+// After every disruption the game must be exactly where it was, and at the end the league's copy
+// must match the tablet's, byte for byte.
+test("stress: a tablet survives 200 random taps with reloads, locks and lost signal", async ({ browser }, testInfo) => {
+  test.setTimeout(240_000);
+  const slug = `stress-${Date.now().toString(36)}`;
+  const adminCtx = await browser.newContext({ acceptDownloads: true }), tabletCtx = await browser.newContext({ acceptDownloads: true });
+  const admin = await adminCtx.newPage(), tablet = await tabletCtx.newPage();
+  const errors: string[] = [];
+  for (const p of [admin, tablet]) p.on("pageerror", (e) => errors.push(e.message));
+
+  await admin.goto("/#/admin");
+  await admin.getByRole("link", { name: /New season/ }).click();
+  await admin.fill("#ns-name", "Stress Season");
+  await admin.fill("#ns-roster", ROSTER);
+  await admin.fill("#ns-first", "2027-01-04"); await admin.fill("#ns-weeks", "4");
+  await admin.click("text=Fill in weekly dates");
+  await admin.click("text=Create season");
+  await admin.click("nav.tabs >> text=Admin"); await admin.click(".subtabs >> text=Setup");
+  await admin.fill("#mv-name", "Stress League"); await admin.fill("#mv-slug", slug);
+  await admin.fill("#mv-stat", "tablet-pass"); await admin.fill("#mv-admin", "admin-pass"); await admin.fill("#mv-admin2", "admin-pass");
+  await admin.getByRole("button", { name: "Create the league and move this season" }).click();
+  await expect(admin).toHaveURL(new RegExp(`/l/${slug}/s/`));
+  const seasonUrl = admin.url().replace(/#.*$/, "") + "#" + new URL(admin.url()).hash.slice(1).replace(/\/$/, "");
+
+  await tablet.goto(`/#/l/${slug}`);
+  await tablet.getByLabel("Stats entry password").fill("tablet-pass");
+  await tablet.getByRole("button", { name: "Unlock", exact: true }).click();
+  await expect(tablet.locator("main")).toContainText("unlocked for stats entry");
+  await tablet.goto(`${seasonUrl}/record`);
+  await tablet.fill('input[type="date"]', "2027-01-04");
+  await tablet.click("text=Start recording");
+
+  // A seeded generator, so a failure replays the same taps.
+  let seed = 20261001;
+  const rand = (n: number) => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed % n; };
+  const snapshot = async () => ({
+    us: await tablet.locator(".score-team strong").first().textContent(),
+    them: await tablet.locator(".score-team strong").last().textContent(),
+    plays: (await tablet.locator(".live-foot").textContent())?.match(/(\d+) plays/)?.[1],
+    phase: await tablet.locator(".poss").textContent(),
+  });
+  let offline = false;
+  const did = { reloads: 0, locks: 0, signal: 0, undos: 0, taps: 0 };
+  for (let i = 0; i < 200; i++) {
+    const roll = rand(100);
+    if (roll < 4) {
+      // Reload: everything comes back as it was.
+      const before = await snapshot();
+      await tablet.reload(); did.reloads++;
+      await expect(tablet.locator(".scorebar")).toBeVisible();
+      expect(await snapshot(), `tap ${i}: after a reload`).toEqual(before);
+    } else if (roll < 8) {
+      // The screen locks and unlocks.
+      const before = await snapshot();
+      await tablet.evaluate(() => {
+        for (const v of ["hidden", "visible"]) {
+          Object.defineProperty(document, "visibilityState", { configurable: true, get: () => v });
+          document.dispatchEvent(new Event("visibilitychange"));
+        }
+      });
+      expect(await snapshot(), `tap ${i}: after a screen lock`).toEqual(before);
+      did.locks++;
+    } else if (roll < 12) {
+      offline = !offline;
+      await tabletCtx.setOffline(offline); did.signal++;
+    } else if (roll < 20) {
+      const undo = tablet.getByRole("button", { name: "Undo" });
+      if (await undo.isEnabled()) { await undo.click(); did.undos++; }
+    } else {
+      const buttons = tablet.locator(".prow .rbtn:enabled, .live-top .rbtn.turnover");
+      const n = await buttons.count();
+      await buttons.nth(rand(n)).click(); did.taps++;
+    }
+  }
+  // The run really did all of it.
+  for (const [what, n] of Object.entries(did)) expect(n, what).toBeGreaterThan(what === "taps" ? 100 : 3);
+  if (offline) await tabletCtx.setOffline(false);
+  // Make sure the game has at least one play to finish.
+  const touch = tablet.locator(".prow .rbtn:enabled").first();
+  await touch.click();
+  await expect(tablet.locator("[data-sync]")).toHaveText("Synced", { timeout: 30_000 });
+  const final = await snapshot();
+
+  // Finish on the tablet, keeping its CSV.
+  await tablet.click("text=Finish game");
+  const [tDl] = await Promise.all([tablet.waitForEvent("download"), tablet.click("text=Download CSV")]);
+  const tPath = testInfo.outputPath("stress-tablet.csv");
+  await tDl.saveAs(tPath);
+  await tablet.click("text=Save to season");
+  await expect(tablet.locator("h1")).toHaveText("Saved");
+
+  // The league has every play, the same score, and the same file.
+  await admin.goto(`${seasonUrl}/games`);
+  await admin.locator("tbody a").first().click();
+  const side = admin.locator("section", { hasText: `From ${final.plays} tablet events` });
+  await expect(side).toBeVisible({ timeout: 20_000 });
+  await expect(side.locator(".score")).toContainText(`${final.us}–${final.them}`);
+  const [aDl] = await Promise.all([admin.waitForEvent("download"), side.getByRole("button", { name: "Download CSV" }).click()]);
+  const aPath = testInfo.outputPath("stress-admin.csv");
+  await aDl.saveAs(aPath);
+  const { readFileSync } = await import("node:fs");
+  expect(readFileSync(aPath, "utf8")).toBe(readFileSync(tPath, "utf8"));
+  expect(errors).toEqual([]);
+});
