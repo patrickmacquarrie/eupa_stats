@@ -64,7 +64,8 @@ are bundled, see `src/assets/fonts/OFL.txt`) and shows an Offline pill in the he
 fixtures are only in `build:demo` / `dev`, so a production build carries no real league data.
 
 CI (`.github/workflows/ci.yml`) runs typecheck, unit tests, the validation baseline, both
-builds and the browser test on every push and pull request.
+builds and the browser test on every push and pull request. Its two jobs, `Typecheck` and
+`Browser`, are the required checks for merging into `main`.
 
 ---
 
@@ -113,3 +114,7 @@ Sheet errors the engine surfaced (Thursday S1):
 
 Rule settings live in `LeagueRules`; the sheet's behaviour is reproduced with
 `absence.thereafter = "seasonAvgRetroactive"` and `plugMode = "asAbsentPlayer"`.
+
+## Licence
+
+MIT, see `LICENSE`. The bundled Oswald font is under the SIL Open Font License (`src/assets/fonts/OFL.txt`).
