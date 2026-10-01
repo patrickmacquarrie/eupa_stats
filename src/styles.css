@@ -112,6 +112,7 @@ ul.plain li { padding: 2px 0; }
 .season-title { color: var(--on-brand-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-left: 1px solid rgb(255 255 255 / 0.25); padding-left: 12px; }
 .header-top button { background: transparent; color: var(--on-brand); border-color: rgb(255 255 255 / 0.45); }
 .header-top button:hover:not(:disabled) { background: rgb(255 255 255 / 0.12); }
+.header-top button.back-btn { font-size: 1.25rem; line-height: 1; padding: 6px 12px; min-width: 44px; min-height: 40px; }
 .tab-bar { background: var(--brand-deep); border-top: 1px solid rgb(255 255 255 / 0.18); }
 .tab-row { display: flex; align-items: center; gap: 12px; padding: 0 12px; max-width: 1200px; margin: 0 auto; }
 .tabs { display: flex; gap: 2px; overflow-x: auto; flex: 1; min-width: 0; }

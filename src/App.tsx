@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
-import { HashRouter, Navigate, NavLink, Outlet, Route, Routes, useLocation, useParams } from "react-router-dom";
+import { HashRouter, Navigate, NavLink, Outlet, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { adminCounts } from "./lib/review";
 import { ConfirmHost } from "./lib/confirm";
@@ -126,6 +126,7 @@ function Header() {
     <header className="app-header">
       <div className="header-bar">
         <div className="header-top">
+          <BackButton />
           <NavLink to="/" className="brand" aria-label="EUPA Stats, all seasons"><span className="brand-badge">EUPA</span>Stats</NavLink>
           <span className="season-title">{season.name}</span>
           <span className="grow" />
@@ -151,6 +152,13 @@ function Header() {
       </div>
     </header>
   );
+}
+
+/** One screen back, like the browser's Back; hidden on the first screen opened. */
+function BackButton() {
+  const nav = useNavigate();
+  if (useLocation().key === "default") return null;
+  return <button className="back-btn" onClick={() => nav(-1)} aria-label="Back" title="Back">←</button>;
 }
 
 function useOnline() {

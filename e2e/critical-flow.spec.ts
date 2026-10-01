@@ -116,6 +116,10 @@ test("create season, record, refresh recovery, finish, dispute, correct, export 
   // Ada didn't play; ticking "Was here" makes her an admin item, which the admin acknowledges.
   await page.click("nav.tabs >> text=Games");
   await page.click("text=Team A v Team B");
+  // Back goes one screen back, to the games list.
+  await page.getByRole("button", { name: "Back" }).click();
+  await expect(page).toHaveURL(/\/games$/);
+  await page.click("text=Team A v Team B");
   await page.locator("tr", { hasText: "Ada Alto" }).locator("text=Was here").click();
   await page.click("nav.tabs >> text=Admin");
   await expect(page.locator(".tabs .badge.alert")).toHaveText("2");
