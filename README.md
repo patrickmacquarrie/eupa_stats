@@ -63,6 +63,9 @@ The production build works offline once it has loaded (a service worker caches t
 are bundled, see `src/assets/fonts/OFL.txt`) and shows an Offline pill in the header. The demo
 fixtures are only in `build:demo` / `dev`, so a production build carries no real league data.
 
+The production build is published to https://patrickmacquarrie.github.io/eupa_stats/ by
+`.github/workflows/pages.yml` on every change to `main`.
+
 CI (`.github/workflows/ci.yml`) runs typecheck, unit tests, the validation baseline, both
 builds and the browser test on every push and pull request. Its two jobs, `Typecheck` and
 `Browser`, are the required checks for merging into `main`.
