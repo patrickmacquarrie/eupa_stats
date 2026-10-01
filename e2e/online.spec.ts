@@ -109,26 +109,35 @@ test("a season moved online gets a tablet's recording live, with and without a s
   await tabletCtx.setOffline(false);
   await expect(tablet.locator("[data-sync]")).toHaveText("Synced", { timeout: 20_000 });
 
-  // Finish: the admin sees the finished game and the standings follow it.
+  // The admin closes the season, so only the tablet can bring the public page up to date.
+  const seasonUrl = admin.url(), publicUrl = seasonUrl.replace(/\/s\/([^/]+).*$/, "/p/$1");
+  await admin.goto(`/#/l/${slug}`);
+  await tap(tablet, "Ann Arbour", "D-Play");
+  await tap(tablet, "Al Ames", "Touch");
+  await tap(tablet, "Al Ames", "Point");                       // 3–0, after the admin left
+
+  // Finish: a visitor with no password sees the public page, kept current by the tablet:
+  // standings and player stats, never salaries.
   await tablet.click("text=Finish game");
   await tablet.click("text=Save to season");
   await expect(tablet.locator("h1")).toHaveText("Saved");
+  const visitor = await (await browser.newContext()).newPage();
+  visitor.on("pageerror", (e) => errors.push(e.message));
+  await visitor.goto(publicUrl);
+  await expect(visitor.locator(".pub-standings tbody tr").first()).toContainText("Team A", { timeout: 15_000 });
+  await expect(visitor.locator(".pub-standings tbody tr").first()).toContainText("1–0");
+  await expect(visitor.locator(".pub-standings tbody tr").first().locator("td").nth(2)).toHaveText("3", { timeout: 15_000 });
+  await expect(visitor.locator(".pub")).toContainText("Ann Arbour");
+  await expect(visitor.locator("body")).not.toContainText("$");
+
+  // The admin sees the finished game, and the standings follow it.
+  await admin.goto(seasonUrl);
+  await admin.click("nav.tabs >> text=Games");
   await expect(admin.locator(".pill")).toHaveText("one side only", { timeout: 15_000 });
   await admin.click("nav.tabs >> text=Overview");
   await expect(admin.locator(".standings tbody tr").first()).toContainText("Team A");
   await expect(admin.locator(".standings tbody tr").first()).toContainText("1–0");
-
-  // A visitor with no password sees the public page, kept current from the admin's browser:
-  // standings and player stats, never salaries.
-  const visitor = await (await browser.newContext()).newPage();
-  visitor.on("pageerror", (e) => errors.push(e.message));
   await admin.click("nav.tabs >> text=Player stats");
-  await admin.getByRole("link", { name: "Open the public page" }).click();
-  const publicUrl = admin.url();
-  await visitor.goto(publicUrl);
-  await expect(visitor.locator(".pub-standings tbody tr").first()).toContainText("Team A", { timeout: 15_000 });
-  await expect(visitor.locator(".pub-standings tbody tr").first()).toContainText("1–0");
-  await expect(visitor.locator(".pub")).toContainText("Ann Arbour");
-  await expect(visitor.locator("body")).not.toContainText("$");
+  await expect(admin.getByRole("link", { name: "Open the public page" })).toHaveAttribute("href", new RegExp(`/l/${slug}/p/`));
   expect(errors).toEqual([]);
 });

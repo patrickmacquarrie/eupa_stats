@@ -72,9 +72,11 @@ service cloud.firestore {
         }
       }
 
+      // Kept current by whichever unlocked device has the season open (see OnlineSeason.tsx).
       match /public/{s} {
         allow read: if true;
-        allow write: if isAdmin(l);
+        allow create, update: if canRecord(l);
+        allow delete: if isAdmin(l);
       }
     }
   }
