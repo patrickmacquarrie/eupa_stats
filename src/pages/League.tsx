@@ -1,12 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import {
-  changePassword, createLeague, getLeague, lock, passwordProblem, slugProblem, unlock, watchRole, type League, type Role,
-} from "../lib/league";
+import { createLeague, getLeague, lock, unlock, watchRole, type League, type Role } from "../lib/league";
+import { newLeagueProblem, slugFrom } from "../lib/leagueForm";
 import { rememberLeague } from "../lib/recentLeagues";
-
-const ROLE_LABEL: Record<Role, string> = { stat: "Stats entry", admin: "League admin" };
-const slugFrom = (s: string) => s.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
+import { Passwords, ROLE_LABEL } from "./LeagueSettings";
 
 /** Create a league: a name, a link name, and the two passwords. */
 export function NewLeague() {
@@ -20,8 +17,7 @@ export function NewLeague() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const link = slugTouched ? slug : slugFrom(name);
-  const problem = !name.trim() ? "Give the league a name." : slugProblem(link) ?? passwordProblem(stat) ?? passwordProblem(admin)
-    ?? (admin !== admin2 ? "The two admin passwords don't match." : stat === admin ? "Use different passwords for stats entry and admin." : null);
+  const problem = newLeagueProblem({ name, slug: link, stat, admin, admin2 });
 
   return (
     <main className="page narrow">
@@ -88,7 +84,10 @@ export function LeagueHome() {
       </section>
 
       {role !== "admin" && <UnlockCard slug={slug} current={role ?? null} />}
-      {role === "admin" && <PasswordsCard slug={slug} />}
+      {/* Once the league has a season, its settings live in that season's Admin → Setup. */}
+      {role === "admin" && (league.seasons.length
+        ? <p className="muted small">The league's name and passwords are in a season's Admin → Setup.</p>
+        : <PasswordsCard slug={slug} />)}
     </main>
   );
 }
@@ -123,28 +122,11 @@ function UnlockCard({ slug, current }: { slug: string; current: Role | null }) {
 }
 
 function PasswordsCard({ slug }: { slug: string }) {
-  const [pw, setPw] = useState<Record<Role, string>>({ stat: "", admin: "" });
   const [msg, setMsg] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const change = async (role: Role) => {
-    setMsg(null); setError(null);
-    try {
-      await changePassword(slug, role, pw[role]);
-      setPw({ ...pw, [role]: "" });
-      setMsg(`${ROLE_LABEL[role]} password changed. Every device that used the old one has to enter the new one.`);
-    } catch (e) { setError((e as Error).message); }
-  };
   return (
     <section className="card">
-      <h2>Passwords</h2>
-      <p className="muted small">Changing a password locks out every device that unlocked with the old one.</p>
-      {(["stat", "admin"] as Role[]).map((r) => (
-        <div key={r} className="row gap-sm wrap unlock-row">
-          <label className="field inline"><span>New {ROLE_LABEL[r].toLowerCase()} password</span>
-            <input type="password" autoComplete="new-password" value={pw[r]} onChange={(e) => setPw({ ...pw, [r]: e.target.value })} /></label>
-          <button disabled={!!passwordProblem(pw[r])} onClick={() => change(r)}>Change</button>
-        </div>
-      ))}
+      <Passwords slug={slug} onMessage={(m, e) => { setMsg(m); setError(e); }} />
       {msg && <p className="ok-text">{msg}</p>}
       {error && <p className="error">{error}</p>}
     </section>

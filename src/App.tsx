@@ -131,11 +131,10 @@ function Header() {
           <span className="season-title">{season.name}</span>
           <span className="grow" />
           {!online && <span className="offline-pill" title="Everything still saves on this device">Offline</span>}
-          {league && (
-            <NavLink to={`/l/${league.slug}`} className="role-pill" title="This device's access to the league">
-              {league.role === "admin" ? "Admin" : league.role === "stat" ? "Stats entry" : "View only · Unlock"}
-            </NavLink>
-          )}
+          {/* What this device can do; only a locked device links to the league page, to unlock. */}
+          {league && (league.role
+            ? <span className="role-pill" title="This device's access to the league">{league.role === "admin" ? "Admin" : "Stats entry"}</span>
+            : <NavLink to={`/l/${league.slug}`} className="role-pill">View only · Unlock</NavLink>)}
           <button className="small-btn" onClick={() => downloadJson(`${season.name}.json`, season)}>Export</button>
         </div>
       </div>

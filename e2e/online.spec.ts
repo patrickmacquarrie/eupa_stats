@@ -59,12 +59,7 @@ test("a season moved online gets a tablet's recording live, with and without a s
   const errors: string[] = [];
   for (const p of [admin, tablet]) p.on("pageerror", (e) => errors.push(e.message));
 
-  // League, then a season made in the admin's browser and moved online.
-  await admin.goto("/#/new-league");
-  await admin.fill("#lg-name", "Sync League"); await admin.fill("#lg-slug", slug);
-  await admin.fill("#lg-stat", "tablet-pass"); await admin.fill("#lg-admin", "admin-pass"); await admin.fill("#lg-admin2", "admin-pass");
-  await admin.click("text=Create league");
-  await expect(admin.locator("main")).toContainText("unlocked for league admin");
+  // A season made in the admin's browser, moved online into a league created in the same step.
   await admin.goto("/");
   await admin.getByRole("link", { name: /New season/ }).click();
   await admin.fill("#ns-name", "Winter Online");
@@ -73,11 +68,18 @@ test("a season moved online gets a tablet's recording live, with and without a s
   await admin.click("text=Fill in weekly dates");
   await admin.click("text=Create season");
   await admin.click("nav.tabs >> text=Admin"); await admin.click(".subtabs >> text=Setup");
-  await admin.fill('input[list="known-leagues"]', slug);
-  await admin.getByLabel("League admin password").fill("admin-pass");
-  await admin.getByRole("button", { name: "Move this season online" }).click();
+  await expect(admin.getByRole("button", { name: "Create a new league" })).toHaveAttribute("aria-pressed", "true");
+  await admin.fill("#mv-name", "Sync League"); await admin.fill("#mv-slug", slug);
+  await admin.fill("#mv-stat", "tablet-pass"); await admin.fill("#mv-admin", "admin-pass"); await admin.fill("#mv-admin2", "admin-pass");
+  await admin.getByRole("button", { name: "Create the league and move this season" }).click();
   await expect(admin).toHaveURL(new RegExp(`/l/${slug}/s/`));
   await expect(admin.locator(".role-pill")).toHaveText("Admin");
+  // The league's settings are at the bottom of Admin → Setup.
+  await admin.click("nav.tabs >> text=Admin"); await admin.click(".subtabs >> text=Setup");
+  await expect(admin.locator(".league-settings")).toContainText("New stats entry password");
+  await admin.getByLabel("League name").fill("Sync League Online");
+  await admin.getByRole("button", { name: "Rename" }).click();
+  await expect(admin.locator(".league-settings .ok-text")).toHaveText("League renamed.");
 
   // The tablet unlocks for stats entry and opens the season: no Admin tab.
   await tablet.goto(`/#/l/${slug}`);
