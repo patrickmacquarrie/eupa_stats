@@ -98,7 +98,7 @@ export function NewSeason() {
 
           {teams.length > 0 && (
             <>
-              <table className="data compact ns-teams">
+              <div className="scroll-x"><table className="data compact ns-teams">
                 <thead><tr><th>Team</th><th>GM</th><th className="num">Players</th><th className="num">M / F</th><th className="num">Payroll</th></tr></thead>
                 <tbody>
                   {teams.map((t) => (
@@ -111,7 +111,7 @@ export function NewSeason() {
                   ))}
                   {subs.length > 0 && <tr><td>Sub pool</td><td /><td className="num">{subs.length}</td><td className="num">{subs.filter((s) => s.gender === "M").length} / {subs.filter((s) => s.gender === "F").length}</td><td /></tr>}
                 </tbody>
-              </table>
+              </table></div>
               {shortTeams(roster.rows, plugs).map((g) => (
                 <div key={g.team} className="note plug-prompt">
                   <span>{g.team} has {g.players} player{g.players === 1 ? "" : "s"}, the largest team has {g.largest}. Add a plug?</span>

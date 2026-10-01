@@ -242,7 +242,7 @@ test("stress: a tablet survives 200 random taps with reloads, locks and lost sig
     us: await tablet.locator(".score-team strong").first().textContent(),
     them: await tablet.locator(".score-team strong").last().textContent(),
     plays: (await tablet.locator(".live-foot").textContent())?.match(/(\d+) plays/)?.[1],
-    phase: await tablet.locator(".poss").textContent(),
+    phase: await tablet.locator(".score-mid .poss").textContent(),
   });
   let offline = false;
   const did = { reloads: 0, locks: 0, signal: 0, undos: 0, taps: 0 };
