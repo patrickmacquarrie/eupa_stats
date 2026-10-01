@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { askConfirm } from "../lib/confirm";
 import { Link, useNavigate } from "react-router-dom";
+import { recentLeagues } from "../lib/recentLeagues";
 import { seasonFromFixture, seasonFromJson, type SeasonMeta } from "../lib/season";
 import { deleteSeason, downloadJson, listSeasons, loadSeason, saveSeason } from "../lib/store";
 
@@ -65,6 +66,8 @@ export function Home() {
         </ul>
       )}
 
+      <LeaguesOnline />
+
       <h2>Start a season</h2>
       <Link to="/new" className="card choice new-season">
         <strong>New season</strong>
@@ -92,5 +95,27 @@ export function Home() {
       {error && <p className="error pre-line">{error}</p>}
     </main>
     </>
+  );
+}
+
+/** Leagues kept online, shared by every tablet and admin: the ones this browser has opened, and a way to open or create one. */
+function LeaguesOnline() {
+  const nav = useNavigate();
+  const [slug, setSlug] = useState("");
+  const leagues = recentLeagues();
+  return (
+    <section className="leagues-online">
+      <h2>Leagues online</h2>
+      {leagues.length > 0 && (
+        <ul className="plain season-list">{leagues.map((l) => <li key={l.slug}><Link to={`/l/${l.slug}`} className="season-name">{l.name}</Link> <span className="muted small">/l/{l.slug}</span></li>)}</ul>
+      )}
+      <div className="row gap-sm wrap">
+        <form className="row gap-sm" onSubmit={(e) => { e.preventDefault(); if (slug.trim()) nav(`/l/${slug.trim().toLowerCase()}`); }}>
+          <input aria-label="League link name" placeholder="League link name, e.g. eupa-fall" value={slug} onChange={(e) => setSlug(e.target.value)} />
+          <button type="submit" disabled={!slug.trim()}>Open league</button>
+        </form>
+        <Link to="/new-league" className="button-link">Create a league online</Link>
+      </div>
+    </section>
   );
 }

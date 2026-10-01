@@ -23,5 +23,13 @@ function serviceWorker(): Plugin {
 export default defineConfig({
   base: "./",
   plugins: [react(), serviceWorker()],
-  test: { environment: "node", exclude: ["e2e/**", "node_modules/**"] },
+  build: {
+    // The Firebase SDK (about 600 KB) is its own chunk, downloaded only when an online league is
+    // opened; everything else stays well under the default warning size.
+    chunkSizeWarningLimit: 700,
+    rollupOptions: {
+      output: { manualChunks: (id: string) => (/node_modules\/(firebase|@firebase)\//.test(id) ? "firebase" : undefined) },
+    },
+  },
+  test: { environment: "node", exclude: ["e2e/**", "tests-rules/**", "node_modules/**"] },
 } as any);

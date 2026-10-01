@@ -34,6 +34,21 @@ export function PublicStatsView({ snapshot }: { snapshot: Snapshot }) {
         ) : null}
       </header>
 
+      {snapshot.standings && snapshot.standings.length > 0 && (() => {
+        const ties = snapshot.standings.some((r) => r.ties > 0);
+        return (
+          <section aria-labelledby="st-title" className="pub-standings">
+            <h2 id="st-title">Standings</h2>
+            <table className="data">
+              <thead><tr><th>Team</th><th className="num">{ties ? "W–L–T" : "W–L"}</th><th className="num">GF</th><th className="num">GA</th></tr></thead>
+              <tbody>{snapshot.standings.map((r) => (
+                <tr key={r.team}><td>{r.team}</td><td className="num strong">{r.wins}–{r.losses}{ties ? `–${r.ties}` : ""}</td><td className="num">{r.goalsFor}</td><td className="num">{r.goalsAgainst}</td></tr>
+              ))}</tbody>
+            </table>
+          </section>
+        );
+      })()}
+
       {groups.length > 1 && (
         <div className="seg division" role="group" aria-label="Division">
           {["all", ...groups].map((g) => (

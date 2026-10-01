@@ -9,10 +9,12 @@ permissions:
 
 jobs:
   # Job names are the required status checks on main; renaming one means updating the ruleset.
-  # Typecheck: typecheck, unit tests, validation baseline, both builds.
+  # Typecheck: typecheck, unit tests, validation baseline, both builds, security rules.
   checks:
     name: Typecheck
     runs-on: ubuntu-latest
+    # A hung step fails fast instead of blocking merges for GitHub's default six hours.
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -26,11 +28,23 @@ jobs:
       - run: npm run validate
       - run: npm run build
       - run: npm run build:share
+      # The Firebase emulators need Java 21 or later; the runner's default is older.
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/firebase/emulators
+          key: firebase-emulators-${{ hashFiles('package-lock.json') }}
+      # Security rules, against the Firestore emulator (needs Java, which the runner has).
+      - run: npm run test:rules
 
-  # Browser: create, record, refresh recovery, finish, dispute, export/import, offline.
+  # Browser: create, record, refresh recovery, finish, dispute, export/import, offline; online league.
   browser:
     name: Browser
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -40,6 +54,19 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: npm run e2e
+        env:
+          CI: "true"
+      # The Firebase emulators need Java 21 or later; the runner's default is older.
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/firebase/emulators
+          key: firebase-emulators-${{ hashFiles('package-lock.json') }}
+      # Two devices on one online league, against the Firebase emulators.
+      - run: npm run e2e:online
         env:
           CI: "true"
       - if: failure()

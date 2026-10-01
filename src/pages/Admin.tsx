@@ -6,9 +6,9 @@ import { useSeason } from "../lib/SeasonContext";
 
 /** The Admin tab's own tabs, shown above each admin screen. */
 export function AdminFrame({ children }: { children: ReactNode }) {
-  const { season, open, nameIssueCount, result } = useSeason();
+  const { base: seasonBase, open, nameIssueCount, result } = useSeason();
   const counts = adminCounts(open, nameIssueCount, result.warnings.length);
-  const base = `/s/${season.id}/admin`;
+  const base = `${seasonBase}/admin`;
   const tabs: [string, string, number][] = [
     ["", "Needs attention", counts.review], ["/names", "Names", counts.names], ["/subs", "Subs", counts.subs],
     ["/recordings", "Recordings", 0], ["/setup", "Setup", 0],

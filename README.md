@@ -16,6 +16,9 @@ npm run build:demo   # the same, plus the three demo seasons and sample CSVs
 npm run build:share  # the shareable player stats page, one file in dist-share/
 npm run e2e          # browser test: create a season, record, refresh mid-game, finish,
                      # settle a dispute, export and re-import, then reload offline
+npm run test:rules   # Firestore security rules, in the Firebase emulator (needs Java)
+npm run e2e:online   # two devices on one online league, in the Firebase emulators: passwords,
+                     # moving a season online, a tablet recording live and with no signal
 ```
 
 What's in the app (`src/`). The header has five tabs (Overview, Players, Games, Player stats, Admin) and, on the right, **Track Stats** for stat-takers. Admin's red bubble counts everything waiting on an admin.
@@ -35,6 +38,28 @@ What's in the app (`src/`). The header has five tabs (Overview, Players, Games, 
 | Track Stats | Live stat entry for one team's side, on a tablet: check in who's here, add subs, then record with buttons behind each name, like the old tablet app: Touch / Point / Drop on offense (Drop becomes Throwaway on the row of whoever has the disc), D-Play / GSO on defense, plus an Offensive error button. Point on a receiver records the catch and the point in one press. Undo reverts a whole press. Beside the roster is a log of recent possessions; flagging one (⚑) sends it to the game page for the admin. Saved on every tap; resumes after a refresh. The clock starts with the first play. Finish shows the box score and lists checked-in players with no plays (absent unless ticked), then saves to the season and/or downloads the old app's CSV |
 
 The shareable player stats page is a separate single-file page (`npm run build:share` → `dist-share/stats-page.html`) containing only the stats view and a snapshot of player totals, so sharing its link exposes nothing else. Its owner updates it by pasting a snapshot from the Player stats tab; the page republishes itself with the new numbers.
+
+**Leagues online** (Firebase project `eupa-stats`). A league has a name, a link name (`/l/eupa-fall`)
+and seasons. Anyone with the link can read it. Two passwords unlock changes: the stats-entry
+password (Track Stats) and the admin password (everything). A device enters a password once and
+remembers it. There are no accounts and no server: each password is stored as a salted SHA-256
+key in a document no browser can read, a device unlocks by writing its own member record with the
+key, and `firestore.rules` allows that write only when the key matches. Every check compares the
+device's key with the current one, so changing a password (on the league page) locks out every
+device that used the old one. `tests-rules/` covers the rules against the emulator.
+
+An online season is one season document (rules, players, schedule, overrides; no plays) and one
+document per recording (one team's side of one game: its plays, check-in list, subs, first-time
+subs, ticked no-play players and flags). Stat-takers write only their own recordings; the app
+reassembles the season from the documents (`src/lib/onlineShape.ts`), so every screen works the
+same as for a season kept in a browser, and an admin's change is written back as only the
+documents it touched. Track Stats still saves every tap on the tablet first, sends the recording
+to the league every few seconds, and shows "Saved on this tablet · Synced" or "· will sync when
+online"; Firestore keeps the device's own copy, so the season opens and records with no signal and
+catches up when one returns. The admin's Games page shows each game as "live" while it's being
+recorded. A season kept in a browser has "Move this season online" in Admin → Setup (admin
+password needed); the browser's copy stays, marked as moved. Admin → Recordings keeps CSV upload
+and download as a backup.
 
 Seasons are stored in the browser's IndexedDB, one per key, so nothing leaves the device. Export a
 season to back it up or hand it to another admin. There is no server or login yet. If the
@@ -69,7 +94,23 @@ are bundled, see `src/assets/fonts/OFL.txt`) and shows an Offline pill in the he
 fixtures are only in `build:demo` / `dev`, so a production build carries no real league data.
 
 The production build is published to https://patrickmacquarrie.github.io/eupa_stats/ by
-`.github/workflows/pages.yml` on every change to `main`.
+`.github/workflows/pages.yml`, and to Firebase Hosting (https://eupa-stats.web.app) with the
+Firestore security rules by `.github/workflows/firebase.yml`, on every change to `main`. GitHub
+Pages stays until the league switches over; after that the repository can be made private.
+
+The Firebase deploy needs a key, stored as the GitHub secret `FIREBASE_SERVICE_ACCOUNT`; until
+it's set, that workflow skips itself. To make one (as the Google account that owns the project):
+in the Google Cloud console for project `eupa-stats`, IAM & Admin → Service accounts → Create
+service account (`github-deploy`), with the roles Firebase Hosting Admin, Firebase Rules Admin,
+API Keys Viewer and Service Usage Consumer; then on that account, Keys → Add key → JSON. In
+GitHub, Settings → Secrets and variables → Actions → New repository secret, named
+`FIREBASE_SERVICE_ACCOUNT`, with the whole JSON file as its value. Delete the downloaded file.
+
+The public player stats page for an online season is `/l/<league>/p/<season>`. While an admin
+has the season open, their browser rebuilds its snapshot a few seconds after the numbers change
+(an edit, or a tablet's recording arriving) and writes it if it differs; the page reads it live
+and marks provisional weeks. The copy-and-paste shareable page (`npm run build:share`) remains
+for seasons kept in a browser, and until the online page has replaced it.
 
 CI (`.github/workflows/ci.yml`) runs typecheck, unit tests, the validation baseline, both
 builds and the browser test on every push and pull request. Its two jobs, `Typecheck` and

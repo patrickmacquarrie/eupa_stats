@@ -474,3 +474,14 @@ table.data th { text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.
 .save-error { background: var(--bad-bg); color: var(--text-primary); border-bottom: 2px solid var(--bad); padding: 10px 16px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .save-error strong { color: var(--bad); }
 .offline-pill { font-size: 0.78rem; font-weight: 700; color: var(--brand-deep); background: var(--on-brand); border-radius: 999px; padding: 2px 10px; }
+
+/* leagues online */
+.leagues-online { margin: 8px 0 20px; }
+.leagues-online input { min-width: 240px; }
+a.button-link { display: inline-block; padding: 6px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-1); color: var(--text); }
+a.button-link:hover { text-decoration: none; background: var(--surface-2); }
+.unlock-row { margin-top: 10px; align-items: flex-end; }
+.ok-text { color: var(--good); }
+.role-pill { font-size: 0.8rem; padding: 3px 10px; border-radius: 999px; border: 1px solid rgb(255 255 255 / 0.45); color: var(--on-brand); white-space: nowrap; }
+.role-pill:hover { text-decoration: none; background: rgb(255 255 255 / 0.12); }
+.moved-note { background: var(--info-bg); padding: 8px 16px; font-size: 0.9rem; text-align: center; }
