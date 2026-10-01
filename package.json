@@ -1,6 +1,7 @@
 {
   "name": "eupa-stats",
   "private": true,
+  "license": "MIT",
   "version": "0.1.0",
   "type": "module",
   "description": "League stats and salary-cap web app built on the PRG master-sheet engine",

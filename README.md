@@ -113,3 +113,7 @@ Sheet errors the engine surfaced (Thursday S1):
 
 Rule settings live in `LeagueRules`; the sheet's behaviour is reproduced with
 `absence.thereafter = "seasonAvgRetroactive"` and `plugMode = "asAbsentPlayer"`.
+
+## Licence
+
+MIT, see `LICENSE`. The bundled Oswald font is under the SIL Open Font License (`src/assets/fonts/OFL.txt`).
