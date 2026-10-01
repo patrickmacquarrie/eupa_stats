@@ -2,7 +2,7 @@
 
 A web app for running a salary-cap ultimate league from tablet stat recordings. It runs the
 league stats engine (below) in the browser: load a season, add each game's tablet CSVs, settle
-sub pairings and score disputes, and every salary, box score and cap figure is recalculated
+sub matches and score differences, and every salary, box score and cap figure is recalculated
 from the raw plays.
 
 ```
@@ -29,7 +29,7 @@ What's in the app (`src/`). The header has five tabs (Overview, Players, Games, 
 | Player stats | What players see: leaderboards (top N per gender group, per game) and every rostered player's totals, with the columns chosen in Setup. "Copy stats for the public page" copies a snapshot for the shareable page |
 | Admin → Needs attention | Provisional weeks and what keeps each one open (score disputes, official scores to reconfirm, flagged possessions, unpaired subs), games counted, engine warnings |
 | Admin → Names | Recorded spellings that match no player, with a suggested match (typos like Katelyn/Katelynn, short first names like Jess/Jessica); the sheet's old "Name Sub" records, merged in one click; likely duplicate player records. Merges are aliases applied when computing, so recordings keep the tablet's spelling and every merge can be undone |
-| Admin → Subs | The pairing screen: current pick vs the same-gender rule, flags the rule can't settle, "Nobody (extra player)" for a sub who played when nobody was absent |
+| Admin → Subs | Who each sub covered. With auto-match subs on (Setup), every sub is matched automatically and tagged "auto-matched"; any match can be overridden, including "Nobody (extra player)", and "Clear override" hands it back to auto-match. A filter shows only overrides and unmatched subs |
 | Admin → Recordings | Upload tablet CSVs (one per team per game), preview problems and the cross-check before saving, delete recordings |
 | Admin → Setup | Edit the league rules with a live preview of who moves before saving; schedule, counted-through week, game length, add players, public stats columns |
 | Track Stats | Live stat entry for one team's side, on a tablet: check in who's here, add subs, then record with buttons behind each name, like the old tablet app: Touch / Point / Drop on offense (Drop becomes Throwaway on the row of whoever has the disc), D-Play / GSO on defense, plus an Offensive error button. Point on a receiver records the catch and the point in one press. Undo reverts a whole press. Beside the roster is a log of recent possessions; flagging one (⚑) sends it to the game page for the admin. Saved on every tap; resumes after a refresh. The clock starts with the first play. Finish shows the box score and lists checked-in players with no plays (absent unless ticked), then saves to the season and/or downloads the old app's CSV |
@@ -57,8 +57,12 @@ fingerprint of the game's recordings and box scores; if any of them change after
 re-upload, a deleted recording, a possession edit, a box score), the score keeps applying but
 the game page asks you to confirm, change or clear it. Undoing the change settles it again.
 
-Every sub needs a decision on the Subs tab: who they covered, or "Nobody (extra player)" when
-they played without anyone on the roster being absent.
+Auto-match subs (on by default, switched in Setup) matches each sub to an absent player of the
+same gender: the sub with the best night covers the highest-paid absent player, and so on down,
+using salaries from before that week (earlier weeks' matches included). Only the admin's
+overrides are stored, so a stat edit re-matches automatically. A sub it can't match (no absent
+player of their gender, or nobody absent) stays an open item until the admin picks one or
+"Nobody (extra player)". With it off, every sub needs a pick on the Subs tab.
 
 The production build works offline once it has loaded (a service worker caches the app; fonts
 are bundled, see `src/assets/fonts/OFL.txt`) and shows an Offline pill in the header. The demo
@@ -83,14 +87,14 @@ plus league settings, so fixing one play anywhere updates every downstream numbe
 engine/
   types.ts       data model (events, players, rules, box scores, sub assignments)
   compute.ts     events → per-game lines → salary growth → weekly salaries → cap
-  pairing.ts     automatic sub ↔ absent-player pairing: same gender only, best sub night covers
+  pairing.ts     auto-match subs (sub ↔ absent player): same gender only, best sub night covers
                  the highest salary; anything left over is flagged for the admin override screen
   crosscheck.ts  lines up each tablet's goals with the other tablet's "scored on" taps, labels every
                  one-sided goal missed-tap / conflict / review, and proposes a final score
 scripts/
   extract_fixture.py   pulls a master-sheet .xlsx into fixtures/*.json (validation only)
   validate.ts          diffs the engine against the sheet's own numbers
-  experiments.ts       what-ifs: auto pairing, fixed plug, to-date absence average
+  experiments.ts       what-ifs: auto-matched subs, fixed plug, to-date absence average
   dispute.ts           two tablet CSVs for one game → where they disagree and a proposed score
   anonymise-fixtures.ts  replaces real names in fixtures/ with stable fakes (see below)
 fixtures/              Fall 2026 (weeks 1–4), Thursday S1 2026 (weeks 1–8), Premier League 2025

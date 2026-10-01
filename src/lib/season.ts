@@ -27,7 +27,11 @@ export interface Season {
   publicStats?: PublicSettings;
   /** Default game length for new recordings, in minutes. */
   gameLengthMin?: number;
+  /** Fill in a match for every sub without a saved pick (see autoMatch.ts). Missing means on. */
+  autoMatchSubs?: boolean;
 }
+
+export const autoMatchOn = (s: Pick<Season, "autoMatchSubs">) => s.autoMatchSubs !== false;
 
 export interface SavedFlag {
   date: string; team: string; opp: string;
@@ -140,6 +144,7 @@ export function migrateSeason(raw: any): Season {
 /** Checks a season before it's stored; throws with the first problems in plain words. */
 export function checkSeason(season: Season): string[] {
   if (typeof season.name !== "string" || !season.name.trim()) throw new Error("The season has no name.");
+  if (season.autoMatchSubs !== undefined && typeof season.autoMatchSubs !== "boolean") throw new Error("The season's auto-match subs setting is damaged.");
   const problems = seasonInputProblems(season.input);
   const blocking = problems.filter((p) => p.blocking);
   if (blocking.length) throw new Error(`This season can't be used as it is:\n${summarize(blocking).join("\n")}`);

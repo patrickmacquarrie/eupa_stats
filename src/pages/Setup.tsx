@@ -151,7 +151,12 @@ function SeasonBasics() {
           <label className="field"><span>Game length (minutes)</span>
             <input type="number" min={1} defaultValue={season.gameLengthMin ?? 25} key={season.gameLengthMin ?? 25}
               onBlur={(e) => { const n = Math.round(Number(e.target.value)); if (n > 0 && n !== (season.gameLengthMin ?? 25)) updateSeason((s) => ({ ...s, gameLengthMin: n })); }} />
-            <small className="muted">The clock's starting time on the Record tab. Each game can still change it.</small>
+            <small className="muted">The clock's starting time on Track Stats. Each game can still change it.</small>
+          </label>
+          <label className="field check">
+            <input type="checkbox" checked={season.autoMatchSubs !== false} onChange={(e) => updateSeason((s) => ({ ...s, autoMatchSubs: e.target.checked }))} />
+            <span><strong>Auto-match subs</strong><br />
+              <small className="muted">Each sub covers an absent player of the same gender: the sub with the best night covers the highest-paid absent player, and so on down. You can override any match on the Subs tab.</small></span>
           </label>
           <label className="field"><span>Count games through week</span>
             <select value={input.throughWeek} onChange={(e) => update((i) => ({ ...i, throughWeek: +e.target.value }))}>

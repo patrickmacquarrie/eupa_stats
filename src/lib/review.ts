@@ -48,14 +48,16 @@ export function openItems(season: Season, input: LeagueInput, result: EngineResu
   }
   for (const b of input.boxScores ?? []) for (const l of b.lines) note(b.week, l.player);
   for (const [week, names] of unknown) for (const n of names) out.push({ week, kind: "name", label: `“${n}” isn't in the player list`, to: "admin/names" });
-  // Every sub needs a decision: who they covered, or "nobody" (an extra player). The pairing
-  // rule's suggestion isn't a decision until it's applied.
+  // Every sub needs a match: who they covered, or "nobody" (an extra player). With auto-match on,
+  // only the subs it couldn't place are left; with it off, every sub without a saved pick.
   const decided = new Set(input.subAssignments.map((a) => `${a.week}|${a.team}|${a.opp}|${nameKey(a.sub)}`));
+  const auto = season.autoMatchSubs !== false;
   for (const l of result.lines) {
     if (l.week > w || l.role !== "sub" || l.subbedFor || decided.has(`${l.week}|${l.team}|${l.opp}|${nameKey(l.player)}`)) continue;
     const anyAbsent = result.lines.some((x) => x.week === l.week && x.team === l.team && x.opp === l.opp && x.role === "absent");
-    out.push({ week: l.week, kind: "sub", label: anyAbsent ? `${l.player} subbed for ${l.team} v ${l.opp} but isn't paired with anyone`
-      : `${l.player} played for ${l.team} v ${l.opp} but nobody on the roster is absent (an extra player, or a missed check-in?)`, to: "admin/subs" });
+    const why = !anyAbsent ? "nobody on the roster is absent (an extra player, or a missed check-in?)"
+      : auto ? "no absent player of the same gender is left to cover" : "isn't matched to an absent player yet";
+    out.push({ week: l.week, kind: "sub", label: `${l.player} played for ${l.team} v ${l.opp}, but ${why}`.replace(", but isn't", " but isn't"), to: "admin/subs" });
   }
   return out.sort((a, b) => a.week - b.week || a.kind.localeCompare(b.kind));
 }
@@ -64,9 +66,9 @@ export const provisionalWeeks = (items: OpenItem[]) => [...new Set(items.map((i)
 
 const NOUN: Record<OpenKind, [string, string]> = {
   dispute: ["score dispute", "score disputes"], official: ["official score to reconfirm", "official scores to reconfirm"], flag: ["flagged possession", "flagged possessions"],
-  name: ["unknown name", "unknown names"], sub: ["unpaired sub", "unpaired subs"],
+  name: ["unknown name", "unknown names"], sub: ["unmatched sub", "unmatched subs"],
 };
-/** "1 score dispute, 2 unpaired subs" */
+/** "1 score dispute, 2 unmatched subs" */
 export function describeItems(items: OpenItem[]) {
   const counts = new Map<OpenKind, number>();
   for (const i of items) counts.set(i.kind, (counts.get(i.kind) ?? 0) + 1);

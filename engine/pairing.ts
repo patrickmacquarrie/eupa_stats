@@ -9,8 +9,8 @@ export const genderOf = (g: string | undefined) => {
 export interface PairingFlag { week: number; team: string; opp: string; message: string }
 
 /**
- * Patrick's rule: within each gender, the sub who earned the most in this game covers the
- * absent player with the highest salary, and so on down. Anything the rule can't settle
+ * Auto-match subs: within each gender, the sub who earned the most in this game covers the
+ * absent player with the highest salary, and so on down. Anything it can't settle
  * cleanly is flagged for the admin rather than guessed silently.
  */
 export function autoPairSubs(
@@ -30,6 +30,7 @@ export function autoPairSubs(
     .map((l) => ({ name: l.player, sal: salaryBeforeWeek(l.player, week), g: genderOf(byName.get(l.player.toLowerCase())?.gender) }))
     .sort((a, b) => b.sal - a.sal);
 
+  const hadAbsent = absent.length > 0;
   const assignments: SubAssignment[] = [];
   const take = (s: (typeof subs)[number], a: (typeof absent)[number]) => {
     assignments.push({ week, team, opp, sub: s.name, subbedFor: a.name });
@@ -46,6 +47,7 @@ export function autoPairSubs(
   for (const s of subs) {
     if (s.g === "?") flag(`${s.name} has no gender in the player list, so can't be paired`);
     else if (absent.length) flag(`${s.name} (${s.g}) has no absent ${s.g} player to cover; absent: ${absent.map((a) => `${a.name} (${a.g})`).join(", ")}`);
+    else if (hadAbsent) flag(`${s.name} (${s.g}) has no absent ${s.g} player left to cover`);
     else flag(`${s.name} played but nobody on the roster is absent (extra player, or a missed check-in?)`);
   }
   return { assignments, flags };
