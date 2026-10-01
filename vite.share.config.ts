@@ -12,6 +12,6 @@ export default defineConfig({
     cssCodeSplit: false,
     // The public page is one file: fonts are inlined into its stylesheet.
     assetsInlineLimit: 200_000,
-    rollupOptions: { input: "share.html", output: { inlineDynamicImports: true } },
+    rollupOptions: { input: "share.html", output: { codeSplitting: false } },
   },
 } as any);

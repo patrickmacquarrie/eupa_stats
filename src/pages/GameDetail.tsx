@@ -8,6 +8,7 @@ import { delta, money, resultLabel, shortTeam } from "../lib/format";
 import { weekOfDate, type SavedFlag } from "../lib/season";
 import { describe } from "../lib/recorder";
 import { useSeason } from "../lib/SeasonContext";
+import { clearOfficial, needsReconfirming, officialFor, setOfficial } from "../lib/official";
 
 const STATS: [keyof StatLine, string][] = [
   ["goals", "G"], ["assists", "A"], ["secondAssists", "2A"], ["blocks", "D"],
@@ -17,7 +18,8 @@ const STATS: [keyof StatLine, string][] = [
 export function GameDetail() {
   const { week: wk = "", a = "", b = "" } = useParams();
   const week = Number(wk);
-  const { input, result } = useSeason();
+  const { season, input, result } = useSeason();
+  const official = officialFor(season.input, week, a, b);
 
   const eventsFor = (team: string, opp: string) =>
     input.events.filter((e) => e.statTeam === team && e.otherTeam === opp && weekOfDate(input.schedule, e.date) === week);
@@ -45,7 +47,7 @@ export function GameDetail() {
             {check.agree ? " They agree." : <> Proposed final: <strong>{check.proposed.a}–{check.proposed.b}</strong>
               {check.proposed.needsAdmin ? ", with conflicts for you to decide." : "."}</>}
           </p>
-          {!check.agree && <OfficialScore week={week} a={a} b={b} proposed={[check.proposed.a, check.proposed.b]} />}
+          {(!check.agree || official) && <OfficialScore week={week} a={a} b={b} proposed={[check.proposed.a, check.proposed.b]} />}
           {check.unmatched.length > 0 ? (
             <table className="data">
               <thead><tr><th>Time</th><th>Only on</th><th>What</th><th>Score after</th><th>Verdict</th><th>Why</th></tr></thead>
@@ -63,6 +65,13 @@ export function GameDetail() {
             </table>
           ) : <p className="muted small">Every Point on one tablet lines up with a GSO on the other.</p>}
           <p className="muted small">Until an official score is set, each side's win or loss comes from its own tablet, so both teams can be credited the win. The week stays provisional until it's settled.</p>
+        </section>
+      )}
+
+      {official && !check && (
+        <section className="card">
+          <h2>Official score</h2>
+          <OfficialScore week={week} a={a} b={b} proposed={[official.a === a ? official.scoreA : official.scoreB, official.a === a ? official.scoreB : official.scoreA]} />
         </section>
       )}
 
@@ -245,23 +254,25 @@ function Flags({ week, a, b, onEdit }: { week: number; a: string; b: string; onE
 /** The administrator's call on a disputed game: decides the result for both sides. */
 function OfficialScore({ week, a, b, proposed }: { week: number; a: string; b: string; proposed: [number, number] }) {
   const { season, update } = useSeason();
-  const current = (season.input.officialScores ?? []).find((o) => o.week === week && ((o.a === a && o.b === b) || (o.a === b && o.b === a)));
+  const current = officialFor(season.input, week, a, b);
   const cur: [number, number] | null = current ? (current.a === a ? [current.scoreA, current.scoreB] : [current.scoreB, current.scoreA]) : null;
+  const stale = !!current && needsReconfirming(season.input, current);
   const [sa, setSa] = useState(String(cur?.[0] ?? proposed[0]));
   const [sb, setSb] = useState(String(cur?.[1] ?? proposed[1]));
   const ok = /^\d+$/.test(sa) && /^\d+$/.test(sb);
-  const others = (list: typeof season.input.officialScores) => (list ?? []).filter((o) => !(o.week === week && ((o.a === a && o.b === b) || (o.a === b && o.b === a))));
+  const same = !!cur && Number(sa) === cur[0] && Number(sb) === cur[1];
   return (
-    <div className={"official" + (cur ? " set" : "")}>
+    <div className={"official" + (cur ? " set" : "") + (stale ? " stale" : "")}>
       {cur ? <p><strong>Official score: {a} {cur[0]}–{cur[1]} {b}.</strong> Both teams' results follow it; each tablet's own stats still count.</p>
         : <p><strong>Settle it:</strong> set the official score. Both teams' results follow it; each tablet's own stats still count.</p>}
+      {stale && <p className="attn">This game's recordings have changed since the official score was set. It still decides the result, but the week stays provisional until you confirm it, change it or clear it.</p>}
       <div className="row gap-sm wrap">
         <label className="field inline"><span>{shortTeam(a)}</span><input className="num-in" inputMode="numeric" value={sa} onChange={(e) => setSa(e.target.value)} aria-label={`${a} official score`} /></label>
         <span>–</span>
         <label className="field inline"><span>{shortTeam(b)}</span><input className="num-in" inputMode="numeric" value={sb} onChange={(e) => setSb(e.target.value)} aria-label={`${b} official score`} /></label>
-        <button className="primary" disabled={!ok} onClick={() => update((inp) => ({ ...inp, officialScores: [...others(inp.officialScores), { week, a, b, scoreA: Number(sa), scoreB: Number(sb) }] }))}>
-          {cur ? "Update official score" : "Set official score"}</button>
-        {cur && <button onClick={() => update((inp) => ({ ...inp, officialScores: others(inp.officialScores) }))}>Clear</button>}
+        <button className="primary" disabled={!ok || (same && !stale)} onClick={() => update((inp) => setOfficial(inp, week, a, b, Number(sa), Number(sb)))}>
+          {!cur ? "Set official score" : stale && same ? "Confirm official score" : "Update official score"}</button>
+        {cur && <button onClick={() => update((inp) => clearOfficial(inp, week, a, b))}>Clear</button>}
       </div>
     </div>
   );

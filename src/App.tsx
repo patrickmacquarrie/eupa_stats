@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
 import { HashRouter, NavLink, Outlet, Route, Routes, useLocation, useParams } from "react-router-dom";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { ConfirmHost } from "./lib/confirm";
@@ -20,11 +20,17 @@ const Setup = lazy(() => import("./pages/Setup").then((m) => ({ default: m.Setup
 const Stats = lazy(() => import("./pages/Stats").then((m) => ({ default: m.Stats })));
 const Subs = lazy(() => import("./pages/Subs").then((m) => ({ default: m.Subs })));
 
+/** Catches crashes outside a season (Seasons, New season) and pages that fail to load; resets on navigation. */
+function RouteBoundary({ children }: { children: ReactNode }) {
+  return <ErrorBoundary reset={useLocation().pathname}>{children}</ErrorBoundary>;
+}
+
 // Hash routing keeps the build a plain folder of static files: no server rewrites needed.
 export function App() {
   return (
     <HashRouter>
       <ConfirmHost />
+      <RouteBoundary>
       <Suspense fallback={<p className="muted pad">Loading…</p>}>
       <Routes>
         <Route path="/" element={<Home />} />
@@ -45,6 +51,7 @@ export function App() {
         <Route path="*" element={<p className="pad">Page not found. <a href="#/">Seasons</a></p>} />
       </Routes>
       </Suspense>
+      </RouteBoundary>
     </HashRouter>
   );
 }

@@ -105,6 +105,7 @@ export function seasonInputProblems(input: LeagueInput): Problem[] {
   for (const o of input.officialScores ?? []) {
     if (!teams.has(o.a) || !teams.has(o.b) || o.a === o.b) block(`An official score for week ${o.week} names a team that isn't in this season.`);
     if (!isScore(o.scoreA) || !isScore(o.scoreB)) block(`The official score for ${o.a} v ${o.b}, week ${o.week}, isn't a pair of whole numbers.`);
+    if (o.basis !== undefined && typeof o.basis !== "string") block(`The official score for ${o.a} v ${o.b}, week ${o.week}, is damaged.`);
   }
   // Every recording, grouped the way the engine groups them.
   const recs = new Map<string, PlayEvent[]>();

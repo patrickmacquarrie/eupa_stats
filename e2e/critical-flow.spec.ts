@@ -29,7 +29,7 @@ test("create season, record, refresh recovery, finish, dispute, correct, export 
 
   // 1. Create a season from a pasted roster.
   await page.goto("/");
-  await page.click("text=New season");
+  await page.getByRole("link", { name: /New season/ }).click();
   await page.fill("#ns-name", "E2E Winter");
   await page.fill("#ns-roster", ROSTER);
   await expect(page.locator(".ns-teams tbody tr")).toHaveCount(3);
@@ -88,6 +88,13 @@ test("create season, record, refresh recovery, finish, dispute, correct, export 
   await page.click(".spec-forms >> text=Apply");
   await expect(page.locator(".edit-effect")).toContainText("Amy Ash +1 A");
   await page.click(".editor-card >> button:text-is('Save')");
+  // The edit changed a recording the official score was set against: it still applies, but needs confirming.
+  await page.click("nav.tabs >> text=Overview");
+  await expect(page.locator(".open-items summary")).toContainText("1 official score to reconfirm");
+  await page.click(".open-items >> text=/official score was set/");
+  await expect(page.locator(".official.stale")).toBeVisible();
+  await page.getByRole("button", { name: "Confirm official score" }).click();
+  await expect(page.locator(".official.stale")).toHaveCount(0);
   await page.click("nav.tabs >> text=Overview");
   await expect(page.locator(".open-items")).toHaveCount(0);
 
@@ -117,6 +124,6 @@ test("works offline once loaded", async ({ page, context }) => {
   await context.setOffline(true);
   await page.reload();
   await expect(page.locator("h1")).toHaveText("Seasons");
-  await page.click("text=New season");                 // a screen loaded on demand, from the cache
+  await page.getByRole("link", { name: /New season/ }).click();                 // a screen loaded on demand, from the cache
   await expect(page.locator("h1")).toHaveText("Start a new season");
 });

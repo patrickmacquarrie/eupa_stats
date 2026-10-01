@@ -12,6 +12,8 @@ const same = (x: string, y: string) => x.toLowerCase() === y.toLowerCase();
  * The override screen for sub pairing. The engine suggests pairings by the league's rule
  * (same gender; best sub night covers the highest salary); the admin's pick is what counts.
  */
+const UNDECIDED = "\u0000undecided";
+
 export function Subs() {
   const { input, result, update, resolveName } = useSeason();
   const [week, setWeek] = useState<number | "all">("all");
@@ -30,8 +32,10 @@ export function Subs() {
       .sort((x, y) => x.lines[0].week - y.lines[0].week || x.lines[0].team.localeCompare(y.lines[0].team));
   }, [result, input.players]);
 
-  const current = (a: { week: number; team: string; opp: string }, sub: string) =>
-    input.subAssignments.find((s) => s.week === a.week && s.team === a.team && s.opp === a.opp && same(s.sub, sub))?.subbedFor ?? "";
+  /** Who the sub covers: a name, "" for nobody (an extra player), or undefined when not decided yet. */
+  const decision = (a: { week: number; team: string; opp: string }, sub: string) =>
+    input.subAssignments.find((s) => s.week === a.week && s.team === a.team && s.opp === a.opp && same(s.sub, sub))?.subbedFor;
+  const current = (a: { week: number; team: string; opp: string }, sub: string) => decision(a, sub) ?? "";
 
   const differs = (g: (typeof groups)[number]) =>
     g.flags.length > 0 || g.lines.filter((l) => l.role === "sub").some((l) => {
@@ -39,12 +43,13 @@ export function Subs() {
       return !same(rule, current(l, l.player));
     });
 
-  const setAssignments = (week: number, team: string, opp: string, next: { sub: string; subbedFor: string }[]) =>
+  /** `subbedFor`: a name, "" for nobody (an extra player), or undefined to clear the decision. */
+  const setAssignments = (week: number, team: string, opp: string, next: { sub: string; subbedFor?: string }[]) =>
     update((inp) => ({
       ...inp,
       subAssignments: [
         ...inp.subAssignments.filter((s) => !(s.week === week && s.team === team && s.opp === opp && next.some((n) => same(n.sub, resolveName(s.sub))))),
-        ...next.filter((n) => n.subbedFor).map((n): SubAssignment => ({ week, team, opp, ...n })),
+        ...next.filter((n) => n.subbedFor !== undefined).map((n): SubAssignment => ({ week, team, opp, sub: n.sub, subbedFor: n.subbedFor! })),
       ],
     }));
 
@@ -102,6 +107,7 @@ export function Subs() {
               <tbody>
                 {subs.map((s) => {
                   const cur = current(s, s.player);
+                  const dec = decision(s, s.player);
                   const rule = g.assignments.find((a) => a.sub === s.player)?.subbedFor ?? "";
                   return (
                     <tr key={s.player}>
@@ -109,9 +115,11 @@ export function Subs() {
                       <td>{gender(s.player)}</td>
                       <td className="num">{money(s.subEarned ?? 0)}</td>
                       <td>
-                        <select value={cur} aria-label={`${s.player} covers`}
-                          onChange={(e) => setAssignments(week, team, opp, [{ sub: s.player, subbedFor: e.target.value }])}>
-                          <option value="">Nobody</option>
+                        <select value={dec === undefined ? UNDECIDED : dec} aria-label={`${s.player} covers`}
+                          className={dec === undefined ? "attn" : undefined}
+                          onChange={(e) => setAssignments(week, team, opp, [{ sub: s.player, subbedFor: e.target.value === UNDECIDED ? undefined : e.target.value }])}>
+                          <option value={UNDECIDED}>Not decided</option>
+                          <option value="">Nobody (extra player)</option>
                           {cur && !absent.some((a) => same(a.player, cur)) && <option value={cur}>{cur} (not absent)</option>}
                           {absent.map((a) => (
                             <option key={a.player} value={a.player}>{a.player} ({gender(a.player)}, {money(result.salary[a.player]?.[week - 1])})</option>

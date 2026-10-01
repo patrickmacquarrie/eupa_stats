@@ -46,9 +46,18 @@ a newer version of the app is refused rather than half-read. Every import (table
 export, master-sheet fixture, public snapshot) is checked before it's saved: problems that would
 corrupt salaries block the import, oddities real recordings contain are shown as warnings.
 
-A week with an open item (a score the tablets disagree on and no official score set, a flagged
-possession, an unknown name, an unpaired sub) is marked provisional on the Overview and on the
-public page. Setting an official score on the game page settles a dispute for both sides.
+A week with an open item is marked provisional on the Overview and on the public page. Open
+items are: a score the tablets disagree on with no official score set; an official score whose
+game has changed since it was set; a flagged possession; a name (in a tablet recording or a box
+score) that isn't in the player list; a sub nobody has decided on.
+
+Setting an official score on the game page settles a dispute for both sides. It stores a
+fingerprint of the game's recordings and box scores; if any of them change afterwards (a
+re-upload, a deleted recording, a possession edit, a box score), the score keeps applying but
+the game page asks you to confirm, change or clear it. Undoing the change settles it again.
+
+Every sub needs a decision on the Subs tab: who they covered, or "Nobody (extra player)" when
+they played without anyone on the roster being absent.
 
 The production build works offline once it has loaded (a service worker caches the app; fonts
 are bundled, see `src/assets/fonts/OFL.txt`) and shows an Offline pill in the header. The demo

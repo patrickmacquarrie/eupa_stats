@@ -116,7 +116,8 @@ export interface LeagueInput {
    * Scores an administrator set when the two tablets disagreed. The official score decides the
    * result for BOTH sides (each tablet's own stats still count); `scoreA` is team `a`'s.
    */
-  officialScores?: { week: number; a: string; b: string; scoreA: number; scoreB: number }[];
+  /** Admin-set final scores; `basis` fingerprints the recordings they were set against (app-side). */
+  officialScores?: { week: number; a: string; b: string; scoreA: number; scoreB: number; basis?: string }[];
   /** Games up to and including this week are counted. */
   throughWeek: number;
 }
