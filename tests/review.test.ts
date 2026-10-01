@@ -194,6 +194,8 @@ describe("players marked present with no stats", () => {
     ]);
     expect(provisionalWeeks(items)).toEqual([]);
     expect(adminCounts(items, 0, 0)).toMatchObject({ review: 1, total: 1 });
+    // A game a tablet never finished needs the admin too.
+    expect(adminCounts(items, 0, 0, 2)).toMatchObject({ review: 3, total: 3 });
     expect(run([quietKey(1, "A", "B", "amy ash")])).toEqual([]);
   });
 });

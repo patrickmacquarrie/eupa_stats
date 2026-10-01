@@ -139,5 +139,43 @@ test("a season moved online gets a tablet's recording live, with and without a s
   await expect(admin.locator(".standings tbody tr").first()).toContainText("1–0");
   await admin.click("nav.tabs >> text=Player stats");
   await expect(admin.getByRole("link", { name: "Open the public page" })).toHaveAttribute("href", new RegExp(`/l/${slug}/p/`));
+
+  // Team B's side, recorded on the same tablet: a flag with a note made during the game, then the
+  // tablet is closed without Finish. Nothing is lost.
+  await tablet.getByRole("button", { name: "Record another game" }).click();
+  await tablet.fill('input[type="date"]', "2027-01-04");
+  await tablet.getByLabel("Recording for").selectOption("Team B");
+  await tablet.getByLabel("Against").selectOption("Team A");
+  await tablet.click("text=Start recording");
+  await tap(tablet, "Bea Brook", "Touch");
+  await tap(tablet, "Bo Birch", "Point");
+  // Finish sits beside "Add a sub".
+  await expect(tablet.locator(".roster-actions")).toContainText("Finish game");
+  await tablet.getByRole("button", { name: "Flag this possession" }).first().click();
+  await tablet.locator(".flag-note").fill("Bo may have caught it out");
+  await expect(tablet.locator("[data-sync]")).toHaveText("Synced", { timeout: 15_000 });
+  await tablet.close();
+
+  // Two days later an admin sees the game wasn't finished, with its plays and the flag's note in.
+  const later = await (await browser.newContext()).newPage();
+  later.on("pageerror", (e) => errors.push(e.message));
+  await later.clock.setFixedTime(new Date("2027-01-06T12:00:00"));
+  await later.goto(`/#/l/${slug}`);
+  await later.getByRole("button", { name: "League admin" }).click();
+  await later.getByLabel("League admin password").fill("admin-pass");
+  await later.getByRole("button", { name: "Unlock", exact: true }).click();
+  await expect(later.locator("main")).toContainText("unlocked for league admin");
+  await later.goto(seasonUrl.replace(/\/games$/, "/admin"));
+  await expect(later.locator("#unfinished-title + p + ul li")).toContainText("Team B's recording v Team A, 2027-01-04");
+  await expect(later.locator(".tabs .badge.alert")).toContainText(/\d/);
+  await later.click("text=Team B's recording v Team A, 2027-01-04");
+  await expect(later.locator("main")).toContainText("Bo may have caught it out");
+  await later.click("nav.tabs >> text=Games");
+  await expect(later.locator(".pill")).toHaveText("not finished");
+  await later.click("nav.tabs >> text=Admin");
+  await later.getByRole("button", { name: "Mark finished" }).click();
+  await expect(later.locator("#unfinished-title")).toHaveCount(0, { timeout: 15_000 });
+  await later.click("nav.tabs >> text=Games");
+  await expect(later.locator(".pill")).not.toHaveText("not finished");
   expect(errors).toEqual([]);
 });

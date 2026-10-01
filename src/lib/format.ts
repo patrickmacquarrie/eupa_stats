@@ -17,6 +17,12 @@ export function moneyShort(n: number | null | undefined) {
 export const delta = (n: number) => (Math.abs(n) < 0.5 ? "$0" : (n > 0 ? "+" : "") + money(n));
 
 /** Team names like "EUPA Fall - Team 1" read better as "Team 1" in tight spots. */
+/** Today's date on this device, as YYYY-MM-DD. */
+export const todayIso = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
 export const shortTeam = (t: string) => t.replace(/^.*\s-\s/, "");
 
 export const resultLabel = (r: number | null) => (r === 1 ? "W" : r === 0.5 ? "T" : r === 0 ? "L" : "—");

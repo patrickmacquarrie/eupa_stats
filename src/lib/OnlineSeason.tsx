@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { deviceId } from "./firebase";
 import { getLeague, watchRole, type Role } from "./league";
-import { deleteRecording, publishSnapshot, pushRecording, saveSeasonOnline, watchSeason, watchSynced, type Remote } from "./onlineSeason";
+import { deleteRecording, markFinished, publishSnapshot, pushRecording, saveSeasonOnline, watchSeason, watchSynced, type Remote } from "./onlineSeason";
 import { seasonSnapshot } from "./publicStats";
 import { assemble, recKey } from "./onlineShape";
 import { rememberLeague } from "./recentLeagues";
+import { todayIso } from "./format";
 import { SeasonView, useSeason, type OnlineCtx } from "./SeasonContext";
 import { weekOfDate, type Season } from "./season";
 
@@ -39,14 +40,20 @@ export default function OnlineSeasonProvider({ slug, sid, children }: { slug: st
   }, [slug, role]);
 
   const online = useMemo<OnlineCtx>(() => {
-    const live = new Set<string>(), owners = new Map<string, string>();
+    const live = new Set<string>(), owners = new Map<string, string>(), unfinished: OnlineCtx["unfinished"] = [];
+    const today = todayIso();
     for (const r of remote?.recs.values() ?? []) {
       owners.set(recKey(r.date, r.team, r.opp), r.uid);
       const week = season ? weekOfDate(season.input.schedule, r.date) : null;
-      if (r.status === "live" && week !== null) live.add(`${week}|${r.team}|${r.opp}`);
+      if (r.status !== "live") continue;
+      // Still "live" a day later means the tablet was closed without Finish.
+      if (r.date < today) unfinished.push({ date: r.date, team: r.team, opp: r.opp });
+      else if (week !== null) live.add(`${week}|${r.team}|${r.opp}`);
     }
+    unfinished.sort((a, b) => recKey(a.date, a.team, a.opp).localeCompare(recKey(b.date, b.team, b.opp)));
     return {
-      slug, role, uid, live, owners,
+      slug, role, uid, live, owners, unfinished,
+      markFinished: (d) => markFinished(slug, sid, d),
       pushRecording: (d, status, finish) => pushRecording(slug, sid, d, status, finish),
       deleteRecording: (d) => deleteRecording(slug, sid, d),
       watchSynced: (d, cb) => watchSynced(slug, sid, d, cb),

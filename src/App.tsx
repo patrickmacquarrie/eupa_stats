@@ -120,7 +120,7 @@ function SeasonScreen({ reset }: { reset: string }) {
 function Header() {
   const { season, nameIssueCount, open, result, base, canAdmin, canRecord, online: league } = useSeason();
   const online = useOnline();
-  const admin = adminCounts(open, nameIssueCount, result.warnings.length).total;
+  const admin = adminCounts(open, nameIssueCount, result.warnings.length, league?.unfinished.length).total;
   const tabs: [string, string][] = [["", "Overview"], ["/players", "Players"], ["/games", "Games"], ["/stats", "Player stats"], ...(canAdmin ? [["/admin", "Admin"] as [string, string]] : [])];
   return (
     <header className="app-header">
