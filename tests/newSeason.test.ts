@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { computeLeague } from "../engine/compute";
-import { EUPA_RULES, buildNewSeason, normGender, parseMoney, parseRoster, scheduleProblem, skipWeek, weeklySchedule } from "../src/lib/newSeason";
+import { EUPA_RULES, buildNewSeason, newPlug, normGender, parseMoney, parseRoster, scheduleProblem, shortTeams, skipWeek, weeklySchedule } from "../src/lib/newSeason";
+import { DEFAULT_PUBLIC, buildSnapshot, leaderboards } from "../src/lib/publicStats";
 
 const pasted = [
   "Player\tGender\tTeam\tStarting Salary",
@@ -62,4 +63,33 @@ it("keeps the schedule in order, and skips a week by pushing the rest back", () 
   expect(scheduleProblem(s)).toBeNull();
   expect(scheduleProblem(s.map((w, i) => (i === 2 ? { ...w, date: "2027-01-25" } : w)))).toMatch(/Week 4 .* has to come after week 3/);
   expect(skipWeek(s, 2).map((w) => w.date)).toEqual(["2027-01-04", "2027-01-11", "2027-01-25", "2027-02-01"]);
+});
+
+describe("plugs and new-season defaults", () => {
+  it("new seasons use avg-to-date absences, no cap bumps and plugs priced by gender", () => {
+    expect(EUPA_RULES.absence.thereafter).toBe("avgToDate");
+    expect(EUPA_RULES.capExtraByWeek).toEqual({});
+    expect(EUPA_RULES.plugMode).toBe("leagueAverage");
+  });
+
+  it("offers a plug to each short team and names it after the team and gender", () => {
+    const r = parseRoster(pasted + "\nCorwin Kilbride\tM\tTeam 1\t$1,000,000");
+    expect(shortTeams(r.rows)).toEqual([{ team: "Team 2", players: 2, largest: 3 }]);
+    expect(shortTeams(r.rows, [{ team: "Team 2" }])).toEqual([]);
+    const season = buildNewSeason({ name: "Plugs", roster: r.rows, plugs: [{ team: "Team 2", gender: "F" }], gms: {},
+      schedule: weeklySchedule("2027-01-04", 4), rules: EUPA_RULES, gameLengthMin: 25 });
+    expect(season.input.players.find((p) => p.isPlug)).toMatchObject({ name: "Team 2 plug (F)", gender: "F", team: "Team 2", isSub: false, isPlug: true });
+    expect(newPlug(season.input.players, "Team 2", "F").name).toBe("Team 2 plug (F) 2");
+  });
+
+  it("keeps plugs off the player stats and public pages", () => {
+    const r = parseRoster(pasted);
+    const season = buildNewSeason({ name: "Plugs", roster: r.rows, plugs: [{ team: "Team 2", gender: "F" }], gms: {},
+      schedule: weeklySchedule("2027-01-04", 4), rules: EUPA_RULES, gameLengthMin: 25 });
+    const result = computeLeague(season.input);
+    const snap = buildSnapshot("Plugs", season.input, result, DEFAULT_PUBLIC);
+    expect(snap.rows.map((x) => x.name)).not.toContain("Team 2 plug (F)");
+    expect(snap.rows.length).toBe(4);
+    expect(JSON.stringify(leaderboards(snap))).not.toContain("plug");
+  });
 });

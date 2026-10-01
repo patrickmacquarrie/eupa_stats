@@ -1,6 +1,7 @@
 import type {
   EngineResult, GameLine, LeagueInput, PlayEvent, Player, RecordingSummary, StatLine, StatWeights,
 } from "./types";
+import { genderOf } from "./pairing";
 import { ruleProblems } from "./rules";
 
 const key = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
@@ -227,11 +228,19 @@ export function computeLeague(input: LeagueInput): EngineResult {
     }
     salary[p.name] = row;
   }
+  // A plug is priced at the average salary, that week, of real players of its gender who are on a
+  // team that week (not subs, the sub pool or other plugs); with none of its gender rostered, at
+  // the average of all rostered real players.
   if (rules.plugMode === "leagueAverage") {
+    const subTeams = new Set(input.teams.filter((t) => t.isSubTeam).map((t) => t.name));
     const real = input.players.filter((p) => !p.isSub && !p.isPlug);
+    const avg = (ps: Player[], w: number) => ps.reduce((a, p) => a + salary[p.name][w], 0) / ps.length;
     for (const plug of input.players.filter((p) => p.isPlug)) {
-      salary[plug.name] = salary[plug.name].map((_, w) =>
-        real.reduce((a, p) => a + salary[p.name][w], 0) / real.length);
+      salary[plug.name] = salary[plug.name].map((_, w) => {
+        const rostered = real.filter((p) => { const t = teamOf(p.name, Math.max(1, w)); return t !== null && !subTeams.has(t); });
+        const same = rostered.filter((p) => genderOf(p.gender) === genderOf(plug.gender));
+        return same.length ? avg(same, w) : rostered.length ? avg(rostered, w) : 0;
+      });
     }
   }
 

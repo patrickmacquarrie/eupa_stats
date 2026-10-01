@@ -51,8 +51,8 @@ describe("seasons longer than 16 weeks", () => {
 
   it("a short season stops at its own schedule, unless a cap bump is later", () => {
     const short = { ...longSeason([1]), schedule: weeklySchedule("2027-01-04", 8) };
-    expect(computeLeague({ ...short, rules: { ...short.rules, capExtraByWeek: {} } }).horizon).toBe(8);
-    expect(computeLeague(short).horizon).toBe(14); // the EUPA standard bumps the cap in weeks 11-14
+    expect(computeLeague(short).horizon).toBe(8); // new seasons have no cap bumps
+    expect(computeLeague({ ...short, rules: { ...short.rules, capExtraByWeek: { "14": 1_000_000 } } }).horizon).toBe(14);
   });
 });
 
@@ -66,5 +66,37 @@ describe("rule constraints", () => {
     expect(ruleProblems({ ...EUPA_RULES, weights: { ...EUPA_RULES.weights, goal: NaN } })[0]).toMatch(/Goal value must be a number/);
     expect(ruleProblems({ ...EUPA_RULES, capExtraByWeek: { x: 5 } })[0]).toMatch(/week number/);
     expect(() => computeLeague({ ...longSeason([1]), rules: { ...EUPA_RULES, teamsForCapAverage: 0 } })).toThrow(/cap average/);
+  });
+});
+
+describe("plugs priced by gender", () => {
+  it("track the average salary of rostered real players of the same gender, week by week", () => {
+    // Team A is short a woman: an F plug. Ann (F) scores every week, Al (M) never does.
+    const base = longSeason([1, 2, 3]);
+    const input: LeagueInput = {
+      ...base,
+      players: [...base.players,
+        { name: "Ava", gender: "F", initialSalary: 3_000_000, team: "B", isSub: false },
+        { name: "Team A plug (F)", gender: "F", initialSalary: 0, team: "A", isSub: false, isPlug: true },
+        { name: "Sam", gender: "SubF", initialSalary: 9_000_000, team: null, isSub: true }],
+    };
+    const res = computeLeague(input);
+    const plug = res.salary["Team A plug (F)"];
+    for (let w = 0; w <= 3; w++) {
+      // Ann, Bea and Ava are the rostered real women; the sub and the plug itself don't count.
+      const women = ["Ann", "Bea", "Ava"].map((n) => res.salary[n][w]);
+      expect(plug[w]).toBeCloseTo(women.reduce((a, b) => a + b, 0) / women.length, 6);
+    }
+    expect(plug[3]).toBeGreaterThan(plug[0]);        // it grows as they do
+    const men = (["Al", "Bo"] as const).map((n) => res.salary[n][3]);
+    expect(plug[3]).not.toBeCloseTo((men[0] + men[1]) / 2, 0);
+  });
+
+  it("fall back to every rostered real player when nobody of that gender is", () => {
+    const base = longSeason([1, 2]);
+    const input: LeagueInput = { ...base, players: [...base.players, { name: "X plug", gender: "X", initialSalary: 0, team: "A", isSub: false, isPlug: true }] };
+    const res = computeLeague(input);
+    const all = ["Ann", "Al", "Bea", "Bo"].map((n) => res.salary[n][2]);
+    expect(res.salary["X plug"][2]).toBeCloseTo(all.reduce((a, b) => a + b, 0) / 4, 6);
   });
 });

@@ -132,6 +132,8 @@ ul.plain li { padding: 2px 0; }
 .subtabs a:hover { text-decoration: none; color: var(--text); }
 .subtabs a.active { background: var(--brand); border-color: var(--brand); color: #fff; font-weight: 600; }
 .item-list li { margin: 4px 0; }
+.plugs-table button, .plugs-table td { white-space: nowrap; }
+.plug-prompt { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .score-diff .recommended { font-size: 1.1rem; margin: 6px 0; }
 .goal-reasons { margin: 6px 0 10px; padding-left: 20px; }
 .goal-reasons li { margin: 3px 0; }

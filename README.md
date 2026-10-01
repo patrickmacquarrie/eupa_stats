@@ -22,7 +22,7 @@ What's in the app (`src/`). The header has five tabs (Overview, Players, Games, 
 
 | Screen | What it does |
 |---|---|
-| Seasons | Start a new season by pasting the roster from a spreadsheet (player, gender, team, starting salary), setting the weekly schedule (with a Skip for holidays) and choosing the rules; or start from one of the three demo seasons, import a season export or a master-sheet fixture, export, delete |
+| Seasons | Start a new season by pasting the roster from a spreadsheet (player, gender, team, starting salary), setting the weekly schedule (with a Skip for holidays) and choosing the rules (a short team is offered a plug: "Team 2 has 9 players, the largest team has 10. Add a plug?"); or start from one of the three demo seasons, import a season export or a master-sheet fixture, export, delete |
 | Overview | Team standings after any week: record, goals for and against, goal difference and salary (over-cap salaries in red), with the cap as a footnote; salary-by-week chart |
 | Players | Sortable salary and stat table by team and week; each player has a salary chart and game log |
 | Games | Every game with both tablets' scores; when the tablets' finals differ, the game page shows a recommended score with a plain-language reason for every goal only one tablet has (a missed tap, a tablet that stopped recording, O-Error tapped instead of scored-on, two quick scores) and any goal the other tablet contradicts; an admin clicks Approve or Change, and nothing settles on its own. The page also shows the official score, a "Was here" box for rostered players with no plays (otherwise they count as absent), stat-takers' flagged possessions, and a possession editor for either side's recording: edit a possession's catches and how it ended, insert possessions (in pairs, so the teams keep alternating), or delete a pair. The editor previews the stat, score and salary effect before saving. A side can also be replaced with a box score |
@@ -31,7 +31,7 @@ What's in the app (`src/`). The header has five tabs (Overview, Players, Games, 
 | Admin → Names | Recorded spellings that match no player, with a suggested match (typos like Katelyn/Katelynn, short first names like Jess/Jessica); the sheet's old "Name Sub" records, merged in one click; likely duplicate player records. Merges are aliases applied when computing, so recordings keep the tablet's spelling and every merge can be undone |
 | Admin → Subs | Who each sub covered. With auto-match subs on (Setup), every sub is matched automatically and tagged "auto-matched"; any match can be overridden, including "Nobody (extra player)", and "Clear override" hands it back to auto-match. A filter shows only overrides and unmatched subs |
 | Admin → Recordings | Upload tablet CSVs (one per team per game), preview problems and the cross-check before saving, delete recordings |
-| Admin → Setup | Edit the league rules with a live preview of who moves before saving; schedule, counted-through week, game length, add players, public stats columns |
+| Admin → Setup | Edit the league rules with a live preview of who moves before saving; schedule, counted-through week, game length, auto-match subs, add players, add plugs per team (removal waits for the trades screen once games exist), public stats columns |
 | Track Stats | Live stat entry for one team's side, on a tablet: check in who's here, add subs, then record with buttons behind each name, like the old tablet app: Touch / Point / Drop on offense (Drop becomes Throwaway on the row of whoever has the disc), D-Play / GSO on defense, plus an Offensive error button. Point on a receiver records the catch and the point in one press. Undo reverts a whole press. Beside the roster is a log of recent possessions; flagging one (⚑) sends it to the game page for the admin. Saved on every tap; resumes after a refresh. The clock starts with the first play. Finish shows the box score and lists checked-in players with no plays (absent unless ticked), then saves to the season and/or downloads the old app's CSV |
 
 The shareable player stats page is a separate single-file page (`npm run build:share` → `dist-share/stats-page.html`) containing only the stats view and a snapshot of player totals, so sharing its link exposes nothing else. Its owner updates it by pasting a snapshot from the Player stats tab; the page republishes itself with the new numbers.
@@ -128,8 +128,11 @@ Sheet errors the engine surfaced (Thursday S1; names are the fixtures' anonymise
 - Ignatius Lindqvist, week 4: Leopold Rookwood's sub credit ($500,000) never reached them (manual rows).
 - Ravenna Lindqvist, week 4 vs Team 2: growth shows $0; their stat line is worth −$300,000.
 
-Rule settings live in `LeagueRules`; the sheet's behaviour is reproduced with
-`absence.thereafter = "seasonAvgRetroactive"` and `plugMode = "asAbsentPlayer"`.
+Rule settings live in `LeagueRules`, stored with each season; the sheet's behaviour is reproduced
+with `absence.thereafter = "seasonAvgRetroactive"` and `plugMode = "asAbsentPlayer"`, which
+imported master-sheet seasons keep. New seasons default to `avgToDate` absences, no cap bumps,
+and `leagueAverage` plugs: each plug's salary is the average, that week, of rostered real players
+of its gender (all rostered real players if nobody of its gender is).
 
 ## Licence
 

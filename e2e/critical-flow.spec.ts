@@ -33,6 +33,10 @@ test("create season, record, refresh recovery, finish, dispute, correct, export 
   await page.fill("#ns-name", "E2E Winter");
   await page.fill("#ns-roster", ROSTER);
   await expect(page.locator(".ns-teams tbody tr")).toHaveCount(3);
+  // Team B is one short: add an F plug.
+  await expect(page.locator(".plug-prompt")).toContainText("Team B has 4 players, the largest team has 5. Add a plug?");
+  await page.locator(".plug-prompt").getByRole("button", { name: "Add plug" }).click();
+  await expect(page.locator(".plug-prompt")).toHaveCount(0);
   await page.fill("#ns-first", "2027-01-04");
   await page.fill("#ns-weeks", "4");
   await page.click("text=Fill in weekly dates");
@@ -42,6 +46,10 @@ test("create season, record, refresh recovery, finish, dispute, correct, export 
   // 2. Record Team A's side: A 2 – B 1.
   await page.click(".track-stats");
   await page.fill('input[type="date"]', "2027-01-04");
+  // Plugs never show in Track Stats, not even in the sub search.
+  await page.fill('input[placeholder="Start typing a name"]', "plug");
+  await expect(page.locator(".addsub button", { hasText: "plug" })).toHaveCount(0);
+  await page.fill('input[placeholder="Start typing a name"]', "");
   await page.click("text=Start recording");
   await tap(page, "Ann Arbour", "Touch");
   await tap(page, "Al Ames", "Point");                 // 1–0, assist Ann
@@ -131,6 +139,9 @@ test("create season, record, refresh recovery, finish, dispute, correct, export 
   await expect(page.locator(".standings tbody tr").first().locator("td")).toHaveText(["1", "Team A", "", "1–0", "2", "1", "+1", /\$/]);
   await page.click("nav.tabs >> text=Games");
   await expect(page.locator(".pill")).toHaveText("official score set");
+  await page.click("nav.tabs >> text=Player stats");
+  await expect(page.locator("main")).toContainText("Amy Ash");
+  await expect(page.locator("main")).not.toContainText("plug");
   await page.click("nav.tabs >> text=Players");
   await expect(page.locator("tr:has-text('Amy Ash')")).toBeVisible();
 

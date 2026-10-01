@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import type { LeagueRules } from "../../engine/types";
 import { money } from "../lib/format";
-import { EUPA_RULES, buildNewSeason, parseRoster, scheduleProblem, skipWeek, weeklySchedule } from "../lib/newSeason";
+import { EUPA_RULES, buildNewSeason, parseRoster, scheduleProblem, shortTeams, skipWeek, weeklySchedule } from "../lib/newSeason";
 import { checkSeason, type SeasonMeta } from "../lib/season";
 import { listSeasons, loadSeason, saveSeason } from "../lib/store";
 
@@ -26,6 +26,8 @@ export function NewSeason() {
   const [rulesFrom, setRulesFrom] = useState("eupa");
   const [rules, setRules] = useState<LeagueRules>(EUPA_RULES);
   const [showRows, setShowRows] = useState(false);
+  const [plugs, setPlugs] = useState<{ team: string; gender: string }[]>([]);
+  const [plugGender, setPlugGender] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -49,7 +51,7 @@ export function NewSeason() {
   const create = async () => {
     if (problem) return;
     setBusy(true);
-    const season = buildNewSeason({ name, roster: roster.rows, gms, schedule, rules, gameLengthMin: length });
+    const season = buildNewSeason({ name, roster: roster.rows, plugs: plugs.filter((p) => roster.teams.includes(p.team)), gms, schedule, rules, gameLengthMin: length });
     try { checkSeason(season); } catch (e) { setError((e as Error).message); setBusy(false); return; }
     await saveSeason(season);
     nav(`/s/${season.id}`);
@@ -110,6 +112,20 @@ export function NewSeason() {
                   {subs.length > 0 && <tr><td>Sub pool</td><td /><td className="num">{subs.length}</td><td className="num">{subs.filter((s) => s.gender === "M").length} / {subs.filter((s) => s.gender === "F").length}</td><td /></tr>}
                 </tbody>
               </table>
+              {shortTeams(roster.rows, plugs).map((g) => (
+                <div key={g.team} className="note plug-prompt">
+                  <span>{g.team} has {g.players} player{g.players === 1 ? "" : "s"}, the largest team has {g.largest}. Add a plug?</span>
+                  <select value={plugGender[g.team] ?? "F"} onChange={(e) => setPlugGender({ ...plugGender, [g.team]: e.target.value })} aria-label={`Plug gender for ${g.team}`}>
+                    <option value="F">F</option><option value="M">M</option><option value="X">X</option>
+                  </select>
+                  <button className="small-btn" onClick={() => setPlugs([...plugs, { team: g.team, gender: plugGender[g.team] ?? "F" }])}>Add plug</button>
+                </div>
+              ))}
+              {plugs.length > 0 && (
+                <p className="small">Plugs: {plugs.map((p, i) => (
+                  <span key={i} className="tag">{p.team} ({p.gender}) <button className="link" aria-label="Remove plug" onClick={() => setPlugs(plugs.filter((_, j) => j !== i))}>×</button></span>
+                ))} <span className="muted">A plug fills a roster spot; its salary is the average of rostered players of its gender.</span></p>
+              )}
               <p className="small muted">Starting cap with these salaries: <strong>{money(cap)}</strong> (average team payroll plus the {money(rules.capBuffer)} buffer).</p>
               <button className="link small" onClick={() => setShowRows(!showRows)}>{showRows ? "Hide" : "Show"} all {roster.rows.length} players</button>
               {showRows && (
