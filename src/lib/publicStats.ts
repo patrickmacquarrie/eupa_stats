@@ -1,5 +1,7 @@
 // The player-facing stats: what goes on the public page, and nothing else. A snapshot holds
 // per-player totals only (no salaries, rules or recordings), so it can be shared with anyone.
+import { gamesOf } from "./games";
+import { standings } from "./standings";
 import type { EngineResult, GameLine, LeagueInput } from "../../engine/types";
 import { genderOf } from "../../engine/pairing";
 
@@ -34,6 +36,8 @@ export interface Snapshot {
   rows: PublicRow[];
   /** Weeks included here whose numbers could still change (disputes, flags and so on still open). */
   provisionalWeeks?: number[];
+  /** Team standings through `throughWeek` (snapshots made before standings existed have none). */
+  standings?: { team: string; wins: number; losses: number; ties: number; goalsFor: number; goalsAgainst: number }[];
 }
 
 type Def = { key: string; label: string; short?: string; value: (r: PublicRow) => number | null; perGame?: boolean };
@@ -105,8 +109,10 @@ export function buildSnapshot(name: string, input: LeagueInput, result: EngineRe
     r.goals += l.goals; r.assists += l.assists; r.secondAssists += l.secondAssists; r.blocks += l.blocks;
     r.touches += l.touches; r.drops += l.drops; r.throwaways += l.throwaways; r.gso += l.gso;
   }
+  const teams = input.teams.filter((t) => !t.isSubTeam).map((t) => t.name);
   return {
     v: 1, season: name, throughWeek: w, generatedAt: new Date().toISOString(), settings,
+    standings: standings(teams, gamesOf(result.recordings), w).map(({ team, wins, losses, ties, goalsFor, goalsAgainst }) => ({ team, wins, losses, ties, goalsFor, goalsAgainst })),
     rows: [...rows.values()].filter((r) => !input.players.find((p) => p.name === r.name)?.isPlug).sort((a, b) => a.name.localeCompare(b.name)),
   };
 }
@@ -147,6 +153,8 @@ export function snapshotProblems(d: any): string[] {
     if (!Number.isInteger(st.minGames) || st.minGames < 1) out.push("The minimum games must be at least 1.");
   }
   if (d.provisionalWeeks !== undefined && (!Array.isArray(d.provisionalWeeks) || d.provisionalWeeks.some((w: unknown) => !Number.isInteger(w) || (w as number) < 1))) out.push("The snapshot's provisional weeks aren't week numbers.");
+  if (d.standings !== undefined && (!Array.isArray(d.standings) || d.standings.some((r: any) => !r || typeof r.team !== "string"
+    || ["wins", "losses", "ties", "goalsFor", "goalsAgainst"].some((k) => !Number.isFinite(r[k]) || r[k] < 0)))) out.push("The snapshot's standings are damaged.");
   if (!Array.isArray(d.rows)) return [...out, "The snapshot has no players."];
   const seen = new Set<string>();
   d.rows.forEach((r: any, i: number) => {
@@ -175,3 +183,10 @@ export function parseSnapshot(text: string): Snapshot {
 /** Whole numbers plain, per-game stats and half wins to one decimal. */
 export const fmtStat = (v: number | null, perGame?: boolean) =>
   v === null ? "–" : perGame || !Number.isInteger(v) ? v.toFixed(1) : String(v);
+
+/** The snapshot for a season as it stands, marking the weeks that can still change. */
+export function seasonSnapshot(name: string, input: LeagueInput, result: EngineResult, settings: PublicSettings | undefined, provisional: number[]): Snapshot {
+  const s = buildSnapshot(name, input, result, settings ?? DEFAULT_PUBLIC);
+  const weeks = provisional.filter((w) => w <= input.throughWeek);
+  return weeks.length ? { ...s, provisionalWeeks: weeks } : s;
+}

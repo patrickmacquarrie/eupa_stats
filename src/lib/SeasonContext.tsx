@@ -1,21 +1,18 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { computeLeague } from "../../engine/compute";
+import { gamesOf } from "./games";
 import type { EngineResult, LeagueInput, RecordingSummary } from "../../engine/types";
 import { aliasMap, findNameIssues, resolveInput } from "./names";
 import { openItems, provisionalWeeks, type OpenItem } from "./review";
 import { computeWithAutoMatch } from "./autoMatch";
+import type { Game } from "./games";
+export { gamesOf, type Game } from "./games";
 import type { PairingFlag } from "../../engine/pairing";
 import type { SubAssignment } from "../../engine/types";
 import { autoMatchOn, type SavedFlag, type Season } from "./season";
 import type { Draft } from "./recorder";
 import { downloadJson, loadSeason, saveSeason } from "./store";
 
-export interface Game {
-  week: number;
-  /** Teams in a stable order (alphabetical). */
-  a: string; b: string;
-  recA?: RecordingSummary; recB?: RecordingSummary;
-}
 
 interface Ctx {
   season: Season;
@@ -73,17 +70,6 @@ export function useSeason() {
   return c;
 }
 
-export function gamesOf(recordings: RecordingSummary[]): Game[] {
-  const m = new Map<string, Game>();
-  for (const r of recordings) {
-    const [a, b] = [r.team, r.opp].sort();
-    const k = `${r.week}|${a}|${b}`;
-    const g = m.get(k) ?? { week: r.week, a, b };
-    if (r.team === a) g.recA = r; else g.recB = r;
-    m.set(k, g);
-  }
-  return [...m.values()].sort((x, y) => x.week - y.week || x.a.localeCompare(y.a) || x.b.localeCompare(y.b));
-}
 
 /**
  * Team payroll after `week`: every rostered (non-sub) player on the team for the next week's

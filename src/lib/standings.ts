@@ -2,7 +2,7 @@
 // recording (or the official score, which the engine applies to both sides). When only one
 // side was recorded, the other side's result is the mirror of it.
 import type { RecordingSummary } from "../../engine/types";
-import type { Game } from "./SeasonContext";
+import type { Game } from "./games";
 
 export interface Standing {
   team: string;

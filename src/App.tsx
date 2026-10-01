@@ -23,6 +23,7 @@ const AdminFrame = lazy(() => import("./pages/Admin").then((m) => ({ default: m.
 const AdminReview = lazy(() => import("./pages/Admin").then((m) => ({ default: m.AdminReview })));
 const NewLeague = lazy(() => import("./pages/League").then((m) => ({ default: m.NewLeague })));
 const LeagueHome = lazy(() => import("./pages/League").then((m) => ({ default: m.LeagueHome })));
+const PublicPage = lazy(() => import("./pages/PublicPage").then((m) => ({ default: m.PublicPage })));
 const OnlineSeasonProvider = lazy(() => import("./lib/OnlineSeason"));
 const Subs = lazy(() => import("./pages/Subs").then((m) => ({ default: m.Subs })));
 
@@ -43,6 +44,7 @@ export function App() {
         <Route path="/new" element={<NewSeason />} />
         <Route path="/new-league" element={<NewLeague />} />
         <Route path="/l/:slug" element={<LeagueHome />} />
+        <Route path="/l/:slug/p/:sid" element={<PublicPage />} />
         <Route path="/s/:id" element={<SeasonShell />}>{seasonRoutes()}</Route>
         <Route path="/l/:slug/s/:sid" element={<OnlineSeasonShell />}>{seasonRoutes()}</Route>
         <Route path="*" element={<p className="pad">Page not found. <a href="#/">Seasons</a></p>} />

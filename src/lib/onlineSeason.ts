@@ -6,6 +6,7 @@ import type { Draft } from "./recorder";
 import { deviceId, firebase } from "./firebase";
 import { getLeague, leagueRef } from "./league";
 import { recId, split, stable, type RecordingBody, type RecordingDoc } from "./onlineShape";
+import type { Snapshot } from "./publicStats";
 import { SEASON_SCHEMA, type SavedFlag, type Season } from "./season";
 
 const seasonRef = (slug: string, sid: string) => doc(firebase().db, "leagues", slug, "seasons", sid);
@@ -96,4 +97,23 @@ export async function deleteRecording(slug: string, sid: string, d: Pick<Draft, 
 export function watchSynced(slug: string, sid: string, d: Pick<Draft, "date" | "team" | "opp">, onSynced: (synced: boolean) => void) {
   return onSnapshot(recRef(slug, sid, recId(d.date, d.team, d.opp)), { includeMetadataChanges: true },
     (s) => onSynced(s.exists() && !s.metadata.hasPendingWrites), () => onSynced(false));
+}
+
+const publicRef = (slug: string, sid: string) => doc(firebase().db, "leagues", slug, "public", sid);
+
+/** Admin: the public page's snapshot, written only when its numbers change. */
+export async function publishSnapshot(slug: string, sid: string, snapshot: Snapshot, last: { current: string | null }) {
+  const key = stable({ ...snapshot, generatedAt: null });
+  if (last.current === null) {
+    const now = await getDoc(publicRef(slug, sid));
+    last.current = now.exists() ? stable({ ...now.data(), generatedAt: null }) : "";
+  }
+  if (key === last.current) return;
+  last.current = key;
+  await setDoc(publicRef(slug, sid), snapshot);
+}
+
+/** The public page: the published snapshot, live. */
+export function watchPublic(slug: string, sid: string, onSnap: (s: Snapshot | null) => void, onError: (e: Error) => void) {
+  return onSnapshot(publicRef(slug, sid), (d) => onSnap(d.exists() ? (d.data() as Snapshot) : null), onError);
 }

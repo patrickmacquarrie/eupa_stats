@@ -94,7 +94,23 @@ are bundled, see `src/assets/fonts/OFL.txt`) and shows an Offline pill in the he
 fixtures are only in `build:demo` / `dev`, so a production build carries no real league data.
 
 The production build is published to https://patrickmacquarrie.github.io/eupa_stats/ by
-`.github/workflows/pages.yml` on every change to `main`.
+`.github/workflows/pages.yml`, and to Firebase Hosting (https://eupa-stats.web.app) with the
+Firestore security rules by `.github/workflows/firebase.yml`, on every change to `main`. GitHub
+Pages stays until the league switches over; after that the repository can be made private.
+
+The Firebase deploy needs a key, stored as the GitHub secret `FIREBASE_SERVICE_ACCOUNT`; until
+it's set, that workflow skips itself. To make one (as the Google account that owns the project):
+in the Google Cloud console for project `eupa-stats`, IAM & Admin → Service accounts → Create
+service account (`github-deploy`), with the roles Firebase Hosting Admin, Firebase Rules Admin,
+API Keys Viewer and Service Usage Consumer; then on that account, Keys → Add key → JSON. In
+GitHub, Settings → Secrets and variables → Actions → New repository secret, named
+`FIREBASE_SERVICE_ACCOUNT`, with the whole JSON file as its value. Delete the downloaded file.
+
+The public player stats page for an online season is `/l/<league>/p/<season>`. While an admin
+has the season open, their browser rebuilds its snapshot a few seconds after the numbers change
+(an edit, or a tablet's recording arriving) and writes it if it differs; the page reads it live
+and marks provisional weeks. The copy-and-paste shareable page (`npm run build:share`) remains
+for seasons kept in a browser, and until the online page has replaced it.
 
 CI (`.github/workflows/ci.yml`) runs typecheck, unit tests, the validation baseline, both
 builds and the browser test on every push and pull request. Its two jobs, `Typecheck` and

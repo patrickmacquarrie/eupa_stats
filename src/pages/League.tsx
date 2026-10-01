@@ -81,7 +81,9 @@ export function LeagueHome() {
       <section className="card">
         <h2>Seasons</h2>
         {league.seasons.length ? (
-          <ul className="plain">{league.seasons.map((s) => <li key={s.id}><Link to={`/l/${slug}/s/${s.id}`}>{s.name}</Link></li>)}</ul>
+          <ul className="plain season-links">{league.seasons.map((s) => (
+            <li key={s.id}><Link to={`/l/${slug}/s/${s.id}`}>{s.name}</Link> · <Link to={`/l/${slug}/p/${s.id}`} className="small">Player stats</Link></li>
+          ))}</ul>
         ) : <p className="muted">No seasons online yet.{role === "admin" ? " Open a season from this device's list and choose “Move this season online”." : ""}</p>}
       </section>
 

@@ -117,5 +117,18 @@ test("a season moved online gets a tablet's recording live, with and without a s
   await admin.click("nav.tabs >> text=Overview");
   await expect(admin.locator(".standings tbody tr").first()).toContainText("Team A");
   await expect(admin.locator(".standings tbody tr").first()).toContainText("1–0");
+
+  // A visitor with no password sees the public page, kept current from the admin's browser:
+  // standings and player stats, never salaries.
+  const visitor = await (await browser.newContext()).newPage();
+  visitor.on("pageerror", (e) => errors.push(e.message));
+  await admin.click("nav.tabs >> text=Player stats");
+  await admin.getByRole("link", { name: "Open the public page" }).click();
+  const publicUrl = admin.url();
+  await visitor.goto(publicUrl);
+  await expect(visitor.locator(".pub-standings tbody tr").first()).toContainText("Team A", { timeout: 15_000 });
+  await expect(visitor.locator(".pub-standings tbody tr").first()).toContainText("1–0");
+  await expect(visitor.locator(".pub")).toContainText("Ann Arbour");
+  await expect(visitor.locator("body")).not.toContainText("$");
   expect(errors).toEqual([]);
 });

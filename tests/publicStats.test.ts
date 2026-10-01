@@ -46,3 +46,21 @@ describe("public stats", () => {
     expect(() => parseSnapshot('{"v":2}')).toThrow(/copied stats/);
   });
 });
+
+describe("standings on the public page", () => {
+  it("are in the snapshot, with records and goals but no salaries, and damaged ones are refused", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { computeLeague } = await import("../engine/compute");
+    const { seasonFromFixture } = await import("../src/lib/season");
+    const { seasonSnapshot, snapshotProblems } = await import("../src/lib/publicStats");
+    const { season } = seasonFromFixture(JSON.parse(readFileSync("fixtures/fall-2026.json", "utf8")));
+    const snap = seasonSnapshot(season.name, season.input, computeLeague(season.input), undefined, [3]);
+    expect(snap.standings).toHaveLength(3);
+    expect(Object.keys(snap.standings![0]).sort()).toEqual(["goalsAgainst", "goalsFor", "losses", "team", "ties", "wins"]);
+    expect(snap.standings!.reduce((n, r) => n + r.wins, 0)).toBe(snap.standings!.reduce((n, r) => n + r.losses, 0));
+    expect(snap.provisionalWeeks).toEqual([3]);
+    expect(JSON.stringify(snap)).not.toMatch(/salary/i);
+    expect(snapshotProblems(JSON.parse(JSON.stringify(snap)))).toEqual([]);
+    expect(snapshotProblems({ ...snap, standings: [{ team: "X", wins: -1, losses: 0, ties: 0, goalsFor: 0, goalsAgainst: 0 }] })).toContain("The snapshot's standings are damaged.");
+  });
+});

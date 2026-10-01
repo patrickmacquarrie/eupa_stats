@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { deviceId } from "./firebase";
 import { getLeague, watchRole, type Role } from "./league";
-import { deleteRecording, pushRecording, saveSeasonOnline, watchSeason, watchSynced, type Remote } from "./onlineSeason";
+import { deleteRecording, publishSnapshot, pushRecording, saveSeasonOnline, watchSeason, watchSynced, type Remote } from "./onlineSeason";
+import { seasonSnapshot } from "./publicStats";
 import { assemble, recKey } from "./onlineShape";
 import { rememberLeague } from "./recentLeagues";
-import { SeasonView, type OnlineCtx } from "./SeasonContext";
+import { SeasonView, useSeason, type OnlineCtx } from "./SeasonContext";
 import { weekOfDate, type Season } from "./season";
 
 const message = (e: unknown) => {
@@ -58,7 +59,25 @@ export default function OnlineSeasonProvider({ slug, sid, children }: { slug: st
   return (
     <SeasonView season={season} persist={persist} saveError={saveError} base={`/l/${slug}/s/${sid}`} draftKey={`l:${slug}:${sid}`}
       canAdmin={role === "admin"} canRecord={role === "admin" || role === "stat"} online={online}>
+      {role === "admin" && <PublishSnapshot slug={slug} sid={sid} />}
       {children}
     </SeasonView>
   );
+}
+
+/**
+ * While an admin has the season open, their browser keeps the public page current: a few seconds
+ * after the numbers change (an edit, or a tablet's recording arriving), it rebuilds the snapshot
+ * and writes it if it differs from what's published.
+ */
+function PublishSnapshot({ slug, sid }: { slug: string; sid: string }) {
+  const { season, input, result, provisional } = useSeason();
+  const last = useRef<string | null>(null);
+  useEffect(() => {
+    const t = setTimeout(() => {
+      publishSnapshot(slug, sid, seasonSnapshot(season.name, input, result, season.publicStats, provisional), last).catch(() => { last.current = null; });
+    }, 3000);
+    return () => clearTimeout(t);
+  }, [slug, sid, season, input, result, provisional]);
+  return null;
 }
