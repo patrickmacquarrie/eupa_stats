@@ -9,6 +9,7 @@ import { weekOfDate, type SavedFlag } from "../lib/season";
 import { describe } from "../lib/recorder";
 import { useSeason } from "../lib/SeasonContext";
 import { clearOfficial, needsReconfirming, officialFor, setOfficial } from "../lib/official";
+import { recommend, tabletsText } from "../lib/scoreDiff";
 
 const STATS: [keyof StatLine, string][] = [
   ["goals", "G"], ["assists", "A"], ["secondAssists", "2A"], ["blocks", "D"],
@@ -39,15 +40,12 @@ export function GameDetail() {
       <h1>{a} v {b}</h1>
       {date && <p className="muted">{new Date(date + "T12:00:00").toLocaleDateString("en-CA", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}</p>}
 
-      {check && (
+      {check && !check.agree && <ScoreDifference week={week} a={a} b={b} proposed={[check.proposed.a, check.proposed.b]} />}
+      {check && check.agree && (
         <section className="card">
           <h2>Tablet cross-check</h2>
-          <p>
-            {a}'s tablet says <strong>{check.finalA}</strong>; {b}'s tablet says <strong>{check.finalB}</strong> ({a} first).
-            {check.agree ? " They agree." : <> Proposed final: <strong>{check.proposed.a}–{check.proposed.b}</strong>
-              {check.proposed.needsAdmin ? ", with conflicts for you to decide." : "."}</>}
-          </p>
-          {(!check.agree || official) && <OfficialScore week={week} a={a} b={b} proposed={[check.proposed.a, check.proposed.b]} />}
+          <p>Both tablets agree: <strong>{a} {check.finalA.replace("-", "–")} {b}</strong>.</p>
+          {official && <OfficialScore week={week} a={a} b={b} proposed={[check.proposed.a, check.proposed.b]} />}
           {check.unmatched.length > 0 ? (
             <table className="data">
               <thead><tr><th>Time</th><th>Only on</th><th>What</th><th>Score after</th><th>Verdict</th><th>Why</th></tr></thead>
@@ -64,7 +62,6 @@ export function GameDetail() {
               </tbody>
             </table>
           ) : <p className="muted small">Every Point on one tablet lines up with a GSO on the other.</p>}
-          <p className="muted small">Until an official score is set, each side's win or loss comes from its own tablet, so both teams can be credited the win. The week stays provisional until it's settled.</p>
         </section>
       )}
 
@@ -252,6 +249,41 @@ function Flags({ week, a, b, onEdit }: { week: number; a: string; b: string; onE
 }
 
 /** The administrator's call on a disputed game: decides the result for both sides. */
+/** The tablets' finals differ: recommend a score and explain it; an admin approves or changes it. */
+function ScoreDifference({ week, a, b, proposed }: { week: number; a: string; b: string; proposed: [number, number] }) {
+  const { season, input, update } = useSeason();
+  const r = useMemo(() => recommend(input, week, a, b), [input, week, a, b]);
+  const official = officialFor(season.input, week, a, b);
+  const [changing, setChanging] = useState(false);
+  if (!r) return null;
+  return (
+    <section className="card score-diff">
+      <h2>Score difference</h2>
+      <p className="muted">{tabletsText(r)}</p>
+      {official ? <OfficialScore week={week} a={a} b={b} proposed={proposed} /> : (
+        <>
+          <p className="recommended">Recommended: <strong>{shortTeam(r.first)} {r.score[0]}–{r.score[1]}</strong>{r.score[0] === r.score[1] && <> (a tie with {shortTeam(r.second)})</>}</p>
+          {r.goals.length > 0 && (
+            <ul className="goal-reasons">{r.goals.map((g, i) => <li key={i} className={g.counted ? "" : "attn"}>{g.text}</li>)}</ul>
+          )}
+          {r.conflicts.map((c, i) => <p key={i} className="note attn-note">{c}</p>)}
+          <div className="row gap-sm wrap">
+            <button className="primary" onClick={() => update((inp) => setOfficial(inp, week, r.first, r.second, r.score[0], r.score[1]))}>Approve recommended score</button>
+            <button onClick={() => setChanging((x) => !x)} aria-expanded={changing}>Change</button>
+          </div>
+          {changing && <OfficialScore week={week} a={a} b={b} proposed={proposed} />}
+        </>
+      )}
+      {official && r.goals.length > 0 && (
+        <details className="small"><summary>Why the tablets differ</summary>
+          <ul className="goal-reasons">{r.goals.map((g, i) => <li key={i}>{g.text}</li>)}</ul>
+        </details>
+      )}
+      <p className="muted small">Until a score is approved, each side's win or loss comes from its own tablet, so both teams can be credited the win. The week stays provisional until it's settled.</p>
+    </section>
+  );
+}
+
 function OfficialScore({ week, a, b, proposed }: { week: number; a: string; b: string; proposed: [number, number] }) {
   const { season, update } = useSeason();
   const current = officialFor(season.input, week, a, b);

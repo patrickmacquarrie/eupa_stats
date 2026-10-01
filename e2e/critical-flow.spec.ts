@@ -77,10 +77,12 @@ test("create season, record, refresh recovery, finish, dispute, correct, export 
   // The dispute, plus the roster's "Casey Sub", which Names flags as an old "Name Sub" record.
   await expect(page.locator(".tabs .badge.alert")).toHaveText("2");
   await expect(page.locator(".open-items h2")).toHaveText("Provisional: week 1");
-  await expect(page.locator(".open-items summary")).toContainText("1 score dispute");
+  await expect(page.locator(".open-items summary")).toContainText("1 score difference");
 
   // 6. Settle it with an official score, then fix a possession in the editor.
   await page.click(".open-items >> text=/tablets disagree/");
+  await expect(page.locator(".score-diff h2")).toHaveText("Score difference");
+  await page.getByRole("button", { name: "Change" }).click();
   await page.fill('input[aria-label="Team A official score"]', "2");
   await page.fill('input[aria-label="Team B official score"]', "1");
   await page.click("text=Set official score");

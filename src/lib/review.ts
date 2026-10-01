@@ -3,12 +3,19 @@
 import type { EngineResult, LeagueInput } from "../../engine/types";
 import { nameKey } from "./names";
 import { needsReconfirming } from "./official";
+import { differenceLabel, recommend } from "./scoreDiff";
 import type { Season } from "./season";
 import { weekOfDate } from "./season";
 import type { Game } from "./SeasonContext";
 
 export type OpenKind = "dispute" | "official" | "flag" | "name" | "sub";
-export interface OpenItem { week: number; kind: OpenKind; label: string; /** Route relative to the season. */ to: string }
+export interface OpenItem {
+  week: number; kind: OpenKind; label: string;
+  /** Route relative to the season. */
+  to: string;
+  /** A score difference's recommended score, which the admin can approve in one click. */
+  approve?: { a: string; b: string; scoreA: number; scoreB: number; conflicts: number };
+}
 
 const gameLink = (week: number, a: string, b: string) => {
   const [x, y] = [a, b].sort();
@@ -25,7 +32,12 @@ export function openItems(season: Season, input: LeagueInput, result: EngineResu
   const w = input.throughWeek;
   const out: OpenItem[] = [];
   for (const g of games) {
-    if (g.week <= w && isDisputed(g)) out.push({ week: g.week, kind: "dispute", label: `${g.a} v ${g.b}: the tablets disagree on the score`, to: gameLink(g.week, g.a, g.b) });
+    if (g.week > w || !isDisputed(g)) continue;
+    const r = recommend(input, g.week, g.a, g.b);
+    out.push(r
+      ? { week: g.week, kind: "dispute", label: differenceLabel(r), to: gameLink(g.week, g.a, g.b),
+          approve: { a: r.first, b: r.second, scoreA: r.score[0], scoreB: r.score[1], conflicts: r.conflicts.length } }
+      : { week: g.week, kind: "dispute", label: `${g.a} v ${g.b}, week ${g.week}: the tablets disagree on the score`, to: gameLink(g.week, g.a, g.b) });
   }
   // Checked against the stored input: aliases don't change a score, so a merge doesn't unsettle one.
   for (const o of season.input.officialScores ?? []) {
@@ -65,7 +77,7 @@ export function openItems(season: Season, input: LeagueInput, result: EngineResu
 export const provisionalWeeks = (items: OpenItem[]) => [...new Set(items.map((i) => i.week))].sort((a, b) => a - b);
 
 const NOUN: Record<OpenKind, [string, string]> = {
-  dispute: ["score dispute", "score disputes"], official: ["official score to reconfirm", "official scores to reconfirm"], flag: ["flagged possession", "flagged possessions"],
+  dispute: ["score difference", "score differences"], official: ["official score to reconfirm", "official scores to reconfirm"], flag: ["flagged possession", "flagged possessions"],
   name: ["unknown name", "unknown names"], sub: ["unmatched sub", "unmatched subs"],
 };
 /** "1 score dispute, 2 unmatched subs" */

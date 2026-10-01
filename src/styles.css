@@ -131,6 +131,11 @@ ul.plain li { padding: 2px 0; }
 .subtabs a { padding: 5px 12px; border-radius: 999px; color: var(--text-muted); border: 1px solid var(--border); white-space: nowrap; }
 .subtabs a:hover { text-decoration: none; color: var(--text); }
 .subtabs a.active { background: var(--brand); border-color: var(--brand); color: #fff; font-weight: 600; }
+.item-list li { margin: 4px 0; }
+.score-diff .recommended { font-size: 1.1rem; margin: 6px 0; }
+.goal-reasons { margin: 6px 0 10px; padding-left: 20px; }
+.goal-reasons li { margin: 3px 0; }
+.approve-inline { display: inline-flex; align-items: center; gap: 8px; margin-left: 8px; }
 .facts { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-bottom: 12px; }
 td.strong { font-weight: 700; }
 .standings td, .standings th { font-variant-numeric: tabular-nums; }

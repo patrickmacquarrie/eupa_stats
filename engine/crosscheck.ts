@@ -21,7 +21,17 @@ export interface Unmatched {
   scoreAfter: string;
   verdict: Verdict;
   why: string;
+  /** The evidence behind the verdict, for plain-language explanations. */
+  detail: Evidence;
 }
+
+export type Evidence =
+  | { reason: "stopped"; seconds: number }                                    // other tablet had stopped recording
+  | { reason: "twice"; at: string; action: string; player?: string | null }   // two quick scores on this tablet
+  | { reason: "o-error"; at: string }                                         // other tablet tapped O-Error instead of scored-on
+  | { reason: "turnover"; at: string; action: string; player?: string | null } // other tablet has a turnover then
+  | { reason: "silent"; seconds: number }                                     // other tablet quiet around it
+  | { reason: "unexplained" };                                                // nothing either way
 
 const secs = (clock?: string) => {
   const m = /(\d{1,2}):(\d{2}):(\d{2})/.exec(clock ?? "");
@@ -45,25 +55,30 @@ function pair(goals: PlayEvent[], gsos: PlayEvent[], toleranceSec: number) {
   };
 }
 
-function judge(e: PlayEvent, same: PlayEvent[], other: PlayEvent[], gapSec: number): { verdict: Verdict; why: string } {
+function judge(e: PlayEvent, same: PlayEvent[], other: PlayEvent[], gapSec: number): { verdict: Verdict; why: string; detail: Evidence } {
   const t = secs(e.clock);
   const times = other.map((o) => secs(o.clock));
   const last = Math.max(...times);
-  if (t > last) return { verdict: "missed-tap", why: `other tablet stopped recording ${t - last}s earlier` };
+  const at = (o: PlayEvent) => (o.clock ?? "").slice(0, 8);
+  if (t > last) return { verdict: "missed-tap", why: `other tablet stopped recording ${t - last}s earlier`, detail: { reason: "stopped", seconds: t - last } };
   // Same tablet logged the same kind of scoring event seconds apart: likely entered twice.
   const twin = same.find((o) => o !== e && o.action === e.action && Math.abs(secs(o.clock) - t) <= 15);
-  if (twin) return { verdict: "review", why: `two quick scores on this tablet (also ${twin.action}${twin.player ? " " + twin.player : ""} at ${(twin.clock ?? "").slice(0, 8)}), other tablet caught one; counted, check if it was entered twice` };
+  if (twin) return { verdict: "review", why: `two quick scores on this tablet (also ${twin.action}${twin.player ? " " + twin.player : ""} at ${at(twin)}), other tablet caught one; counted, check if it was entered twice`,
+    detail: { reason: "twice", at: at(twin), action: twin.action, player: twin.player } };
   // Other tablet started a possession with "O-Error" instead of "scored on".
   const next = other.find((o) => secs(o.clock) > t);
   if (next?.action === "O-Error" && secs(next.clock) - t <= 15 && e.action === "Point")
-    return { verdict: "missed-tap", why: `other tablet tapped O-Error at ${(next.clock ?? "").slice(0, 8)}, probably meant "scored on"` };
+    return { verdict: "missed-tap", why: `other tablet tapped O-Error at ${at(next)}, probably meant "scored on"`, detail: { reason: "o-error", at: at(next) } };
   const turnover = other.find((o) => TURNOVERS.has(o.action) && Math.abs(secs(o.clock) - t) <= 5);
-  if (turnover) return { verdict: "conflict", why: `other tablet has ${turnover.action}${turnover.player ? " " + turnover.player : ""} at ${(turnover.clock ?? "").slice(0, 8)}` };
+  if (turnover) return { verdict: "conflict", why: `other tablet has ${turnover.action}${turnover.player ? " " + turnover.player : ""} at ${at(turnover)}`,
+    detail: { reason: "turnover", at: at(turnover), action: turnover.action, player: turnover.player } };
   const before = times.filter((x) => x <= t).pop() ?? -Infinity;
   const after = times.find((x) => x > t) ?? Infinity;
-  if (t - before >= gapSec || after - t >= gapSec)
-    return { verdict: "missed-tap", why: `other tablet silent for ${Math.round(Math.min(after, last + 999) - before)}s around it` };
-  return { verdict: "review", why: "other tablet was recording but nothing contradicts it; counted" };
+  if (t - before >= gapSec || after - t >= gapSec) {
+    const seconds = Math.round(Math.min(after, last + 999) - before);
+    return { verdict: "missed-tap", why: `other tablet silent for ${seconds}s around it`, detail: { reason: "silent", seconds } };
+  }
+  return { verdict: "review", why: "other tablet was recording but nothing contradicts it; counted", detail: { reason: "unexplained" } };
 }
 
 export function crossCheck(a: PlayEvent[], b: PlayEvent[], toleranceSec = 20, gapSec = 20) {
