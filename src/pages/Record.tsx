@@ -36,6 +36,8 @@ export function Record() {
     if (d && online) online.pushRecording(d, "live").then(() => setSyncError(null)).catch((e) => setSyncError(syncProblem(e)));
   };
   useEffect(() => () => { if (timer.current) { clearTimeout(timer.current); send(); } }, []);
+  // Finish and Discard send their own final write; a "live" send still waiting would land after it.
+  const cancelSend = () => { if (timer.current) clearTimeout(timer.current); timer.current = null; };
   const change = (d: Draft | null, sendNow = false) => {
     setDraft(d);
     latest.current = d;
@@ -56,7 +58,7 @@ export function Record() {
   }
   if (draft === undefined) return <main className="page"><p className="muted">Loading…</p></main>;
   if (!draft || !draft.events || draft.present === undefined) return <GameSetup onStart={(d) => change(d, true)} />;
-  if (reviewing) return <Review draft={draft} onBack={() => setReviewing(false)} onDone={() => { change(null); setReviewing(false); }} />;
+  if (reviewing) return <Review draft={draft} cancelSend={cancelSend} onBack={() => setReviewing(false)} onDone={() => { change(null); setReviewing(false); }} />;
   return <Live draft={draft} onChange={change} onFinish={() => setReviewing(true)} unsafe={unsafe} syncError={syncError} />;
 }
 
@@ -378,7 +380,7 @@ function ClockAdjust({ draft, onApply, onCancel }: { draft: Draft; onApply: (d: 
 
 /* ------------------------------------------------------------------ review */
 
-function Review({ draft, onBack, onDone }: { draft: Draft; onBack: () => void; onDone: () => void }) {
+function Review({ draft, cancelSend, onBack, onDone }: { draft: Draft; cancelSend: () => void; onBack: () => void; onDone: () => void }) {
   const { season, updateSeason, online } = useSeason();
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<{ week: number } | null>(null);
@@ -403,6 +405,7 @@ function Review({ draft, onBack, onDone }: { draft: Draft; onBack: () => void; o
         end: poss.find((p) => p.start === f.start)?.end ?? f.end, clock: f.clock, note: notes[f.start]?.trim() || undefined,
       }));
       // Not awaited: with no signal Firestore keeps it on this tablet and sends it later.
+      cancelSend();
       online.pushRecording(draft, "finished", { present: [...here], flags }).catch((e) => setError((e as Error).message));
       setSaved({ week });
       return;
@@ -505,6 +508,7 @@ function Review({ draft, onBack, onDone }: { draft: Draft; onBack: () => void; o
         <span className="grow" />
         <button className="danger" onClick={async () => {
           if (!(await askConfirm("Throw this recording away? It can't be recovered.", { ok: "Discard", danger: true }))) return;
+          cancelSend();
           if (online && owner === online.uid) online.deleteRecording(draft).catch(() => {});
           onDone();
         }}>Discard</button>

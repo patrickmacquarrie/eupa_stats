@@ -1,0 +1,32 @@
+name: Backup
+
+# Every Monday morning, saves every online league and season (in the app's export format) as a
+# download on this run's page, kept for 90 days. Restore a season with Import on the Seasons screen.
+# Needs no secret: everything it saves is readable by anyone, and the password keys aren't.
+on:
+  schedule:
+    - cron: "41 10 * * 1"   # Mondays 10:41 UTC (early morning in Canada), after weekend games
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    name: Backup
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run backup -- backup
+      - uses: actions/upload-artifact@v7
+        with:
+          name: eupa-stats-backup-${{ github.run_number }}
+          path: backup
+          retention-days: 90
+          if-no-files-found: error

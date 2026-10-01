@@ -106,11 +106,22 @@ API Keys Viewer and Service Usage Consumer; then on that account, Keys → Add k
 GitHub, Settings → Secrets and variables → Actions → New repository secret, named
 `FIREBASE_SERVICE_ACCOUNT`, with the whole JSON file as its value. Delete the downloaded file.
 
-The public player stats page for an online season is `/l/<league>/p/<season>`. While an admin
-has the season open, their browser rebuilds its snapshot a few seconds after the numbers change
-(an edit, or a tablet's recording arriving) and writes it if it differs; the page reads it live
-and marks provisional weeks. The copy-and-paste shareable page (`npm run build:share`) remains
+The public player stats page for an online season is `/l/<league>/p/<season>`. Whichever
+unlocked device has the season open (an admin, or a tablet once its own game is finished)
+rebuilds the snapshot a few seconds after the numbers change and writes it if it differs, so the
+page catches up after game night without an admin opening the app. The write needs a signal: a
+device offline skips it rather than queueing old numbers. The page reads the snapshot live and
+marks provisional weeks. The copy-and-paste shareable page (`npm run build:share`) remains
 for seasons kept in a browser, and until the online page has replaced it.
+
+Backups: every Monday, `.github/workflows/backup.yml` saves every online league's details and
+each season, in the same format as the app's Export, as a download on that run's page in the
+repo's Actions tab ("Backup"), kept for 90 days. To restore a season, download it, unzip it and
+use Import on the Seasons screen; from there an admin can move it online again. "Run workflow"
+on the Backup page takes one at any time. It needs no secret, because everything it saves is
+readable by anyone already; the password keys aren't readable and aren't saved. While the repo is
+public, anyone signed in to GitHub can download these files too. `npm run backup -- <folder>`
+does the same from a computer.
 
 CI (`.github/workflows/ci.yml`) runs typecheck, unit tests, the validation baseline, both
 builds and the browser test on every push and pull request. Its two jobs, `Typecheck` and

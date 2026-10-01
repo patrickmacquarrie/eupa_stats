@@ -53,22 +53,27 @@ export default function OnlineSeasonProvider({ slug, sid, children }: { slug: st
     };
   }, [remote, season, slug, sid, role, uid]);
 
+  // A tablet keeps the public page current once its own game is finished, so the page catches up
+  // after game night even if no admin opens the app. Mid-game, it leaves that to the admin.
+  const ownLive = [...(remote?.recs.values() ?? [])].some((r) => r.uid === uid && r.status === "live");
+
   if (loadError) return <p className="pad">{loadError} <a href={`#/l/${slug}`}>Back to the league</a></p>;
   if (!remote?.ready) return <p className="muted pad">Loading season…</p>;
   if (!season) return <p className="pad">This league has no season “{sid}”. <a href={`#/l/${slug}`}>Back to the league</a></p>;
   return (
     <SeasonView season={season} persist={persist} saveError={saveError} base={`/l/${slug}/s/${sid}`} draftKey={`l:${slug}:${sid}`}
       canAdmin={role === "admin"} canRecord={role === "admin" || role === "stat"} online={online}>
-      {role === "admin" && <PublishSnapshot slug={slug} sid={sid} />}
+      {(role === "admin" || (role === "stat" && !ownLive)) && <PublishSnapshot slug={slug} sid={sid} />}
       {children}
     </SeasonView>
   );
 }
 
 /**
- * While an admin has the season open, their browser keeps the public page current: a few seconds
- * after the numbers change (an edit, or a tablet's recording arriving), it rebuilds the snapshot
- * and writes it if it differs from what's published.
+ * While an admin or a tablet has the season open, it keeps the public page current: a few seconds
+ * after the numbers change (an edit, or a recording arriving), it rebuilds the snapshot and writes
+ * it if it differs from what's published. Every device builds the same snapshot from the same
+ * documents, so it doesn't matter which one writes it.
  */
 function PublishSnapshot({ slug, sid }: { slug: string; sid: string }) {
   const { season, input, result, provisional } = useSeason();

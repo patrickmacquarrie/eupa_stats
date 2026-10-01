@@ -1,6 +1,6 @@
 // Reading and writing a season online. See onlineShape.ts for how a season maps to documents.
 import {
-  arrayUnion, collection, deleteDoc, doc, getDoc, onSnapshot, serverTimestamp, setDoc, updateDoc, writeBatch,
+  arrayUnion, collection, deleteDoc, doc, getDoc, onSnapshot, runTransaction, serverTimestamp, setDoc, updateDoc, writeBatch,
 } from "firebase/firestore";
 import type { Draft } from "./recorder";
 import { deviceId, firebase } from "./firebase";
@@ -101,16 +101,20 @@ export function watchSynced(slug: string, sid: string, d: Pick<Draft, "date" | "
 
 const publicRef = (slug: string, sid: string) => doc(firebase().db, "leagues", slug, "public", sid);
 
-/** Admin: the public page's snapshot, written only when its numbers change. */
+/**
+ * Admin or tablet: the public page's snapshot, written only when its numbers change. A transaction,
+ * because it needs the server: a device without a signal fails here instead of queueing a snapshot
+ * that would overwrite newer numbers when it reconnects.
+ */
 export async function publishSnapshot(slug: string, sid: string, snapshot: Snapshot, last: { current: string | null }) {
   const key = stable({ ...snapshot, generatedAt: null });
-  if (last.current === null) {
-    const now = await getDoc(publicRef(slug, sid));
-    last.current = now.exists() ? stable({ ...now.data(), generatedAt: null }) : "";
-  }
   if (key === last.current) return;
+  await runTransaction(firebase().db, async (t) => {
+    const now = await t.get(publicRef(slug, sid));
+    if (now.exists() && stable({ ...now.data(), generatedAt: null }) === key) return;
+    t.set(publicRef(slug, sid), snapshot);
+  });
   last.current = key;
-  await setDoc(publicRef(slug, sid), snapshot);
 }
 
 /** The public page: the published snapshot, live. */

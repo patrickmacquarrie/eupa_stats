@@ -66,13 +66,18 @@ describe("unlocking", () => {
 });
 
 describe("what each password allows", () => {
-  it("keeps visitors and stat-takers out of the season, rules and public page", async () => {
+  it("keeps visitors and stat-takers out of the season and its rules", async () => {
     for (const uid of [null, "stranger", "tablet"]) {
       const db = as(uid);
       await assertFails(updateDoc(doc(db, "leagues/eupa/seasons/fall"), { "input.rules.capBuffer": 0 }));
-      await assertFails(setDoc(doc(db, "leagues/eupa/public/fall"), { rows: ["fake"] }));
       await assertFails(updateDoc(doc(db, "leagues/eupa"), { name: "Hacked" }));
     }
+  });
+  it("lets a stat-taker update the public page, but not a visitor, and only an admin remove it", async () => {
+    for (const uid of [null, "stranger"]) await assertFails(setDoc(doc(as(uid), "leagues/eupa/public/fall"), { rows: ["fake"] }));
+    await assertSucceeds(setDoc(doc(as("tablet"), "leagues/eupa/public/fall"), { rows: [] }));
+    await assertFails(deleteDoc(doc(as("tablet"), "leagues/eupa/public/fall")));
+    await assertSucceeds(deleteDoc(doc(as("admin1"), "leagues/eupa/public/fall")));
   });
   it("lets a stat-taker write their own recordings, but not another device's", async () => {
     const db = as("tablet");
