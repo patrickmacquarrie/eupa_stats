@@ -8,8 +8,10 @@ permissions:
   contents: read
 
 jobs:
+  # Job names are the required status checks on main; renaming one means updating the ruleset.
+  # Typecheck: typecheck, unit tests, validation baseline, both builds.
   checks:
-    name: Typecheck, tests, validation, builds
+    name: Typecheck
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,8 +27,9 @@ jobs:
       - run: npm run build
       - run: npm run build:share
 
+  # Browser: create, record, refresh recovery, finish, dispute, export/import, offline.
   browser:
-    name: Browser flow (create, record, recover, dispute, export/import, offline)
+    name: Browser
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
