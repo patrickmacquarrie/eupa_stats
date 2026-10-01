@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
-import { HashRouter, NavLink, Outlet, Route, Routes, useLocation, useParams } from "react-router-dom";
+import { HashRouter, Navigate, NavLink, Outlet, Route, Routes, useLocation, useParams } from "react-router-dom";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { adminCounts } from "./lib/review";
 import { ConfirmHost } from "./lib/confirm";
 import { SeasonProvider, useSeason } from "./lib/SeasonContext";
 import { downloadJson } from "./lib/store";
@@ -18,6 +19,8 @@ const Record = lazy(() => import("./pages/Record").then((m) => ({ default: m.Rec
 const Recordings = lazy(() => import("./pages/Recordings").then((m) => ({ default: m.Recordings })));
 const Setup = lazy(() => import("./pages/Setup").then((m) => ({ default: m.Setup })));
 const Stats = lazy(() => import("./pages/Stats").then((m) => ({ default: m.Stats })));
+const AdminFrame = lazy(() => import("./pages/Admin").then((m) => ({ default: m.AdminFrame })));
+const AdminReview = lazy(() => import("./pages/Admin").then((m) => ({ default: m.AdminReview })));
 const Subs = lazy(() => import("./pages/Subs").then((m) => ({ default: m.Subs })));
 
 /** Catches crashes outside a season (Seasons, New season) and pages that fail to load; resets on navigation. */
@@ -42,11 +45,15 @@ export function App() {
           <Route path="players/:name" element={<PlayerDetail />} />
           <Route path="games" element={<Games />} />
           <Route path="games/:week/:a/:b" element={<GameDetail />} />
-          <Route path="subs" element={<Subs />} />
-          <Route path="names" element={<Names />} />
-          <Route path="recordings" element={<Recordings />} />
           <Route path="stats" element={<Stats />} />
-          <Route path="setup" element={<Setup />} />
+          {/* Admin screens are flat routes, not nested, so their "../games" links still reach the season. */}
+          <Route path="admin" element={<AdminFrame><AdminReview /></AdminFrame>} />
+          <Route path="admin/names" element={<AdminFrame><Names /></AdminFrame>} />
+          <Route path="admin/subs" element={<AdminFrame><Subs /></AdminFrame>} />
+          <Route path="admin/recordings" element={<AdminFrame><Recordings /></AdminFrame>} />
+          <Route path="admin/setup" element={<AdminFrame><Setup /></AdminFrame>} />
+          {/* Old addresses, from bookmarks and earlier links. */}
+          {["names", "subs", "recordings", "setup"].map((p) => <Route key={p} path={p} element={<Navigate to={`../admin/${p}`} replace />} />)}
         </Route>
         <Route path="*" element={<p className="pad">Page not found. <a href="#/">Seasons</a></p>} />
       </Routes>
@@ -80,10 +87,11 @@ function SeasonScreen({ reset }: { reset: string }) {
 }
 
 function Header() {
-  const { season, nameIssueCount } = useSeason();
+  const { season, nameIssueCount, open, result } = useSeason();
   const online = useOnline();
   const base = `/s/${season.id}`;
-  const tabs: [string, string][] = [["", "Overview"], ["/record", "Record"], ["/players", "Players"], ["/games", "Games"], ["/subs", "Subs"], ["/names", "Names"], ["/recordings", "Recordings"], ["/stats", "Player stats"], ["/setup", "Setup"]];
+  const admin = adminCounts(open, nameIssueCount, result.warnings.length).total;
+  const tabs: [string, string][] = [["", "Overview"], ["/players", "Players"], ["/games", "Games"], ["/stats", "Player stats"], ["/admin", "Admin"]];
   return (
     <header className="app-header">
       <div className="header-bar">
@@ -96,11 +104,14 @@ function Header() {
         </div>
       </div>
       <div className="tab-bar">
-        <nav className="tabs">
-          {tabs.map(([to, label]) => <NavLink key={to} to={base + to} end={to === ""}>
-            {label}{to === "/names" && nameIssueCount > 0 && <span className="badge" aria-label={`${nameIssueCount} to review`}>{nameIssueCount}</span>}
-          </NavLink>)}
-        </nav>
+        <div className="tab-row">
+          <nav className="tabs">
+            {tabs.map(([to, label]) => <NavLink key={to} to={base + to} end={to === ""}>
+              {label}{to === "/admin" && admin > 0 && <span className="badge alert" aria-label={`${admin} to review`}>{admin}</span>}
+            </NavLink>)}
+          </nav>
+          <NavLink to={base + "/record"} className="track-stats">Track Stats</NavLink>
+        </div>
       </div>
     </header>
   );

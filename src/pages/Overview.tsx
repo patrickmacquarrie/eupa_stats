@@ -2,11 +2,11 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { LineChart } from "../components/LineChart";
 import { money, moneyShort, shortTeam } from "../lib/format";
-import { describeItems } from "../lib/review";
 import { teamPayroll, useSeason } from "../lib/SeasonContext";
+import { recordText, standings } from "../lib/standings";
 
 export function Overview() {
-  const { season, input, result, games, computeMs, nameIssueCount, open, provisional } = useSeason();
+  const { input, result, games, provisional } = useSeason();
   const last = input.throughWeek;
   const [week, setWeek] = useState(last);
   const w = Math.min(week, last);
@@ -15,87 +15,68 @@ export function Overview() {
   const payrollByWeek = weeks.map((wk) => teamPayroll(input, result, wk));
   const payroll = payrollByWeek[w];
   const cap = result.capByWeek[w];
-  const disagree = games.filter((g) => g.recA && g.recB && g.recA.eventCount && g.recB.eventCount &&
-    (g.recA.finalScore !== g.recB.finalOppScore || g.recA.finalOppScore !== g.recB.finalScore));
-  const notes = sessionStorage.getItem(`notes:${season.id}`);
+  const table = standings(teams, games, w);
+  const ties = table.some((r) => r.ties > 0);
+  const anyNoScore = table.some((r) => r.noScore > 0);
+  const unsettled = provisional.filter((wk) => wk <= w);
 
   return (
     <main className="page">
       <div className="toolbar">
-        <label>Salaries after
+        <label>Standings after
           <select value={w} onChange={(e) => setWeek(+e.target.value)}>
             {weeks.map((wk) => <option key={wk} value={wk}>{wk === 0 ? "start of season" : `week ${wk}${provisional.includes(wk) ? " (provisional)" : ""}`}</option>)}
           </select>
         </label>
-        <span className="muted small">Engine ran in {Math.round(computeMs)} ms · {input.events.length.toLocaleString()} events</span>
       </div>
 
-      {notes && <p className="note">{notes}</p>}
-      {provisional.length > 0 && (
-        <section className="card open-items" aria-labelledby="open-title">
-          <h2 id="open-title">Provisional: week{provisional.length > 1 ? "s" : ""} {provisional.join(", ")}</h2>
-          <p className="muted small">These salaries can still change. Settle each item below and the week becomes final.</p>
-          {provisional.map((wk) => {
-            const items = open.filter((i) => i.week === wk);
-            return (
-              <details key={wk} open={provisional.length === 1}>
-                <summary><strong>Week {wk}</strong>: {describeItems(items)}</summary>
-                <ul className="plain small">{items.map((i, n) => <li key={n}><Link to={i.to}>{i.label}</Link></li>)}</ul>
-              </details>
-            );
-          })}
-        </section>
-      )}
-      {nameIssueCount > 0 && (
-        <p className="note attn-note">
-          {nameIssueCount} name issue(s) to review: spellings that don't match a player, or old “Name Sub” records.{" "}
-          <Link to="names">Review names</Link>
-        </p>
-      )}
-
-      <section className="tiles">
-        <div className="tile"><span className="tile-label">Salary cap</span><span className="tile-value">{money(cap)}</span></div>
-        <div className="tile"><span className="tile-label">Games counted</span><span className="tile-value">{games.filter((g) => g.week <= w).length}</span></div>
-        <div className="tile"><span className="tile-label">Score disputes</span>
-          <span className="tile-value">{disagree.length ? <Link to="../games?filter=disputed">{disagree.length}</Link> : 0}</span></div>
-        <div className="tile"><span className="tile-label">Warnings</span><span className="tile-value">{result.warnings.length}</span></div>
-      </section>
-
       <section className="card scroll-x">
-        <h2>Payroll vs cap{provisional.includes(w) && <span className="pill warn heading-pill">provisional</span>}</h2>
-        <table className="data">
-          <thead><tr><th>Team</th><th>GM</th><th className="num">Payroll</th><th className="num">Cap space</th></tr></thead>
+        <h2>Standings{unsettled.length > 0 && <span className="pill warn heading-pill">provisional</span>}</h2>
+        <table className="data standings">
+          <thead>
+            <tr>
+              <th className="num hide-narrow">#</th><th>Team</th><th className="hide-narrow">GM</th>
+              <th className="num" title={ties ? "Wins–losses–ties" : "Wins–losses"}>{ties ? "W–L–T" : "W–L"}</th>
+              <th className="num" title="Goals for">GF</th><th className="num" title="Goals against">GA</th><th className="num hide-narrow" title="Goal difference">+/−</th>
+              <th className="num">Salary</th>
+            </tr>
+          </thead>
           <tbody>
-            {teams.map((t) => {
-              const room = cap - payroll[t];
+            {table.map((r, i) => {
+              const diff = r.goalsFor - r.goalsAgainst;
+              const over = payroll[r.team] > cap;
               return (
-                <tr key={t}>
-                  <td><Link to={`../players?team=${encodeURIComponent(t)}`}>{t}</Link></td>
-                  <td className="muted">{input.teams.find((x) => x.name === t)?.gm}</td>
-                  <td className="num">{money(payroll[t])}</td>
-                  <td className={"num" + (room < 0 ? " over" : "")}>{room < 0 ? <span title="Over the cap">▲ over by {money(-room)}</span> : money(room)}</td>
+                <tr key={r.team}>
+                  <td className="num muted hide-narrow">{i + 1}</td>
+                  <td><Link to={`players?team=${encodeURIComponent(r.team)}`}>{r.team}</Link></td>
+                  <td className="muted hide-narrow">{input.teams.find((x) => x.name === r.team)?.gm}</td>
+                  <td className="num strong">{recordText(r, ties)}</td>
+                  <td className="num">{r.goalsFor}{r.noScore > 0 && <sup title={`${r.noScore} game(s) with no score recorded`}>*</sup>}</td>
+                  <td className="num">{r.goalsAgainst}</td>
+                  <td className="num hide-narrow">{diff > 0 ? `+${diff}` : diff < 0 ? `−${-diff}` : "0"}</td>
+                  <td className={"num" + (over ? " over" : "")} title={over ? `Over the cap by ${money(payroll[r.team] - cap)}` : `${money(cap - payroll[r.team])} under the cap`}>
+                    <span className="hide-narrow">{money(payroll[r.team])}</span>
+                    <span className="show-narrow">${(payroll[r.team] / 1e6).toFixed(1)}M</span>{over && " ▲"}
+                  </td>
                 </tr>
               );
             })}
           </tbody>
         </table>
-        {input.rules.teamResultBonus && <p className="muted small">Payroll includes the team result bonus ({money(input.rules.teamResultBonus.win)} per win), which counts against the cap.</p>}
+        <p className="muted small">
+          Salary cap after {w === 0 ? "the start of the season" : `week ${w}`}: {money(cap)}{table.some((r) => payroll[r.team] > cap) && " (▲ over the cap)"}.
+          {input.rules.teamResultBonus && <> Salary includes the team result bonus ({money(input.rules.teamResultBonus.win)} per win), which counts against the cap.</>}
+          {anyNoScore && <> * Some games have a result but no score, so they aren't in GF/GA.</>}
+          {unsettled.length > 0 && <> {unsettled.length === 1 ? `Week ${unsettled[0]} has` : `${unsettled.length} weeks have`} open items, so these can still change: see <Link to="admin">Admin</Link>.</>}
+        </p>
       </section>
 
       <section className="card">
-        <h2>Payroll by week</h2>
+        <h2>Salary by week</h2>
         <LineChart xLabels={weeks.map((wk) => (wk === 0 ? "Start" : `W${wk}`))} format={moneyShort} marker={w}
           series={teams.map((t) => ({ name: shortTeam(t), values: payrollByWeek.map((p) => p[t]) }))}
           reference={{ name: "Cap", values: weeks.map((wk) => result.capByWeek[wk]) }} />
       </section>
-
-      {result.warnings.length > 0 && (
-        <section className="card">
-          <h2>Engine warnings</h2>
-          <p className="muted small">Names the engine couldn't match, sub assignments that don't line up, recordings outside the schedule.</p>
-          <ul className="warnings">{result.warnings.map((x, i) => <li key={i}>{x}</li>)}</ul>
-        </section>
-      )}
     </main>
   );
 }
