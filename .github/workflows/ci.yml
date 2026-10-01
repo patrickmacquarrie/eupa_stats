@@ -28,6 +28,11 @@ jobs:
       - run: npm run validate
       - run: npm run build
       - run: npm run build:share
+      # The Firebase emulators need Java 21 or later; the runner's default is older.
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
       - uses: actions/cache@v4
         with:
           path: ~/.cache/firebase/emulators
@@ -51,6 +56,11 @@ jobs:
       - run: npm run e2e
         env:
           CI: "true"
+      # The Firebase emulators need Java 21 or later; the runner's default is older.
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
       - uses: actions/cache@v4
         with:
           path: ~/.cache/firebase/emulators
