@@ -116,7 +116,7 @@ export function Recordings() {
                         {unk.length > 0 && <div className="attn">Not in the player list: {unk.map((n) => {
                           const sg = suggestPlayer(n, input.players);
                           return sg ? `${n} (probably ${sg.name})` : n;
-                        }).join(", ")}. Sort these out on the <Link to="../names">Names</Link> tab after adding.</div>}
+                        }).join(", ")}. Sort these out on the <Link to="../admin/names">Names</Link> tab after adding.</div>}
                       </td>
                       <td><button className="icon" aria-label={`Remove ${p.file}`} onClick={() => setPending(pending.filter((_, j) => j !== i))}>×</button></td>
                     </tr>

@@ -37,10 +37,10 @@ test("create season, record, refresh recovery, finish, dispute, correct, export 
   await page.fill("#ns-weeks", "4");
   await page.click("text=Fill in weekly dates");
   await page.click("text=Create season");
-  await expect(page.locator("text=Payroll vs cap")).toBeVisible();
+  await expect(page.locator("h2", { hasText: "Standings" })).toBeVisible();
 
   // 2. Record Team A's side: A 2 – B 1.
-  await page.click("nav.tabs >> text=Record");
+  await page.click(".track-stats");
   await page.fill('input[type="date"]', "2027-01-04");
   await page.click("text=Start recording");
   await tap(page, "Ann Arbour", "Touch");
@@ -69,10 +69,13 @@ test("create season, record, refresh recovery, finish, dispute, correct, export 
   await expect(page.locator("text=Saved")).toBeVisible();
 
   // 5. Team B's tablet disagrees (3–1): the week goes provisional.
-  await page.click("nav.tabs >> text=Recordings");
+  await page.click("nav.tabs >> text=Admin");
+  await page.click(".subtabs >> text=Recordings");
   await page.setInputFiles('label.file-drop input[type="file"]', { name: "teamB.csv", mimeType: "text/csv", buffer: Buffer.from(teamBTablet()) });
   await page.click("text=/Add 1 recording/");
-  await page.click("nav.tabs >> text=Overview");
+  await page.click("nav.tabs >> text=Admin");
+  // The dispute, plus the roster's "Cass Sub", which Names flags as an old "Name Sub" record.
+  await expect(page.locator(".tabs .badge.alert")).toHaveText("2");
   await expect(page.locator(".open-items h2")).toHaveText("Provisional: week 1");
   await expect(page.locator(".open-items summary")).toContainText("1 score dispute");
 
@@ -89,14 +92,16 @@ test("create season, record, refresh recovery, finish, dispute, correct, export 
   await expect(page.locator(".edit-effect")).toContainText("Amy Ash +1 A");
   await page.click(".editor-card >> button:text-is('Save')");
   // The edit changed a recording the official score was set against: it still applies, but needs confirming.
-  await page.click("nav.tabs >> text=Overview");
+  await page.click("nav.tabs >> text=Admin");
   await expect(page.locator(".open-items summary")).toContainText("1 official score to reconfirm");
   await page.click(".open-items >> text=/official score was set/");
   await expect(page.locator(".official.stale")).toBeVisible();
   await page.getByRole("button", { name: "Confirm official score" }).click();
   await expect(page.locator(".official.stale")).toHaveCount(0);
-  await page.click("nav.tabs >> text=Overview");
+  await page.click("nav.tabs >> text=Admin");
   await expect(page.locator(".open-items")).toHaveCount(0);
+  await expect(page.locator(".tabs .badge.alert")).toHaveText("1");
+  await expect(page.locator(".subtabs .badge.alert")).toHaveText("1");    // on Names
 
   // 7. Export, delete, import: everything comes back.
   const [jsonDownload] = await Promise.all([page.waitForEvent("download"), page.click("header >> text=Export")]);
@@ -107,7 +112,10 @@ test("create season, record, refresh recovery, finish, dispute, correct, export 
   await page.click(".modal >> button:text-is('Delete')");
   await expect(page.locator(".season-list li")).toHaveCount(0);
   await page.setInputFiles('label.file-drop input[type="file"]', { name: "E2E Winter.json", mimeType: "application/json", buffer: readFileSync(jsonPath) });
-  await expect(page.locator("text=Payroll vs cap")).toBeVisible();
+  await expect(page.locator("h2", { hasText: "Standings" })).toBeVisible();
+  // Standings follow the official score: Team A 1–0, 2 for and 1 against.
+  await expect(page.locator(".standings tbody tr").first()).toContainText("Team A");
+  await expect(page.locator(".standings tbody tr").first().locator("td")).toHaveText(["1", "Team A", "", "1–0", "2", "1", "+1", /\$/]);
   await page.click("nav.tabs >> text=Games");
   await expect(page.locator(".pill")).toHaveText("official score set");
   await page.click("nav.tabs >> text=Players");

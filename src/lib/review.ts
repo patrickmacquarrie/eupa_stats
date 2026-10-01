@@ -47,7 +47,7 @@ export function openItems(season: Season, input: LeagueInput, result: EngineResu
     for (const n of [e.player, e.lastPlayer, e.secLastPlayer]) note(week, n);
   }
   for (const b of input.boxScores ?? []) for (const l of b.lines) note(b.week, l.player);
-  for (const [week, names] of unknown) for (const n of names) out.push({ week, kind: "name", label: `“${n}” isn't in the player list`, to: "names" });
+  for (const [week, names] of unknown) for (const n of names) out.push({ week, kind: "name", label: `“${n}” isn't in the player list`, to: "admin/names" });
   // Every sub needs a decision: who they covered, or "nobody" (an extra player). The pairing
   // rule's suggestion isn't a decision until it's applied.
   const decided = new Set(input.subAssignments.map((a) => `${a.week}|${a.team}|${a.opp}|${nameKey(a.sub)}`));
@@ -55,7 +55,7 @@ export function openItems(season: Season, input: LeagueInput, result: EngineResu
     if (l.week > w || l.role !== "sub" || l.subbedFor || decided.has(`${l.week}|${l.team}|${l.opp}|${nameKey(l.player)}`)) continue;
     const anyAbsent = result.lines.some((x) => x.week === l.week && x.team === l.team && x.opp === l.opp && x.role === "absent");
     out.push({ week: l.week, kind: "sub", label: anyAbsent ? `${l.player} subbed for ${l.team} v ${l.opp} but isn't paired with anyone`
-      : `${l.player} played for ${l.team} v ${l.opp} but nobody on the roster is absent (an extra player, or a missed check-in?)`, to: "subs" });
+      : `${l.player} played for ${l.team} v ${l.opp} but nobody on the roster is absent (an extra player, or a missed check-in?)`, to: "admin/subs" });
   }
   return out.sort((a, b) => a.week - b.week || a.kind.localeCompare(b.kind));
 }
@@ -71,4 +71,14 @@ export function describeItems(items: OpenItem[]) {
   const counts = new Map<OpenKind, number>();
   for (const i of items) counts.set(i.kind, (counts.get(i.kind) ?? 0) + 1);
   return [...counts].map(([k, n]) => `${n} ${NOUN[k][n === 1 ? 0 : 1]}`).join(", ");
+}
+
+/**
+ * What the Admin tab's red bubbles count. Unknown names are counted once, by the Names tab's
+ * own list, rather than once per week here.
+ */
+export function adminCounts(items: OpenItem[], nameIssues: number, warnings: number) {
+  const review = items.filter((i) => i.kind !== "name" && i.kind !== "sub").length + warnings;
+  const subs = items.filter((i) => i.kind === "sub").length;
+  return { review, names: nameIssues, subs, total: review + nameIssues + subs };
 }

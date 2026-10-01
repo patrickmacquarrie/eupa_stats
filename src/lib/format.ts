@@ -8,7 +8,7 @@ export const money = (n: number | null | undefined) =>
 export function moneyShort(n: number | null | undefined) {
   if (n == null || Number.isNaN(n)) return "—";
   const a = Math.abs(n), sign = n < 0 ? MINUS : "";
-  if (a >= 1e6) return `${sign}$${(a / 1e6).toFixed(a >= 1e8 ? 0 : 2).replace(/\.?0+$/, "")}M`;
+  if (a >= 1e6) return `${sign}$${Number((a / 1e6).toFixed(a >= 1e8 ? 0 : 2))}M`;
   if (a >= 1e3) return `${sign}$${Math.round(a / 1e3)}K`;
   return `${sign}$${Math.round(a)}`;
 }
