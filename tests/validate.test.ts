@@ -66,7 +66,7 @@ describe("season files", () => {
     expect(edit((s) => { s.schemaVersion = 99; })).toThrow(/newer version/);
     expect(edit((s) => { s.input.rules.teamsForCapAverage = 0; })).toThrow(/cap average/);
     expect(edit((s) => { s.input.players[0].initialSalary = "lots"; })).toThrow(/starting salary isn't a number/);
-    expect(edit((s) => { s.input.players.push({ ...s.input.players[0], name: " AUSTIN  cheng" }); })).toThrow(/listed twice/);
+    expect(edit((s) => { s.input.players.push({ ...s.input.players[0], name: ` ${s.input.players[0].name.toUpperCase().replace(" ", "  ")}` }); })).toThrow(/listed twice/);
     expect(edit((s) => { s.input.players[0].team = "Nowhere FC"; })).toThrow(/isn't a team/);
     expect(edit((s) => { s.input.events[5].statScore = null; })).toThrow(/whole numbers/);
     expect(edit((s) => { s.input.schedule[1].date = s.input.schedule[0].date; })).toThrow(/doesn't come after/);

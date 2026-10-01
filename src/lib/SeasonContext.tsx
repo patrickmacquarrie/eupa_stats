@@ -3,7 +3,10 @@ import { computeLeague } from "../../engine/compute";
 import type { EngineResult, LeagueInput, RecordingSummary } from "../../engine/types";
 import { aliasMap, findNameIssues, resolveInput } from "./names";
 import { openItems, provisionalWeeks, type OpenItem } from "./review";
-import type { Season } from "./season";
+import { computeWithAutoMatch } from "./autoMatch";
+import type { PairingFlag } from "../../engine/pairing";
+import type { SubAssignment } from "../../engine/types";
+import { autoMatchOn, type Season } from "./season";
 import { downloadJson, loadSeason, saveSeason } from "./store";
 
 export interface Game {
@@ -23,6 +26,10 @@ interface Ctx {
   /** What still needs an administrator, by week; a week with any is provisional. */
   open: OpenItem[];
   provisional: number[];
+  /** Subs (autoMatch.subKey) whose match auto-match made rather than the admin. */
+  autoMatched: Set<string>;
+  /** Subs auto-match couldn't place, with why (empty when auto-match is off). */
+  unmatched: PairingFlag[];
   /** Maps a stored spelling to the player it counts for. */
   resolveName: (n: string) => string;
   games: Game[];
@@ -67,19 +74,30 @@ export function teamPayroll(input: LeagueInput, res: EngineResult, week: number)
   return out;
 }
 
+/** Each season's latest auto-matches, to start the next calculation from. */
+const lastAuto = new Map<string, SubAssignment[]>();
+
 export function useComputed(season: Season | null | undefined) {
   return useMemo(() => {
     if (!season) return null;
     const t0 = performance.now();
-    const input = resolveInput(season.input, season.aliases);
-    let result;
-    try { result = computeLeague(input); } catch (e) { return { error: (e as Error).message } as const; }
+    const resolved = resolveInput(season.input, season.aliases);
+    let input = resolved, result, autoMatched = new Set<string>(), unmatched: PairingFlag[] = [];
+    try {
+      if (autoMatchOn(season)) {
+        // Start from this season's last answer: usually that makes it one engine run.
+        const r = computeWithAutoMatch(resolved, lastAuto.get(season.id));
+        ({ input, result, unmatched } = r);
+        autoMatched = r.auto;
+        lastAuto.set(season.id, r.input.subAssignments.slice(resolved.subAssignments.length));
+      } else result = computeLeague(resolved);
+    } catch (e) { return { error: (e as Error).message } as const; }
     const computeMs = performance.now() - t0;
     const issues = findNameIssues(season.input, season.aliases, season.ignoredNames);
     const nameIssueCount = issues.unknown.length + issues.subRecords.length + issues.dupes.length;
     const games = gamesOf(result.recordings);
     const open = openItems(season, input, result, games);
-    return { input, result, games, computeMs, nameIssueCount, open, provisional: provisionalWeeks(open), resolveName: aliasMap(season.aliases) };
+    return { input, result, games, computeMs, nameIssueCount, open, provisional: provisionalWeeks(open), resolveName: aliasMap(season.aliases), autoMatched, unmatched };
   }, [season]);
 }
 

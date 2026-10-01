@@ -1,5 +1,6 @@
 // Starting a season from a roster pasted out of a spreadsheet (or a CSV file), a weekly schedule,
 // and a rule set. Everything is checked before the season is created.
+import { shortTeam } from "./format";
 import type { LeagueInput, LeagueRules, Player } from "../../engine/types";
 import { parseCsv } from "./csv";
 import { likelySame, nameKey } from "./names";
@@ -9,16 +10,20 @@ export interface RosterRow { line: number; name: string; gender: string; team: s
 export interface RosterIssue { line: number | null; message: string; blocking: boolean }
 export interface ParsedRoster { rows: RosterRow[]; issues: RosterIssue[]; teams: string[] }
 
-/** The rules the EUPA master sheets use (Fall and Thursday leagues). Adjust per season in Setup. */
+/**
+ * Defaults for a new season. Existing seasons keep the rules stored with them: absences after the
+ * early weeks use the player's average to date, no cap bumps, and plugs priced at the average
+ * salary of rostered players of their gender.
+ */
 export const EUPA_RULES: LeagueRules = {
   weights: { win: 100000, goal: 100000, assist: 100000, secondAssist: 0, block: 100000, drop: -100000, throwaway: -100000, gso: 0 },
   tieWeightFactor: 0.5,
-  absence: { pctOfInitialPerWeek: 0.1, pctRuleWeeks: 2, thereafter: "seasonAvgRetroactive", floorAtSubGrowth: true },
+  absence: { pctOfInitialPerWeek: 0.1, pctRuleWeeks: 2, thereafter: "avgToDate", floorAtSubGrowth: true },
   matchesPerWeek: 2,
   capBuffer: 200000,
-  capExtraByWeek: { "11": 500000, "12": 500000, "13": 1000000, "14": 1000000 },
+  capExtraByWeek: {},
   teamsForCapAverage: 3,
-  plugMode: "asAbsentPlayer",
+  plugMode: "leagueAverage",
 };
 
 const SUB_TEAM = /^(sub|subs|sub pool|substitutes?|ze sub team|none|-|–)$/i;
@@ -110,6 +115,8 @@ export function weeklySchedule(firstDate: string, weeks: number) {
 export interface NewSeasonSpec {
   name: string;
   roster: RosterRow[];
+  /** Roster fillers for short teams: one plug player per entry. */
+  plugs?: { team: string; gender: string }[];
   gms: Record<string, string>;
   schedule: { week: number; date: string }[];
   rules: LeagueRules;
@@ -121,6 +128,7 @@ export function buildNewSeason(spec: NewSeasonSpec): Season {
   const players: Player[] = spec.roster.map((r) => ({
     name: r.name, gender: r.team ? r.gender : `Sub${r.gender}`, initialSalary: r.salary, team: r.team, isSub: !r.team,
   }));
+  for (const p of spec.plugs ?? []) players.push(newPlug(players, p.team, p.gender));
   const input: LeagueInput = {
     rules: { ...spec.rules, teamsForCapAverage: teamNames.length },
     teams: teamNames.map((t) => ({ name: t, gm: spec.gms[t]?.trim() ?? "", isSubTeam: false })),
@@ -149,4 +157,21 @@ export function scheduleProblem(schedule: { week: number; date: string }[]): str
 /** Push week `i` and every later week back seven days (a holiday or a field closure). */
 export function skipWeek(schedule: { week: number; date: string }[], i: number) {
   return schedule.map((w, j) => (j < i ? w : { ...w, date: weeklySchedule(w.date, 2)[1].date }));
+}
+
+/** "Team 2 plug (F)", or "Team 2 plug (F) 2" when the team already has one of those. */
+export function newPlug(players: Player[], team: string, gender: string): Player {
+  const base = `${shortTeam(team)} plug (${gender})`;
+  const taken = new Set(players.map((p) => p.name.toLowerCase()));
+  let name = base;
+  for (let n = 2; taken.has(name.toLowerCase()); n++) name = `${base} ${n}`;
+  return { name, gender, initialSalary: 0, team, isSub: false, isPlug: true };
+}
+
+/** Teams with fewer players than the largest team, counting plugs already added. */
+export function shortTeams(rows: { team: string | null }[], plugs: { team: string }[] = []) {
+  const count = new Map<string, number>();
+  for (const r of [...rows, ...plugs]) if (r.team) count.set(r.team, (count.get(r.team) ?? 0) + 1);
+  const largest = Math.max(0, ...count.values());
+  return [...count].filter(([, n]) => n < largest).map(([team, players]) => ({ team, players, largest }));
 }

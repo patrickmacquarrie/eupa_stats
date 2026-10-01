@@ -4,6 +4,7 @@ import { ruleProblems } from "../../engine/rules";
 import type { LeagueRules, Player, StatWeights } from "../../engine/types";
 import { delta, money, shortTeam } from "../lib/format";
 import { BOARDS, COLUMNS, DEFAULT_PUBLIC, type PublicSettings } from "../lib/publicStats";
+import { newPlug } from "../lib/newSeason";
 import { teamPayroll, useSeason } from "../lib/SeasonContext";
 
 const WEIGHTS: [keyof StatWeights, string][] = [
@@ -151,7 +152,12 @@ function SeasonBasics() {
           <label className="field"><span>Game length (minutes)</span>
             <input type="number" min={1} defaultValue={season.gameLengthMin ?? 25} key={season.gameLengthMin ?? 25}
               onBlur={(e) => { const n = Math.round(Number(e.target.value)); if (n > 0 && n !== (season.gameLengthMin ?? 25)) updateSeason((s) => ({ ...s, gameLengthMin: n })); }} />
-            <small className="muted">The clock's starting time on the Record tab. Each game can still change it.</small>
+            <small className="muted">The clock's starting time on Track Stats. Each game can still change it.</small>
+          </label>
+          <label className="field check">
+            <input type="checkbox" checked={season.autoMatchSubs !== false} onChange={(e) => updateSeason((s) => ({ ...s, autoMatchSubs: e.target.checked }))} />
+            <span><strong>Auto-match subs</strong><br />
+              <small className="muted">Each sub covers an absent player of the same gender: the sub with the best night covers the highest-paid absent player, and so on down. You can override any match on the Subs tab.</small></span>
           </label>
           <label className="field"><span>Count games through week</span>
             <select value={input.throughWeek} onChange={(e) => update((i) => ({ ...i, throughWeek: +e.target.value }))}>
@@ -191,7 +197,54 @@ function SeasonBasics() {
           Add player
         </button>
       </section>
+      <PlugsCard />
     </div>
+  );
+}
+
+/** Roster fillers for short teams. Removing one mid-season needs trades, so until then it's blocked once games exist. */
+function PlugsCard() {
+  const { season, result, update } = useSeason();
+  const { input } = season;
+  const [gender, setGender] = useState<Record<string, string>>({});
+  const week = Math.max(1, input.throughWeek + 1);
+  const teams = input.teams.filter((t) => !t.isSubTeam).map((t) => t.name);
+  const size = (t: string) => input.players.filter((p) => !p.isSub && result.teamOf(p.name, week) === t).length;
+  const largest = Math.max(0, ...teams.map(size));
+  const played = input.events.length > 0 || (input.boxScores?.length ?? 0) > 0;
+  return (
+    <section className="card">
+      <h2>Plugs</h2>
+      <p className="muted small">A plug fills a roster spot on a short team. Its salary is the average, each week, of rostered players of its gender; it never shows in Track Stats or on the player stats pages.</p>
+      <table className="data compact plugs-table">
+        <thead><tr><th>Team</th><th className="num">Players</th><th>Plugs</th><th></th></tr></thead>
+        <tbody>
+          {teams.map((t) => {
+            const plugs = input.players.filter((p) => p.isPlug && p.team === t);
+            return (
+              <tr key={t}>
+                <td>{shortTeam(t)}</td>
+                <td className={"num" + (size(t) < largest ? " attn" : "")}>{size(t)}{size(t) < largest && <span className="muted"> of {largest}</span>}</td>
+                <td>{plugs.map((p) => (
+                  <span key={p.name} className="tag">{p.name}{" "}
+                    <button className="link" disabled={played} aria-label={`Remove ${p.name}`}
+                      title={played ? "Games are recorded: removing a plug from a given week comes with the trades screen" : "Remove"}
+                      onClick={() => update((i) => ({ ...i, players: i.players.filter((x) => x.name !== p.name) }))}>×</button>
+                  </span>
+                ))}</td>
+                <td className="row gap-sm">
+                  <select value={gender[t] ?? "F"} onChange={(e) => setGender({ ...gender, [t]: e.target.value })} aria-label={`Plug gender for ${t}`}>
+                    <option value="F">F</option><option value="M">M</option><option value="X">X</option>
+                  </select>
+                  <button className="small-btn" onClick={() => update((i) => ({ ...i, players: [...i.players, newPlug(i.players, t, gender[t] ?? "F")] }))}>Add plug</button>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      {played && <p className="muted small">Games are recorded, so plugs can be added but not removed yet: removing one from a given week will come with the trades screen.</p>}
+    </section>
   );
 }
 

@@ -3,6 +3,7 @@ import { computeLeague } from "../engine/compute";
 import type { LeagueInput, PlayEvent } from "../engine/types";
 import { EUPA_RULES, weeklySchedule } from "../src/lib/newSeason";
 import { clearOfficial, needsReconfirming, setOfficial } from "../src/lib/official";
+import { mergeName, resolveInput } from "../src/lib/names";
 import { isDisputed, openItems } from "../src/lib/review";
 import type { Season } from "../src/lib/season";
 import { gamesOf } from "../src/lib/SeasonContext";
@@ -110,5 +111,89 @@ describe("provisional weeks catch every open sub and name", () => {
     });
     const r = review(input);
     expect(r.items.filter((i) => i.kind === "name").map((i) => i.label)).toEqual(["“Zed Newcomer” isn't in the player list"]);
+  });
+});
+
+describe("score differences: recommend, then the admin approves", () => {
+  it("recommends 16–13 and 16–16 for the two recorded disputes, and Approve settles each", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { tabletCsvToEvents } = await import("../src/lib/csv");
+    const { seasonFromFixture, weekOfDate } = await import("../src/lib/season");
+    const { recommend } = await import("../src/lib/scoreDiff");
+    const { provisionalWeeks } = await import("../src/lib/review");
+    const { season } = seasonFromFixture(JSON.parse(readFileSync("fixtures/fall-2026.json", "utf8")));
+    let input = season.input;
+    for (const pair of [["2026-08-31_T3vT2_team2", "2026-08-31_T3vT2_team3"], ["2026-09-21_T3vT1_team1", "2026-09-21_T3vT1_team3"]]) {
+      const [x, y] = pair.map((f) => tabletCsvToEvents(readFileSync(`fixtures/disputes/${f}.csv`, "utf8")));
+      const keys = new Set([x[0], y[0]].map((e) => `${e.date}|${e.statTeam}|${e.otherTeam}`));
+      input = { ...input, events: [...input.events.filter((e) => !keys.has(`${e.date}|${e.statTeam}|${e.otherTeam}`)), ...x, ...y] };
+    }
+    // As in the app: the season holds the stored input; the engine runs on the resolved one.
+    const scored = (inp: LeagueInput, stored = inp) => {
+      const result = computeLeague(inp);
+      const items = openItems({ ...season, input: stored, flags: [] }, inp, result, gamesOf(result.recordings));
+      return { items, provisional: provisionalWeeks(items) };
+    };
+    const before = scored(input);
+    const diffs = before.items.filter((i) => i.kind === "dispute");
+    expect(diffs.map((i) => [i.week, i.approve?.scoreA, i.approve?.scoreB])).toEqual([[1, 16, 16], [3, 16, 13]]);
+    expect(diffs[1].label).toBe("Team 3 v Team 1, week 3: the tablets disagree (16–13 vs 14–12). Recommended 16–13");
+    expect(before.provisional).toEqual(expect.arrayContaining([1, 3]));
+
+    // One click each: Approve stores the recommended score as the official one.
+    const r3 = recommend(input, 3, "EUPA Fall - Team 1", "EUPA Fall - Team 3")!;
+    expect([r3.first, r3.score]).toEqual(["EUPA Fall - Team 3", [16, 13]]);
+    for (const d of diffs) input = setOfficial(input, d.week, d.approve!.a, d.approve!.b, d.approve!.scoreA, d.approve!.scoreB);
+    const after = scored(input);
+    expect(after.items.filter((i) => i.kind === "dispute" || i.kind === "official")).toEqual([]);
+    // Week 3 is still provisional for another reason: an unknown name on Team 3's tablet (the
+    // sub record's name without "Sub"), and that sub's match. Settle those as an admin would.
+    expect(after.items.filter((i) => i.week === 3).map((i) => i.kind).sort()).toEqual(["name", "sub"]);
+    const unknown = /“(.+)”/.exec(after.items.find((i) => i.week === 3 && i.kind === "name")!.label)![1];
+    const merged = mergeName(input, [], unknown, `${unknown} Sub`);
+    const stored = { ...merged.input, subAssignments: [...merged.input.subAssignments,
+      { week: 3, team: "EUPA Fall - Team 3", opp: "EUPA Fall - Team 1", sub: `${unknown} Sub`, subbedFor: "" }] };
+    expect(scored(resolveInput(stored, merged.aliases), stored).provisional).not.toContain(3);
+    const res = computeLeague(input);
+    const t3 = res.recordings.find((r) => r.week === 3 && r.team === "EUPA Fall - Team 3" && r.opp === "EUPA Fall - Team 1")!;
+    expect([t3.finalScore, t3.finalOppScore, t3.result, t3.official]).toEqual([16, 13, 1, true]);
+  });
+});
+
+describe("a goal the other tablet contradicts", () => {
+  it("is left out of the recommendation, with a note above the buttons", async () => {
+    const { recommend } = await import("../src/lib/scoreDiff");
+    const at = (t: string, team: string, opp: string, us: number, them: number, action: string, player: string | null): PlayEvent =>
+      ({ date: D, clock: t, statTeam: team, otherTeam: opp, statScore: us, otherScore: them, action, player, lastPlayer: null, secLastPlayer: null });
+    const a = [at("19:38:00", "A", "B", 0, 0, "Touch", "Ann"), at("19:38:05", "A", "B", 1, 0, "Point", "Al"),
+      at("19:39:20", "A", "B", 1, 0, "Touch", "Ann"), at("19:39:28", "A", "B", 2, 0, "Point", "Al")];
+    const b = [at("19:38:06", "B", "A", 0, 1, "GSO", "Bea"), at("19:39:30", "B", "A", 0, 1, "D-Play", "Bo"), at("19:40:00", "B", "A", 0, 1, "Touch", "Bea")];
+    const r = recommend(base([...a, ...b]), 1, "A", "B")!;
+    expect(r.score).toEqual([1, 0]);
+    expect(r.conflicts).toEqual(["B's tablet shows a turnover at 19:39:30. The recommendation leaves this goal out; change it if it counted."]);
+    expect(r.goals).toEqual([{ text: "A goal at 19:39:28 (Al), only on A's tablet: B's tablet shows a turnover (D-Play Bo) at 19:39:30. Left out.", counted: false }]);
+  });
+});
+
+describe("players marked present with no stats", () => {
+  it("are an admin item that counts in the bubble, never makes a week provisional, and can be acknowledged", async () => {
+    const { adminCounts, provisionalWeeks, quietKey } = await import("../src/lib/review");
+    const withAmy = (input: LeagueInput): LeagueInput => ({ ...input, players: [...input.players, { name: "Amy Ash", gender: "F", initialSalary: 1_000_000, team: "A", isSub: false }] });
+    const stored = withAmy(base([...tabletA, ...tabletB2], {
+      subAssignments: [{ week: 1, team: "A", opp: "B", sub: "Sid", subbedFor: "" }],
+      presentWithoutPlays: [{ week: 1, team: "A", opp: "B", player: "Amy Ash" }],
+    }));
+    const run = (acknowledgedQuiet: string[] = []) => {
+      const result = computeLeague(stored);
+      const season = { input: stored, flags: [], ignoredNames: [], acknowledgedQuiet } as unknown as Season;
+      return openItems(season, stored, result, gamesOf(result.recordings));
+    };
+    const items = run();
+    expect(items.map((i) => [i.kind, i.label, i.to])).toEqual([
+      ["quiet", "Amy Ash was marked present for A v B (week 1) but has no stats", "games/1/A/B"],
+    ]);
+    expect(provisionalWeeks(items)).toEqual([]);
+    expect(adminCounts(items, 0, 0)).toMatchObject({ review: 1, total: 1 });
+    expect(run([quietKey(1, "A", "B", "amy ash")])).toEqual([]);
   });
 });

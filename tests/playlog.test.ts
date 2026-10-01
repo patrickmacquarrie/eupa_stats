@@ -14,19 +14,19 @@ describe("play log editor", () => {
   it("changing who caught a pass fixes the next touch and the point's assists, nothing else", () => {
     const evs = sample();
     // Touch Masha / Touch James / Touch Aven / Point Aven (from James, Masha): change James to Mika.
-    const j = at(evs, (e, i) => e.action === "Touch" && e.player === "James Cannon" && evs[i + 2]?.action === "Point");
-    const rows = setPlayer(rowsOf(evs), j, "Mika Uusnakki");
+    const j = at(evs, (e, i) => e.action === "Touch" && e.player === "Peregrine Lindqvist" && evs[i + 2]?.action === "Point");
+    const rows = setPlayer(rowsOf(evs), j, "Phineas Lindqvist");
     const point = rows[j + 2].e;
-    expect(point).toMatchObject({ action: "Point", player: "Aven Unger", lastPlayer: "Mika Uusnakki", secLastPlayer: "Masha Parshykova" });
+    expect(point).toMatchObject({ action: "Point", player: "Dashiell Lindqvist", lastPlayer: "Phineas Lindqvist", secLastPlayer: "Ignatius Lindqvist" });
     expect(rows.filter((r) => changed(r, evs)).map((r) => r.orig)).toEqual([j, j + 1, j + 2]);
   });
 
   it("inserting a missed touch shifts the assists", () => {
     const evs = sample();
     const p = at(evs, (e) => e.action === "Point");
-    const rows = insertRow(rowsOf(evs), p, "Touch", "Alex Wong");
-    expect(rows[p].e).toMatchObject({ action: "Touch", player: "Alex Wong", lastPlayer: evs[p - 1].player });
-    expect(rows[p + 1].e).toMatchObject({ action: "Point", player: "Alex Wong", lastPlayer: evs[p - 1].player, secLastPlayer: evs[p - 1].lastPlayer });
+    const rows = insertRow(rowsOf(evs), p, "Touch", "Leopold Ashgrove");
+    expect(rows[p].e).toMatchObject({ action: "Touch", player: "Leopold Ashgrove", lastPlayer: evs[p - 1].player });
+    expect(rows[p + 1].e).toMatchObject({ action: "Point", player: "Leopold Ashgrove", lastPlayer: evs[p - 1].player, secLastPlayer: evs[p - 1].lastPlayer });
   });
 
   it("deleting a point lowers every later score by one", () => {
@@ -77,9 +77,9 @@ describe("play log editor", () => {
 
 it("appends a missing final point", () => {
   const evs = sample().slice(0, 10); // ends on Aven's Touch, which the old app already bumped to 1-0
-  expect(evs[9]).toMatchObject({ action: "Touch", player: "Aven Unger", statScore: 1 });
+  expect(evs[9]).toMatchObject({ action: "Touch", player: "Dashiell Lindqvist", statScore: 1 });
   const rows = insertRow(rowsOf(evs), evs.length, "Point", null);
-  expect(rows.at(-1)!.e).toMatchObject({ action: "Point", player: "Aven Unger", lastPlayer: "James Cannon", statScore: 1 });
+  expect(rows.at(-1)!.e).toMatchObject({ action: "Point", player: "Dashiell Lindqvist", lastPlayer: "Peregrine Lindqvist", statScore: 1 });
 });
 
 describe("editing by possession", () => {
@@ -87,10 +87,10 @@ describe("editing by possession", () => {
     const evs = sample();
     const ps = possessions(evs);
     const p = ps.find((x) => x.ours && evs[x.end].action === "Point")!;
-    const rows = replacePossessions(rowsOf(evs), p.start, p.end - p.start + 1, [{ side: "ours", touches: ["Masha Parshykova", "Alex Wong", "Aven Unger"], outcome: "Point" }]);
+    const rows = replacePossessions(rowsOf(evs), p.start, p.end - p.start + 1, [{ side: "ours", touches: ["Ignatius Lindqvist", "Leopold Ashgrove", "Dashiell Lindqvist"], outcome: "Point" }]);
     expect(rows.slice(p.start, p.start + 4).map((r) => [r.e.action, r.e.player, r.e.lastPlayer, r.e.secLastPlayer])).toEqual([
-      ["Touch", "Masha Parshykova", null, null], ["Touch", "Alex Wong", "Masha Parshykova", null],
-      ["Touch", "Aven Unger", "Alex Wong", "Masha Parshykova"], ["Point", "Aven Unger", "Alex Wong", "Masha Parshykova"],
+      ["Touch", "Ignatius Lindqvist", null, null], ["Touch", "Leopold Ashgrove", "Ignatius Lindqvist", null],
+      ["Touch", "Dashiell Lindqvist", "Leopold Ashgrove", "Ignatius Lindqvist"], ["Point", "Dashiell Lindqvist", "Leopold Ashgrove", "Ignatius Lindqvist"],
     ]);
     expect(rows.at(-1)!.e.statScore).toBe(evs.at(-1)!.statScore);
   });
@@ -102,12 +102,12 @@ describe("editing by possession", () => {
     const [a, b] = pairAt(after.ours, ps[1].ours);
     expect([a, b]).toEqual([false, true]);
     const rows = replacePossessions(rowsOf(evs), after.end + 1, 0, [
-      { side: "theirs", outcome: "GSO", player: "Masha Parshykova" },
-      { side: "ours", touches: ["Mika Uusnakki", "James Cannon"], outcome: "Point" },
+      { side: "theirs", outcome: "GSO", player: "Ignatius Lindqvist" },
+      { side: "ours", touches: ["Phineas Lindqvist", "Peregrine Lindqvist"], outcome: "Point" },
     ]);
     expect(problems(rows).size).toBe(0);
     expect([rows.at(-1)!.e.statScore - evs.at(-1)!.statScore, rows.at(-1)!.e.otherScore - evs.at(-1)!.otherScore]).toEqual([1, 1]);
-    expect(rows[after.end + 4].e).toMatchObject({ action: "Point", player: "James Cannon", lastPlayer: "Mika Uusnakki" });
+    expect(rows[after.end + 4].e).toMatchObject({ action: "Point", player: "Peregrine Lindqvist", lastPlayer: "Phineas Lindqvist" });
     const back = replacePossessions(rows, after.end + 1, 4, []);
     expect(back.map((r) => r.e)).toEqual(evs);
   });

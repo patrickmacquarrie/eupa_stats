@@ -3,12 +3,21 @@
 import type { EngineResult, LeagueInput } from "../../engine/types";
 import { nameKey } from "./names";
 import { needsReconfirming } from "./official";
+import { differenceLabel, recommend } from "./scoreDiff";
 import type { Season } from "./season";
 import { weekOfDate } from "./season";
 import type { Game } from "./SeasonContext";
 
-export type OpenKind = "dispute" | "official" | "flag" | "name" | "sub";
-export interface OpenItem { week: number; kind: OpenKind; label: string; /** Route relative to the season. */ to: string }
+export type OpenKind = "dispute" | "official" | "flag" | "name" | "sub" | "quiet";
+export interface OpenItem {
+  week: number; kind: OpenKind; label: string;
+  /** Route relative to the season. */
+  to: string;
+  /** For "quiet" items: the key the admin acknowledges it under. */
+  quietKey?: string;
+  /** A score difference's recommended score, which the admin can approve in one click. */
+  approve?: { a: string; b: string; scoreA: number; scoreB: number; conflicts: number };
+}
 
 const gameLink = (week: number, a: string, b: string) => {
   const [x, y] = [a, b].sort();
@@ -25,7 +34,12 @@ export function openItems(season: Season, input: LeagueInput, result: EngineResu
   const w = input.throughWeek;
   const out: OpenItem[] = [];
   for (const g of games) {
-    if (g.week <= w && isDisputed(g)) out.push({ week: g.week, kind: "dispute", label: `${g.a} v ${g.b}: the tablets disagree on the score`, to: gameLink(g.week, g.a, g.b) });
+    if (g.week > w || !isDisputed(g)) continue;
+    const r = recommend(input, g.week, g.a, g.b);
+    out.push(r
+      ? { week: g.week, kind: "dispute", label: differenceLabel(r), to: gameLink(g.week, g.a, g.b),
+          approve: { a: r.first, b: r.second, scoreA: r.score[0], scoreB: r.score[1], conflicts: r.conflicts.length } }
+      : { week: g.week, kind: "dispute", label: `${g.a} v ${g.b}, week ${g.week}: the tablets disagree on the score`, to: gameLink(g.week, g.a, g.b) });
   }
   // Checked against the stored input: aliases don't change a score, so a merge doesn't unsettle one.
   for (const o of season.input.officialScores ?? []) {
@@ -48,25 +62,44 @@ export function openItems(season: Season, input: LeagueInput, result: EngineResu
   }
   for (const b of input.boxScores ?? []) for (const l of b.lines) note(b.week, l.player);
   for (const [week, names] of unknown) for (const n of names) out.push({ week, kind: "name", label: `“${n}” isn't in the player list`, to: "admin/names" });
-  // Every sub needs a decision: who they covered, or "nobody" (an extra player). The pairing
-  // rule's suggestion isn't a decision until it's applied.
+  // Every sub needs a match: who they covered, or "nobody" (an extra player). With auto-match on,
+  // only the subs it couldn't place are left; with it off, every sub without a saved pick.
   const decided = new Set(input.subAssignments.map((a) => `${a.week}|${a.team}|${a.opp}|${nameKey(a.sub)}`));
+  const auto = season.autoMatchSubs !== false;
   for (const l of result.lines) {
     if (l.week > w || l.role !== "sub" || l.subbedFor || decided.has(`${l.week}|${l.team}|${l.opp}|${nameKey(l.player)}`)) continue;
     const anyAbsent = result.lines.some((x) => x.week === l.week && x.team === l.team && x.opp === l.opp && x.role === "absent");
-    out.push({ week: l.week, kind: "sub", label: anyAbsent ? `${l.player} subbed for ${l.team} v ${l.opp} but isn't paired with anyone`
-      : `${l.player} played for ${l.team} v ${l.opp} but nobody on the roster is absent (an extra player, or a missed check-in?)`, to: "admin/subs" });
+    const why = !anyAbsent ? "nobody on the roster is absent (an extra player, or a missed check-in?)"
+      : auto ? "no absent player of the same gender is left to cover" : "isn't matched to an absent player yet";
+    out.push({ week: l.week, kind: "sub", label: `${l.player} played for ${l.team} v ${l.opp}, but ${why}`.replace(", but isn't", " but isn't"), to: "admin/subs" });
+  }
+  // Marked present (at Finish, or "Was here" on the game page) but no stats recorded. Worth a
+  // look, but the salary outcome is already decided, so it doesn't make the week provisional.
+  const acked = new Set(season.acknowledgedQuiet ?? []);
+  const STATS = ["goals", "assists", "secondAssists", "blocks", "drops", "throwaways", "gso", "touches"] as const;
+  for (const x of input.presentWithoutPlays ?? []) {
+    if (x.week > w) continue;
+    const key = quietKey(x.week, x.team, x.opp, x.player);
+    if (acked.has(key)) continue;
+    const line = result.lines.find((l) => l.week === x.week && l.team === x.team && l.opp === x.opp && nameKey(l.player) === nameKey(x.player));
+    if (line && STATS.some((k) => line[k] > 0)) continue;
+    out.push({ week: x.week, kind: "quiet", quietKey: key, to: gameLink(x.week, x.team, x.opp),
+      label: `${x.player} was marked present for ${x.team} v ${x.opp} (week ${x.week}) but has no stats` });
   }
   return out.sort((a, b) => a.week - b.week || a.kind.localeCompare(b.kind));
 }
 
-export const provisionalWeeks = (items: OpenItem[]) => [...new Set(items.map((i) => i.week))].sort((a, b) => a - b);
+export const quietKey = (week: number, team: string, opp: string, player: string) => `${week}|${team}|${opp}|${nameKey(player)}`;
+
+/** Weeks whose salaries can still change. A "quiet" item doesn't count: its outcome is decided. */
+export const provisionalWeeks = (items: OpenItem[]) => [...new Set(items.filter((i) => i.kind !== "quiet").map((i) => i.week))].sort((a, b) => a - b);
 
 const NOUN: Record<OpenKind, [string, string]> = {
-  dispute: ["score dispute", "score disputes"], official: ["official score to reconfirm", "official scores to reconfirm"], flag: ["flagged possession", "flagged possessions"],
-  name: ["unknown name", "unknown names"], sub: ["unpaired sub", "unpaired subs"],
+  dispute: ["score difference", "score differences"], official: ["official score to reconfirm", "official scores to reconfirm"], flag: ["flagged possession", "flagged possessions"],
+  name: ["unknown name", "unknown names"], sub: ["unmatched sub", "unmatched subs"],
+  quiet: ["player present with no stats", "players present with no stats"],
 };
-/** "1 score dispute, 2 unpaired subs" */
+/** "1 score dispute, 2 unmatched subs" */
 export function describeItems(items: OpenItem[]) {
   const counts = new Map<OpenKind, number>();
   for (const i of items) counts.set(i.kind, (counts.get(i.kind) ?? 0) + 1);

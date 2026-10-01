@@ -4,9 +4,9 @@ import { tabletCsvToEvents } from "../src/lib/csv";
 
 const ROSTER = [
   "Player\tGender\tTeam\tStarting Salary",
-  "Ann Arbour\tF\tTeam A\t$2,000,000", "Al Ames\tM\tTeam A\t$1,500,000", "Amy Ash\tF\tTeam A\t$1,000,000", "Art Aldo\tM\tTeam A\t$500,000",
+  "Ann Arbour\tF\tTeam A\t$2,000,000", "Al Ames\tM\tTeam A\t$1,500,000", "Amy Ash\tF\tTeam A\t$1,000,000", "Art Aldo\tM\tTeam A\t$500,000", "Ada Alto\tF\tTeam A\t$500,000",
   "Bea Brook\tF\tTeam B\t$2,000,000", "Bo Birch\tM\tTeam B\t$1,500,000", "Bree Bell\tF\tTeam B\t$1,000,000", "Ben Bay\tM\tTeam B\t$500,000",
-  "Cass Sub\tF\tSub\t",
+  "Casey Sub\tF\tSub\t",
 ].join("\n");
 
 const tap = (page: Page, player: string, button: string) => page.click(`.prow:has(.pname:text-is("${player}")) >> button:text-is("${button}")`);
@@ -33,6 +33,10 @@ test("create season, record, refresh recovery, finish, dispute, correct, export 
   await page.fill("#ns-name", "E2E Winter");
   await page.fill("#ns-roster", ROSTER);
   await expect(page.locator(".ns-teams tbody tr")).toHaveCount(3);
+  // Team B is one short: add an F plug.
+  await expect(page.locator(".plug-prompt")).toContainText("Team B has 4 players, the largest team has 5. Add a plug?");
+  await page.locator(".plug-prompt").getByRole("button", { name: "Add plug" }).click();
+  await expect(page.locator(".plug-prompt")).toHaveCount(0);
   await page.fill("#ns-first", "2027-01-04");
   await page.fill("#ns-weeks", "4");
   await page.click("text=Fill in weekly dates");
@@ -42,6 +46,10 @@ test("create season, record, refresh recovery, finish, dispute, correct, export 
   // 2. Record Team A's side: A 2 – B 1.
   await page.click(".track-stats");
   await page.fill('input[type="date"]', "2027-01-04");
+  // Plugs never show in Track Stats, not even in the sub search.
+  await page.fill('input[placeholder="Start typing a name"]', "plug");
+  await expect(page.locator(".addsub button", { hasText: "plug" })).toHaveCount(0);
+  await page.fill('input[placeholder="Start typing a name"]', "");
   await page.click("text=Start recording");
   await tap(page, "Ann Arbour", "Touch");
   await tap(page, "Al Ames", "Point");                 // 1–0, assist Ann
@@ -74,13 +82,15 @@ test("create season, record, refresh recovery, finish, dispute, correct, export 
   await page.setInputFiles('label.file-drop input[type="file"]', { name: "teamB.csv", mimeType: "text/csv", buffer: Buffer.from(teamBTablet()) });
   await page.click("text=/Add 1 recording/");
   await page.click("nav.tabs >> text=Admin");
-  // The dispute, plus the roster's "Cass Sub", which Names flags as an old "Name Sub" record.
+  // The dispute, plus the roster's "Casey Sub", which Names flags as an old "Name Sub" record.
   await expect(page.locator(".tabs .badge.alert")).toHaveText("2");
   await expect(page.locator(".open-items h2")).toHaveText("Provisional: week 1");
-  await expect(page.locator(".open-items summary")).toContainText("1 score dispute");
+  await expect(page.locator(".open-items summary")).toContainText("1 score difference");
 
   // 6. Settle it with an official score, then fix a possession in the editor.
   await page.click(".open-items >> text=/tablets disagree/");
+  await expect(page.locator(".score-diff h2")).toHaveText("Score difference");
+  await page.getByRole("button", { name: "Change" }).click();
   await page.fill('input[aria-label="Team A official score"]', "2");
   await page.fill('input[aria-label="Team B official score"]', "1");
   await page.click("text=Set official score");
@@ -103,6 +113,17 @@ test("create season, record, refresh recovery, finish, dispute, correct, export 
   await expect(page.locator(".tabs .badge.alert")).toHaveText("1");
   await expect(page.locator(".subtabs .badge.alert")).toHaveText("1");    // on Names
 
+  // Ada didn't play; ticking "Was here" makes her an admin item, which the admin acknowledges.
+  await page.click("nav.tabs >> text=Games");
+  await page.click("text=Team A v Team B");
+  await page.locator("tr", { hasText: "Ada Alto" }).locator("text=Was here").click();
+  await page.click("nav.tabs >> text=Admin");
+  await expect(page.locator(".tabs .badge.alert")).toHaveText("2");
+  await expect(page.locator("#quiet-title + p + ul li")).toContainText("Ada Alto was marked present for Team A v Team B (week 1) but has no stats");
+  await expect(page.locator(".open-items")).toHaveCount(0);                 // not provisional
+  await page.getByRole("button", { name: "Acknowledge" }).click();
+  await expect(page.locator(".tabs .badge.alert")).toHaveText("1");
+
   // 7. Export, delete, import: everything comes back.
   const [jsonDownload] = await Promise.all([page.waitForEvent("download"), page.click("header >> text=Export")]);
   const jsonPath = testInfo.outputPath("season.json");
@@ -118,6 +139,9 @@ test("create season, record, refresh recovery, finish, dispute, correct, export 
   await expect(page.locator(".standings tbody tr").first().locator("td")).toHaveText(["1", "Team A", "", "1–0", "2", "1", "+1", /\$/]);
   await page.click("nav.tabs >> text=Games");
   await expect(page.locator(".pill")).toHaveText("official score set");
+  await page.click("nav.tabs >> text=Player stats");
+  await expect(page.locator("main")).toContainText("Amy Ash");
+  await expect(page.locator("main")).not.toContainText("plug");
   await page.click("nav.tabs >> text=Players");
   await expect(page.locator("tr:has-text('Amy Ash')")).toBeVisible();
 

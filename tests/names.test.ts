@@ -8,17 +8,17 @@ const load = (f: string) => seasonFromFixture(JSON.parse(readFileSync(`fixtures/
 
 describe("name matching", () => {
   it("catches typos and short first names, not different people", () => {
-    expect(likelySame("Katelyn Wiskell", "Katelynn Wiskell")).toMatch(/1 letter/);
-    expect(likelySame("Jess Van Os sub", "Jessica Van Os")).toMatch(/short form/);
-    expect(likelySame("Vanessa Chow", "Vanessa Chow Sub")).toMatch(/Sub/);
-    expect(likelySame("Calvin Li", "Logan Li")).toBeNull();
-    expect(likelySame("Ovina Chow", "Vanessa Chow")).toBeNull();
+    expect(likelySame("Bettany Cranleighq", "Bettany Cranleigh")).toMatch(/1 letter/);
+    expect(likelySame("Rave Lindqvist sub", "Ravenna Lindqvist")).toMatch(/short form/);
+    expect(likelySame("Leopold Rookwood", "Leopold Rookwood Sub")).toMatch(/Sub/);
+    expect(likelySame("Dashiell Ashgrove", "Quillon Ashgrove")).toBeNull();
+    expect(likelySame("Peregrine Oakenshaw", "Leopold Rookwood")).toBeNull();
   });
 
   it("suggests the right player for every unmatched spelling in the real seasons", () => {
     const sugg = (f: string) => Object.fromEntries(findNameIssues(load(f).input).unknown.map((u) => [u.name, u.suggestion]));
-    expect(sugg("fall-2026")).toEqual({ "Katelyn Wiskell": "Katelynn Wiskell" });
-    expect(sugg("thursday-s1-2026")).toEqual({ "Jared Dembecki Sub": "Jared Dembicki", "Jess Van Os sub": "Jessica Van Os" });
+    expect(sugg("fall-2026")).toEqual({ "Bettany Cranleighq": "Bettany Cranleigh" });
+    expect(sugg("thursday-s1-2026")).toEqual({ "Alder Oakenshawx Sub": "Alder Oakenshaw", "Rave Lindqvist sub": "Ravenna Lindqvist" });
   });
 });
 
@@ -38,23 +38,23 @@ describe("merging", () => {
     }
   });
 
-  it("fixing the Katelyn/Katelynn split credits Jennifer Blaser the full sub night", () => {
+  it("fixing the Katelyn/Katelynn split credits Peregrine Ashgrove the full sub night", () => {
     const s = load("fall-2026");
     const before = computeLeague(s.input);
-    const m = mergeName(s.input, [], "Katelyn Wiskell", "Katelynn Wiskell");
+    const m = mergeName(s.input, [], "Bettany Cranleighq", "Bettany Cranleigh");
     const after = computeLeague(resolveInput(m.input, m.aliases));
-    expect(after.salary["Jennifer Blaser"][3] - before.salary["Jennifer Blaser"][3]).toBe(100000);
-    expect(after.warnings.some((w) => w.includes("Katelyn Wiskell"))).toBe(false);
+    expect(after.salary["Peregrine Ashgrove"][3] - before.salary["Peregrine Ashgrove"][3]).toBe(100000);
+    expect(after.warnings.some((w) => w.includes("Bettany Cranleighq"))).toBe(false);
   });
 
   it("undoes a rename and a removal", () => {
     const s = load("fall-2026");
-    const r = mergeName(s.input, [], "Vanessa Chow Sub", "Vanessa Chow");
-    expect(r.input.players.some((p) => p.name === "Vanessa Chow")).toBe(true);
+    const r = mergeName(s.input, [], "Leopold Rookwood Sub", "Leopold Rookwood");
+    expect(r.input.players.some((p) => p.name === "Leopold Rookwood")).toBe(true);
     const u = unmergeName(r.input, r.aliases, r.aliases[0]);
-    expect(u.input.players.some((p) => p.name === "Vanessa Chow Sub")).toBe(true);
+    expect(u.input.players.some((p) => p.name === "Leopold Rookwood Sub")).toBe(true);
     expect(u.input).toEqual(s.input);
-    const d = mergeName(s.input, [], "Dani Dugan Sub", "Dani Dugan");
+    const d = mergeName(s.input, [], "Alder Rookwood Sub", "Alder Rookwood");
     expect(d.input.players).toHaveLength(s.input.players.length - 1);
     expect(unmergeName(d.input, d.aliases, d.aliases[0]).input.players).toHaveLength(s.input.players.length);
   });
@@ -64,8 +64,8 @@ it("undo after overlapping merges restores the original results exactly", () => 
   const s = load("thursday-s1-2026");
   const base = computeLeague(s.input);
   let input = s.input, aliases: Alias[] = [];
-  ({ input, aliases } = mergeName(input, aliases, "Jared Dembecki Sub", "Jared Dembicki"));
-  ({ input, aliases } = mergeName(input, aliases, "Jared Dembicki Sub", "Jared Dembicki"));
+  ({ input, aliases } = mergeName(input, aliases, "Alder Oakenshawx Sub", "Alder Oakenshaw"));
+  ({ input, aliases } = mergeName(input, aliases, "Alder Oakenshaw Sub", "Alder Oakenshaw"));
   ({ input, aliases } = unmergeName(input, aliases, aliases[0]));
   ({ input, aliases } = unmergeName(input, aliases, aliases[0]));
   const after = computeLeague(resolveInput(input, aliases));
