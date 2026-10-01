@@ -23,6 +23,7 @@ const AdminFrame = lazy(() => import("./pages/Admin").then((m) => ({ default: m.
 const AdminReview = lazy(() => import("./pages/Admin").then((m) => ({ default: m.AdminReview })));
 const NewLeague = lazy(() => import("./pages/League").then((m) => ({ default: m.NewLeague })));
 const LeagueHome = lazy(() => import("./pages/League").then((m) => ({ default: m.LeagueHome })));
+const OnlineSeasonProvider = lazy(() => import("./lib/OnlineSeason"));
 const Subs = lazy(() => import("./pages/Subs").then((m) => ({ default: m.Subs })));
 
 /** Catches crashes outside a season (Seasons, New season) and pages that fail to load; resets on navigation. */
@@ -42,28 +43,52 @@ export function App() {
         <Route path="/new" element={<NewSeason />} />
         <Route path="/new-league" element={<NewLeague />} />
         <Route path="/l/:slug" element={<LeagueHome />} />
-        <Route path="/s/:id" element={<SeasonShell />}>
-          <Route index element={<Overview />} />
-          <Route path="record" element={<Record />} />
-          <Route path="players" element={<Players />} />
-          <Route path="players/:name" element={<PlayerDetail />} />
-          <Route path="games" element={<Games />} />
-          <Route path="games/:week/:a/:b" element={<GameDetail />} />
-          <Route path="stats" element={<Stats />} />
-          {/* Admin screens are flat routes, not nested, so their "../games" links still reach the season. */}
-          <Route path="admin" element={<AdminFrame><AdminReview /></AdminFrame>} />
-          <Route path="admin/names" element={<AdminFrame><Names /></AdminFrame>} />
-          <Route path="admin/subs" element={<AdminFrame><Subs /></AdminFrame>} />
-          <Route path="admin/recordings" element={<AdminFrame><Recordings /></AdminFrame>} />
-          <Route path="admin/setup" element={<AdminFrame><Setup /></AdminFrame>} />
-          {/* Old addresses, from bookmarks and earlier links. */}
-          {["names", "subs", "recordings", "setup"].map((p) => <Route key={p} path={p} element={<Navigate to={`../admin/${p}`} replace />} />)}
-        </Route>
+        <Route path="/s/:id" element={<SeasonShell />}>{seasonRoutes()}</Route>
+        <Route path="/l/:slug/s/:sid" element={<OnlineSeasonShell />}>{seasonRoutes()}</Route>
         <Route path="*" element={<p className="pad">Page not found. <a href="#/">Seasons</a></p>} />
       </Routes>
       </Suspense>
       </RouteBoundary>
     </HashRouter>
+  );
+}
+
+/** The screens of a season, the same whether it's kept in this browser or online. */
+function seasonRoutes() {
+  return (
+    <>
+      <Route index element={<Overview />} />
+      <Route path="record" element={<Record />} />
+      <Route path="players" element={<Players />} />
+      <Route path="players/:name" element={<PlayerDetail />} />
+      <Route path="games" element={<Games />} />
+      <Route path="games/:week/:a/:b" element={<GameDetail />} />
+      <Route path="stats" element={<Stats />} />
+      {/* Admin screens are flat routes, not nested, so their "../games" links still reach the season. */}
+      <Route path="admin" element={<AdminFrame><AdminReview /></AdminFrame>} />
+      <Route path="admin/names" element={<AdminFrame><Names /></AdminFrame>} />
+      <Route path="admin/subs" element={<AdminFrame><Subs /></AdminFrame>} />
+      <Route path="admin/recordings" element={<AdminFrame><Recordings /></AdminFrame>} />
+      <Route path="admin/setup" element={<AdminFrame><Setup /></AdminFrame>} />
+      {/* Old addresses, from bookmarks and earlier links. */}
+      {["names", "subs", "recordings", "setup"].map((p) => <Route key={p} path={p} element={<Navigate to={`../admin/${p}`} replace />} />)}
+    </>
+  );
+}
+
+/** A season kept online. Firebase loads with it, not with the rest of the app. */
+function OnlineSeasonShell() {
+  const { slug = "", sid = "" } = useParams();
+  const { pathname } = useLocation();
+  return (
+    <ErrorBoundary reset={`${slug}/${sid}`}>
+      <Suspense fallback={<p className="muted pad">Loading season…</p>}>
+        <OnlineSeasonProvider slug={slug} sid={sid}>
+          <Header />
+          <SeasonScreen reset={pathname} />
+        </OnlineSeasonProvider>
+      </Suspense>
+    </ErrorBoundary>
   );
 }
 
@@ -91,11 +116,10 @@ function SeasonScreen({ reset }: { reset: string }) {
 }
 
 function Header() {
-  const { season, nameIssueCount, open, result } = useSeason();
+  const { season, nameIssueCount, open, result, base, canAdmin, canRecord, online: league } = useSeason();
   const online = useOnline();
-  const base = `/s/${season.id}`;
   const admin = adminCounts(open, nameIssueCount, result.warnings.length).total;
-  const tabs: [string, string][] = [["", "Overview"], ["/players", "Players"], ["/games", "Games"], ["/stats", "Player stats"], ["/admin", "Admin"]];
+  const tabs: [string, string][] = [["", "Overview"], ["/players", "Players"], ["/games", "Games"], ["/stats", "Player stats"], ...(canAdmin ? [["/admin", "Admin"] as [string, string]] : [])];
   return (
     <header className="app-header">
       <div className="header-bar">
@@ -104,6 +128,11 @@ function Header() {
           <span className="season-title">{season.name}</span>
           <span className="grow" />
           {!online && <span className="offline-pill" title="Everything still saves on this device">Offline</span>}
+          {league && (
+            <NavLink to={`/l/${league.slug}`} className="role-pill" title="This device's access to the league">
+              {league.role === "admin" ? "Admin" : league.role === "stat" ? "Stats entry" : "View only · Unlock"}
+            </NavLink>
+          )}
           <button className="small-btn" onClick={() => downloadJson(`${season.name}.json`, season)}>Export</button>
         </div>
       </div>
@@ -114,7 +143,8 @@ function Header() {
               {label}{to === "/admin" && admin > 0 && <span className="badge alert" aria-label={`${admin} to review`}>{admin}</span>}
             </NavLink>)}
           </nav>
-          <NavLink to={base + "/record"} className="track-stats">Track Stats</NavLink>
+          <NavLink to={canRecord ? base + "/record" : `/l/${league?.slug}`} className="track-stats"
+            title={canRecord ? undefined : "Enter the league's stats-entry password to record games"}>Track Stats</NavLink>
         </div>
       </div>
     </header>

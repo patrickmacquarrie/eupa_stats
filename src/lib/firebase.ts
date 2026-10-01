@@ -25,7 +25,10 @@ export function firebase() {
     app = initializeApp(EMULATOR ? { ...config, projectId: "demo-eupa-stats", apiKey: "demo-key" } : config);
     // Firestore keeps its own copy on the device: reads work offline, and writes made offline
     // are queued and sent when a signal returns.
-    db = initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) });
+    db = initializeFirestore(app, {
+      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+      ignoreUndefinedProperties: true,   // a season's optional fields are often undefined
+    });
     auth = getAuth(app);
     if (EMULATOR) {
       connectFirestoreEmulator(db, "127.0.0.1", 8085);

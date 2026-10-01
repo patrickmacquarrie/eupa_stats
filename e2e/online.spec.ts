@@ -45,3 +45,77 @@ test("create a league, unlock a tablet with the stats password, and lock it out 
   await expect(tablet.locator(".leagues-online")).toContainText("E2E League");
   expect(errors).toEqual([]);
 });
+
+const ROSTER = ["Player\tGender\tTeam\tStarting Salary",
+  "Ann Arbour\tF\tTeam A\t$2,000,000", "Al Ames\tM\tTeam A\t$1,500,000",
+  "Bea Brook\tF\tTeam B\t$2,000,000", "Bo Birch\tM\tTeam B\t$1,500,000"].join("\n");
+const tap = (page: import("@playwright/test").Page, player: string, button: string) =>
+  page.click(`.prow:has(.pname:text-is("${player}")) >> button:text-is("${button}")`);
+
+test("a season moved online gets a tablet's recording live, with and without a signal", async ({ browser }) => {
+  const slug = `sync-${Date.now().toString(36)}`;
+  const adminCtx = await browser.newContext(), tabletCtx = await browser.newContext();
+  const admin = await adminCtx.newPage(), tablet = await tabletCtx.newPage();
+  const errors: string[] = [];
+  for (const p of [admin, tablet]) p.on("pageerror", (e) => errors.push(e.message));
+
+  // League, then a season made in the admin's browser and moved online.
+  await admin.goto("/#/new-league");
+  await admin.fill("#lg-name", "Sync League"); await admin.fill("#lg-slug", slug);
+  await admin.fill("#lg-stat", "tablet-pass"); await admin.fill("#lg-admin", "admin-pass"); await admin.fill("#lg-admin2", "admin-pass");
+  await admin.click("text=Create league");
+  await expect(admin.locator("main")).toContainText("unlocked for league admin");
+  await admin.goto("/");
+  await admin.getByRole("link", { name: /New season/ }).click();
+  await admin.fill("#ns-name", "Winter Online");
+  await admin.fill("#ns-roster", ROSTER);
+  await admin.fill("#ns-first", "2027-01-04"); await admin.fill("#ns-weeks", "4");
+  await admin.click("text=Fill in weekly dates");
+  await admin.click("text=Create season");
+  await admin.click("nav.tabs >> text=Admin"); await admin.click(".subtabs >> text=Setup");
+  await admin.fill('input[list="known-leagues"]', slug);
+  await admin.getByLabel("League admin password").fill("admin-pass");
+  await admin.getByRole("button", { name: "Move this season online" }).click();
+  await expect(admin).toHaveURL(new RegExp(`/l/${slug}/s/`));
+  await expect(admin.locator(".role-pill")).toHaveText("Admin");
+
+  // The tablet unlocks for stats entry and opens the season: no Admin tab.
+  await tablet.goto(`/#/l/${slug}`);
+  await tablet.getByLabel("Stats entry password").fill("tablet-pass");
+  await tablet.getByRole("button", { name: "Unlock", exact: true }).click();
+  await expect(tablet.locator("main")).toContainText("unlocked for stats entry");
+  await tablet.click("text=Winter Online");
+  await expect(tablet.locator(".role-pill")).toHaveText("Stats entry");
+  await expect(tablet.locator("nav.tabs")).not.toContainText("Admin");
+
+  // Record: each tap is saved on the tablet and synced to the league.
+  await tablet.click(".track-stats");
+  await tablet.fill('input[type="date"]', "2027-01-04");
+  await tablet.click("text=Start recording");
+  await tap(tablet, "Ann Arbour", "Touch");
+  await tap(tablet, "Al Ames", "Point");
+  await expect(tablet.locator("[data-sync]")).toHaveText("Synced", { timeout: 15_000 });
+  await admin.click("nav.tabs >> text=Games");
+  await expect(admin.locator(".pill")).toHaveText("live", { timeout: 15_000 });
+
+  // No signal: taps still save on the tablet and wait to sync.
+  await tabletCtx.setOffline(true);
+  await tap(tablet, "Ann Arbour", "D-Play");                 // on defense after the point: a block
+  await tap(tablet, "Al Ames", "Touch");
+  await tap(tablet, "Ann Arbour", "Point");
+  await expect(tablet.locator("[data-sync]")).toHaveText("will sync when online", { timeout: 15_000 });
+  await tablet.reload();                                        // even a reload keeps the game
+  await expect(tablet.locator(".score-team strong").first()).toHaveText("2");
+  await tabletCtx.setOffline(false);
+  await expect(tablet.locator("[data-sync]")).toHaveText("Synced", { timeout: 20_000 });
+
+  // Finish: the admin sees the finished game and the standings follow it.
+  await tablet.click("text=Finish game");
+  await tablet.click("text=Save to season");
+  await expect(tablet.locator("h1")).toHaveText("Saved");
+  await expect(admin.locator(".pill")).toHaveText("one side only", { timeout: 15_000 });
+  await admin.click("nav.tabs >> text=Overview");
+  await expect(admin.locator(".standings tbody tr").first()).toContainText("Team A");
+  await expect(admin.locator(".standings tbody tr").first()).toContainText("1–0");
+  expect(errors).toEqual([]);
+});

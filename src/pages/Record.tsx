@@ -18,28 +18,71 @@ const today = () => {
 };
 
 export function Record() {
-  const { season } = useSeason();
+  const { draftKey, canRecord, online } = useSeason();
   const [draft, setDraft] = useState<Draft | null | undefined>(undefined);
   const [reviewing, setReviewing] = useState(false);
-  useEffect(() => { loadDraft(season.id).then((d) => setDraft(d ?? null)); }, [season.id]);
+  useEffect(() => { loadDraft(draftKey).then((d) => setDraft(d ?? null)); }, [draftKey]);
 
-  // Every tap is saved twice (localStorage and IndexedDB); if both fail, the stat-taker is told.
+  // Every tap is saved on this device first (localStorage and IndexedDB); if both fail, the
+  // stat-taker is told. For an online season the recording is also sent to the league every few
+  // seconds; Firestore queues it while there's no signal.
   const [unsafe, setUnsafe] = useState(false);
-  const change = (d: Draft | null) => {
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const latest = useRef<Draft | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const send = () => {
+    timer.current = null;
+    const d = latest.current;
+    if (d && online) online.pushRecording(d, "live").then(() => setSyncError(null)).catch((e) => setSyncError(syncProblem(e)));
+  };
+  useEffect(() => () => { if (timer.current) { clearTimeout(timer.current); send(); } }, []);
+  const change = (d: Draft | null, sendNow = false) => {
     setDraft(d);
-    if (d) saveDraft(d).then((r) => setUnsafe(!r.local && !r.db)); else clearDraft(season.id).catch(() => {});
+    latest.current = d;
+    if (d) saveDraft(d).then((r) => setUnsafe(!r.local && !r.db)); else clearDraft(draftKey).catch(() => {});
+    if (!online || !d) { if (timer.current) clearTimeout(timer.current); timer.current = null; return; }
+    if (sendNow) { if (timer.current) clearTimeout(timer.current); send(); }
+    else if (!timer.current) timer.current = setTimeout(send, 3000);
   };
 
+  if (!canRecord) {
+    return (
+      <main className="page narrow">
+        <h1>Track Stats</h1>
+        <p>Recording games needs the league's stats-entry password.</p>
+        {online && <Link to={`/l/${online.slug}`} className="button-link">Unlock this device</Link>}
+      </main>
+    );
+  }
   if (draft === undefined) return <main className="page"><p className="muted">Loading…</p></main>;
-  if (!draft || !draft.events || draft.present === undefined) return <GameSetup onStart={(d) => change(d)} />;
+  if (!draft || !draft.events || draft.present === undefined) return <GameSetup onStart={(d) => change(d, true)} />;
   if (reviewing) return <Review draft={draft} onBack={() => setReviewing(false)} onDone={() => { change(null); setReviewing(false); }} />;
-  return <Live draft={draft} onChange={change} onFinish={() => setReviewing(true)} unsafe={unsafe} />;
+  return <Live draft={draft} onChange={change} onFinish={() => setReviewing(true)} unsafe={unsafe} syncError={syncError} />;
+}
+
+const syncProblem = (e: unknown) => ((e as { code?: string }).code === "permission-denied"
+  ? "The league isn't accepting this tablet's recording: its stats-entry password may have changed. Enter the new one on the league page; everything is still saved on this tablet."
+  : `Couldn't send the recording: ${(e as Error).message}. It's still saved on this tablet.`);
+
+/** "Saved on this tablet · Synced", or "… · will sync when online" while the league hasn't got the latest. */
+function SyncStatus({ draft }: { draft: Draft }) {
+  const { online } = useSeason();
+  const [synced, setSynced] = useState(false);
+  const [onLine, setOnLine] = useState(navigator.onLine);
+  useEffect(() => {
+    const up = () => setOnLine(true), down = () => setOnLine(false);
+    window.addEventListener("online", up); window.addEventListener("offline", down);
+    return () => { window.removeEventListener("online", up); window.removeEventListener("offline", down); };
+  }, []);
+  useEffect(() => (online ? online.watchSynced(draft, setSynced) : undefined), [online?.slug, draft.date, draft.team, draft.opp]);
+  if (!online) return <>, saved on this device</>;
+  return <> · Saved on this tablet · <span className={synced ? "ok-text" : "attn"} data-sync={synced ? "synced" : "pending"}>{synced ? "Synced" : onLine ? "syncing…" : "will sync when online"}</span></>;
 }
 
 /* ------------------------------------------------------------------ setup */
 
 function GameSetup({ onStart }: { onStart: (d: Draft) => void }) {
-  const { season, input, result } = useSeason();
+  const { season, input, result, draftKey } = useSeason();
   const teams = input.teams.filter((t) => !t.isSubTeam).map((t) => t.name);
   const [date, setDate] = useState(today());
   const [team, setTeam] = useState(teams[0] ?? "");
@@ -112,7 +155,7 @@ function GameSetup({ onStart }: { onStart: (d: Draft) => void }) {
 
       {problem && <p className="attn">{problem}</p>}
       <button className="primary big" disabled={!!problem} onClick={() => onStart({
-        seasonId: season.id, date, team, opp, startOn, gameLengthMin: len, jersey, present, subs, newPlayers,
+        seasonId: draftKey, date, team, opp, startOn, gameLengthMin: len, jersey, present, subs, newPlayers,
         events: [], gameTimes: [], clock: { runningSince: null, elapsedMs: 0 },
       })}>Start recording</button>
     </main>
@@ -179,7 +222,7 @@ function AddSub({ exclude, pending, onAdd }: { exclude: string[]; pending: Playe
 
 /* ------------------------------------------------------------------ live */
 
-function Live({ draft, onChange, onFinish, unsafe }: { draft: Draft; onChange: (d: Draft) => void; onFinish: () => void; unsafe?: boolean }) {
+function Live({ draft, onChange, onFinish, unsafe, syncError }: { draft: Draft; onChange: (d: Draft) => void; onFinish: () => void; unsafe?: boolean; syncError?: string | null }) {
   const [msg, setMsg] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [, tick] = useState(0);
@@ -293,7 +336,8 @@ function Live({ draft, onChange, onFinish, unsafe }: { draft: Draft; onChange: (
       )}
 
       <div className="row gap live-foot">
-        <span className="muted small">{shortTeam(draft.team)} v {shortTeam(draft.opp)} · {draft.date} · {draft.events.length} plays{draft.flags?.length ? ` · ${draft.flags.length} flagged` : ""}{unsafe ? "" : ", saved on this device"}</span>
+        <span className="muted small">{shortTeam(draft.team)} v {shortTeam(draft.opp)} · {draft.date} · {draft.events.length} plays{draft.flags?.length ? ` · ${draft.flags.length} flagged` : ""}{unsafe ? "" : <SyncStatus draft={draft} />}</span>
+        {syncError && <span className="error small" role="alert">{syncError}</span>}
         {unsafe && <span className="error small" role="alert">This device isn't saving the game (storage blocked or full). Don't close or refresh: finish and save, or download the CSV.</span>}
         <span className="grow" />
         <button className="primary" disabled={!draft.events.length} onClick={onFinish}>Finish game</button>
@@ -335,7 +379,8 @@ function ClockAdjust({ draft, onApply, onCancel }: { draft: Draft; onApply: (d: 
 /* ------------------------------------------------------------------ review */
 
 function Review({ draft, onBack, onDone }: { draft: Draft; onBack: () => void; onDone: () => void }) {
-  const { season, updateSeason } = useSeason();
+  const { season, updateSeason, online } = useSeason();
+  const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<{ week: number } | null>(null);
   const [here, setHere] = useState<Set<string>>(new Set());
   const [notes, setNotes] = useState<Record<number, string>>(() => Object.fromEntries((draft.flags ?? []).map((f) => [f.start, f.note ?? ""])));
@@ -343,12 +388,25 @@ function Review({ draft, onBack, onDone }: { draft: Draft; onBack: () => void; o
   const tally = useMemo(() => tallyRecording(draft.events, (n) => n), [draft.events]);
   const s = stateOf(draft);
   const key = `${draft.date}|${draft.team}|${draft.opp}`;
-  const exists = season.input.events.some((e) => `${e.date}|${e.statTeam}|${e.otherTeam}` === key);
+  // Online, this tablet's own live recording is already in the season; only another device's counts.
+  const owner = online?.owners.get(key);
+  const exists = online ? !!owner && owner !== online.uid : season.input.events.some((e) => `${e.date}|${e.statTeam}|${e.otherTeam}` === key);
   const week = weekOfDate(season.input.schedule, draft.date) ?? 0;
   const csvName = `${draft.date}_${shortTeam(draft.team)}_v_${shortTeam(draft.opp)}.csv`.replace(/\s+/g, "");
   const download = () => downloadText(csvName, toTabletCsv(draft.events, draft.gameTimes));
 
   const save = async () => {
+    if (online) {
+      if (exists) { setError(`Another tablet already sent ${draft.team}'s recording for ${draft.date}. Ask a league admin to remove it first, or download this game's CSV.`); return; }
+      const flags = (draft.flags ?? []).map((f) => ({
+        date: draft.date, team: draft.team, opp: draft.opp, start: f.start,
+        end: poss.find((p) => p.start === f.start)?.end ?? f.end, clock: f.clock, note: notes[f.start]?.trim() || undefined,
+      }));
+      // Not awaited: with no signal Firestore keeps it on this tablet and sends it later.
+      online.pushRecording(draft, "finished", { present: [...here], flags }).catch((e) => setError((e as Error).message));
+      setSaved({ week });
+      return;
+    }
     if (exists && !(await askConfirm(`${draft.team} already has a recording for ${draft.date}. Replace it with this one?`, { ok: "Replace" }))) return;
     await updateSeason((x) => {
       const have = new Set(x.input.players.map((p) => nameKey(p.name)));
@@ -380,7 +438,8 @@ function Review({ draft, onBack, onDone }: { draft: Draft; onBack: () => void; o
       <main className="page narrow">
         <h1>Saved</h1>
         <p>{draft.team}'s recording ({s.us}–{s.them}) is in the season{draft.newPlayers.length ? `, with ${draft.newPlayers.length} new sub(s) added to the player list` : ""}.</p>
-        <p className="muted small">If the other team's tablet is a different device, download this game's CSV there and upload it on the Recordings tab here (or the reverse).</p>
+        {online && <p className="muted small">It reaches the league as soon as this tablet has a signal; the admin sees it on the Games page.</p>}
+        {error && <p className="error">{error}</p>}
         <div className="row gap wrap">
           <Link to={`../games/${saved.week}/${encodeURIComponent(a)}/${encodeURIComponent(b)}`}>Open the game</Link>
           <button onClick={download}>Download CSV</button>
@@ -439,13 +498,18 @@ function Review({ draft, onBack, onDone }: { draft: Draft; onBack: () => void; o
           })}
         </section>
       )}
-      {exists && <p className="attn">This replaces the recording already saved for {draft.team} on {draft.date}.</p>}
+      {exists && <p className="attn">{online ? `Another tablet already sent ${draft.team}'s recording for ${draft.date}.` : `This replaces the recording already saved for ${draft.team} on ${draft.date}.`}</p>}
       <div className="row gap wrap">
         <button className="primary big" onClick={save}>Save to season</button>
         <button onClick={download}>Download CSV</button>
         <span className="grow" />
-        <button className="danger" onClick={async () => { if (await askConfirm("Throw this recording away? It can't be recovered.", { ok: "Discard", danger: true })) onDone(); }}>Discard</button>
+        <button className="danger" onClick={async () => {
+          if (!(await askConfirm("Throw this recording away? It can't be recovered.", { ok: "Discard", danger: true }))) return;
+          if (online && owner === online.uid) online.deleteRecording(draft).catch(() => {});
+          onDone();
+        }}>Discard</button>
       </div>
+      {error && <p className="error">{error}</p>}
     </main>
   );
 }

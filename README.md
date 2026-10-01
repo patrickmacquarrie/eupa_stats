@@ -17,7 +17,8 @@ npm run build:share  # the shareable player stats page, one file in dist-share/
 npm run e2e          # browser test: create a season, record, refresh mid-game, finish,
                      # settle a dispute, export and re-import, then reload offline
 npm run test:rules   # Firestore security rules, in the Firebase emulator (needs Java)
-npm run e2e:online   # two devices on one online league, in the Firebase emulators
+npm run e2e:online   # two devices on one online league, in the Firebase emulators: passwords,
+                     # moving a season online, a tablet recording live and with no signal
 ```
 
 What's in the app (`src/`). The header has five tabs (Overview, Players, Games, Player stats, Admin) and, on the right, **Track Stats** for stat-takers. Admin's red bubble counts everything waiting on an admin.
@@ -46,6 +47,19 @@ key in a document no browser can read, a device unlocks by writing its own membe
 key, and `firestore.rules` allows that write only when the key matches. Every check compares the
 device's key with the current one, so changing a password (on the league page) locks out every
 device that used the old one. `tests-rules/` covers the rules against the emulator.
+
+An online season is one season document (rules, players, schedule, overrides; no plays) and one
+document per recording (one team's side of one game: its plays, check-in list, subs, first-time
+subs, ticked no-play players and flags). Stat-takers write only their own recordings; the app
+reassembles the season from the documents (`src/lib/onlineShape.ts`), so every screen works the
+same as for a season kept in a browser, and an admin's change is written back as only the
+documents it touched. Track Stats still saves every tap on the tablet first, sends the recording
+to the league every few seconds, and shows "Saved on this tablet · Synced" or "· will sync when
+online"; Firestore keeps the device's own copy, so the season opens and records with no signal and
+catches up when one returns. The admin's Games page shows each game as "live" while it's being
+recorded. A season kept in a browser has "Move this season online" in Admin → Setup (admin
+password needed); the browser's copy stays, marked as moved. Admin → Recordings keeps CSV upload
+and download as a backup.
 
 Seasons are stored in the browser's IndexedDB, one per key, so nothing leaves the device. Export a
 season to back it up or hand it to another admin. There is no server or login yet. If the

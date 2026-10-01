@@ -482,3 +482,6 @@ a.button-link { display: inline-block; padding: 6px 12px; border: 1px solid var(
 a.button-link:hover { text-decoration: none; background: var(--surface-2); }
 .unlock-row { margin-top: 10px; align-items: flex-end; }
 .ok-text { color: var(--good); }
+.role-pill { font-size: 0.8rem; padding: 3px 10px; border-radius: 999px; border: 1px solid rgb(255 255 255 / 0.45); color: var(--on-brand); white-space: nowrap; }
+.role-pill:hover { text-decoration: none; background: rgb(255 255 255 / 0.12); }
+.moved-note { background: var(--info-bg); padding: 8px 16px; font-size: 0.9rem; text-align: center; }

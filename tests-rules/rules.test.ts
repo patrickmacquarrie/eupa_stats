@@ -79,10 +79,12 @@ describe("what each password allows", () => {
     await assertSucceeds(setDoc(doc(db, "leagues/eupa/seasons/fall/recordings/r2"), { uid: "tablet", team: "B", opp: "A", events: [] }));
     await assertSucceeds(updateDoc(doc(db, "leagues/eupa/seasons/fall/recordings/r1"), { events: [{ action: "Touch" }] }));
     await assertFails(setDoc(doc(db, "leagues/eupa/seasons/fall/recordings/r3"), { uid: "someone-else", events: [] }));
-    await assertFails(deleteDoc(doc(db, "leagues/eupa/seasons/fall/recordings/r1")));
-    // Another stat device can't touch the first one's recording.
+    // Another stat device can't touch the first one's recording, or discard it.
     await env.withSecurityRulesDisabled((c) => setDoc(doc(c.firestore(), "leagues/eupa/members/tablet2"), { role: "stat", key: key(STAT) }));
     await assertFails(updateDoc(doc(as("tablet2"), "leagues/eupa/seasons/fall/recordings/r1"), { events: [] }));
+    await assertFails(deleteDoc(doc(as("tablet2"), "leagues/eupa/seasons/fall/recordings/r1")));
+    // Its own device can discard it.
+    await assertSucceeds(deleteDoc(doc(db, "leagues/eupa/seasons/fall/recordings/r1")));
     // Without a password, no recording at all.
     await assertFails(setDoc(doc(as("stranger"), "leagues/eupa/seasons/fall/recordings/r4"), { uid: "stranger", events: [] }));
   });

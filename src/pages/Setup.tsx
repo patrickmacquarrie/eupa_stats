@@ -5,6 +5,8 @@ import type { LeagueRules, Player, StatWeights } from "../../engine/types";
 import { delta, money, shortTeam } from "../lib/format";
 import { BOARDS, COLUMNS, DEFAULT_PUBLIC, type PublicSettings } from "../lib/publicStats";
 import { newPlug } from "../lib/newSeason";
+import { recentLeagues } from "../lib/recentLeagues";
+import { Link, useNavigate } from "react-router-dom";
 import { teamPayroll, useSeason } from "../lib/SeasonContext";
 
 const WEIGHTS: [keyof StatWeights, string][] = [
@@ -198,6 +200,7 @@ function SeasonBasics() {
         </button>
       </section>
       <PlugsCard />
+      <MoveOnlineCard />
     </div>
   );
 }
@@ -280,6 +283,52 @@ function PublicSettingsCard() {
           <span>Count games played as a sub for another team (the master sheet didn't)</span></label>
       </div>
       <button className="small-btn" onClick={() => updateSeason((s) => ({ ...s, publicStats: DEFAULT_PUBLIC }))}>Reset to the master sheet's layout</button>
+    </section>
+  );
+}
+
+/** A season kept only in this browser can be moved online to a league; this copy stays as it is. */
+function MoveOnlineCard() {
+  const { season, online, updateSeason } = useSeason();
+  const nav = useNavigate();
+  const leagues = recentLeagues();
+  const [slug, setSlug] = useState(leagues[0]?.slug ?? "");
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  if (online) return null;
+  if (season.movedOnline) {
+    return (
+      <section className="card">
+        <h2>Online</h2>
+        <p>Moved online to “{season.movedOnline.slug}”. <Link to={`/l/${season.movedOnline.slug}/s/${season.id}`}>Open the online season</Link></p>
+      </section>
+    );
+  }
+  return (
+    <section className="card">
+      <h2>Move this season online</h2>
+      <p className="muted small">Puts the season in a league online, where every tablet and admin shares it and recordings arrive as they're made. This browser keeps its copy.</p>
+      <div className="fields">
+        <label className="field"><span>League link name</span>
+          <input list="known-leagues" value={slug} onChange={(e) => setSlug(e.target.value.trim().toLowerCase())} placeholder="eupa-fall" />
+          <datalist id="known-leagues">{leagues.map((l) => <option key={l.slug} value={l.slug}>{l.name}</option>)}</datalist>
+          <small className="muted">No league yet? <Link to="/new-league">Create one</Link>.</small></label>
+        <label className="field"><span>League admin password</span>
+          <input type="password" value={password} onChange={(e) => { setPassword(e.target.value); setError(null); }} /></label>
+      </div>
+      {error && <p className="error">{error}</p>}
+      <button className="primary" disabled={!slug || !password || busy} onClick={async () => {
+        setBusy(true); setError(null);
+        try {
+          const { unlock } = await import("../lib/league");
+          await unlock(slug, "admin", password);
+          const { moveSeasonOnline } = await import("../lib/onlineSeason");
+          await moveSeasonOnline(slug, season);
+          await updateSeason((s) => ({ ...s, movedOnline: { slug, at: new Date().toISOString() } }));
+          nav(`/l/${slug}/s/${season.id}`);
+        } catch (e) { setError((e as Error).message); setBusy(false); }
+      }}>{busy ? "Moving…" : "Move this season online"}</button>
     </section>
   );
 }

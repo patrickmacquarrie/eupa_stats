@@ -6,7 +6,8 @@ import { openItems, provisionalWeeks, type OpenItem } from "./review";
 import { computeWithAutoMatch } from "./autoMatch";
 import type { PairingFlag } from "../../engine/pairing";
 import type { SubAssignment } from "../../engine/types";
-import { autoMatchOn, type Season } from "./season";
+import { autoMatchOn, type SavedFlag, type Season } from "./season";
+import type { Draft } from "./recorder";
 import { downloadJson, loadSeason, saveSeason } from "./store";
 
 export interface Game {
@@ -37,6 +38,31 @@ interface Ctx {
   /** Replace the season's inputs; the engine reruns and the change is saved. */
   update: (fn: (input: LeagueInput) => LeagueInput, patch?: Partial<Pick<Season, "name">>) => Promise<void>;
   updateSeason: (fn: (s: Season) => Season) => Promise<void>;
+  /** Route to this season: "/s/{id}" in this browser, "/l/{league}/s/{id}" online. */
+  base: string;
+  /** Where Track Stats keeps this device's draft. */
+  draftKey: string;
+  /** This device may change the season (always, for a season kept only in this browser). */
+  canAdmin: boolean;
+  /** This device may record games. */
+  canRecord: boolean;
+  /** Set for a season online. */
+  online?: OnlineCtx;
+}
+
+/** What Track Stats and the Games page need from an online season (Firebase stays out of their chunks). */
+export interface OnlineCtx {
+  slug: string;
+  role: "stat" | "admin" | null;
+  /** Recordings still being recorded, by date|team|opp. */
+  live: Set<string>;
+  /** The device that recorded each recording, by date|team|opp. */
+  owners: Map<string, string>;
+  uid: string;
+  pushRecording: (d: Draft, status: "live" | "finished", finish?: { present: string[]; flags: SavedFlag[] }) => Promise<void>;
+  deleteRecording: (d: Pick<Draft, "date" | "team" | "opp">) => Promise<void>;
+  /** Calls back with true when this device's writes to the recording have reached the server. */
+  watchSynced: (d: Pick<Draft, "date" | "team" | "opp">, onSynced: (synced: boolean) => void) => () => void;
 }
 
 const SeasonCtx = createContext<Ctx | null>(null);
@@ -110,8 +136,6 @@ export function SeasonProvider({ id, children }: { id: string; children: ReactNo
     return () => { live = false; };
   }, [id]);
 
-  const computed = useComputed(season);
-
   // A failed save must not lose the change on screen: keep it, and say it isn't stored yet.
   const [saveError, setSaveError] = useState<string | null>(null);
   const persist = useCallback(async (next: Season) => {
@@ -119,16 +143,29 @@ export function SeasonProvider({ id, children }: { id: string; children: ReactNo
     try { setSeason(await saveSeason(next)); setSaveError(null); }
     catch (e) { setSaveError((e as Error).message); }
   }, []);
-  const update = useCallback<Ctx["update"]>(async (fn, patch) => {
-    if (season) await persist({ ...season, ...patch, input: fn(season.input) });
-  }, [season, persist]);
-  const updateSeason = useCallback<Ctx["updateSeason"]>(async (fn) => {
-    if (season) await persist(fn(season));
-  }, [season, persist]);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   if (season === undefined) return <p className="muted pad">Loading season…</p>;
   if (season === null) return <p className="pad">{loadError ?? "That season isn't in this browser."} <a href="#/">Back to seasons</a></p>;
+  return (
+    <SeasonView season={season} persist={persist} saveError={saveError} base={`/s/${season.id}`} draftKey={season.id} canAdmin canRecord>
+      {children}
+    </SeasonView>
+  );
+}
+
+/**
+ * Computes a season and provides it to every screen, whether it's kept in this browser or online.
+ * `persist` stores a changed season; `saveError` says why the last store failed.
+ */
+export function SeasonView({ season, persist, saveError, base, draftKey, canAdmin, canRecord, online, children }: {
+  season: Season; persist: (next: Season) => Promise<void>; saveError: string | null;
+  base: string; draftKey: string; canAdmin: boolean; canRecord: boolean; online?: OnlineCtx; children: ReactNode;
+}) {
+  const computed = useComputed(season);
+  const update = useCallback<Ctx["update"]>(async (fn, patch) => { await persist({ ...season, ...patch, input: fn(season.input) }); }, [season, persist]);
+  const updateSeason = useCallback<Ctx["updateSeason"]>(async (fn) => { await persist(fn(season)); }, [season, persist]);
+
   if (!computed) return null;
   if ("error" in computed) {
     return (
@@ -141,12 +178,18 @@ export function SeasonProvider({ id, children }: { id: string; children: ReactNo
     );
   }
   return (
-    <SeasonCtx.Provider value={{ season, update, updateSeason, ...computed }}>
+    <SeasonCtx.Provider value={{ season, update, updateSeason, base, draftKey, canAdmin, canRecord, online, ...computed }}>
       {saveError && (
         <div className="save-error" role="alert">
-          <strong>Not saved.</strong> {saveError.replace(/^Not saved: /, "")} Your changes are on this screen only: export the season now to keep them.
+          <strong>Not saved.</strong> {saveError.replace(/^Not saved: /, "")} {online ? "" : "Your changes are on this screen only: export the season now to keep them."}
           <button className="small-btn" onClick={() => downloadJson(`${season.name}.json`, season)}>Export</button>
           <button className="small-btn" onClick={() => persist(season)}>Try again</button>
+        </div>
+      )}
+      {!online && season.movedOnline && (
+        <div className="moved-note" role="note">
+          This is this browser's copy. The season was moved online to the league “{season.movedOnline.slug}”, and changes here don't reach it.{" "}
+          <a href={`#/l/${season.movedOnline.slug}/s/${season.id}`}>Open the online season</a>
         </div>
       )}
       {children}

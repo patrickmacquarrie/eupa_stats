@@ -31,6 +31,8 @@ export interface Season {
   autoMatchSubs?: boolean;
   /** "Present with no stats" items the admin has seen and accepted (review.quietKey). */
   acknowledgedQuiet?: string[];
+  /** Set on a browser's copy once the season has been moved online to a league. */
+  movedOnline?: { slug: string; at: string };
 }
 
 export const autoMatchOn = (s: Pick<Season, "autoMatchSubs">) => s.autoMatchSubs !== false;
