@@ -41,7 +41,7 @@ test("create a league, unlock a tablet with the stats password, and lock it out 
   await expect(tablet.locator("main")).toContainText("Anyone with this link can see");
 
   // The league is listed on each device's Seasons screen.
-  await tablet.goto("/#/");
+  await tablet.goto("/#/admin");
   await expect(tablet.locator(".leagues-online")).toContainText("E2E League");
   expect(errors).toEqual([]);
 });
@@ -59,13 +59,8 @@ test("a season moved online gets a tablet's recording live, with and without a s
   const errors: string[] = [];
   for (const p of [admin, tablet]) p.on("pageerror", (e) => errors.push(e.message));
 
-  // League, then a season made in the admin's browser and moved online.
-  await admin.goto("/#/new-league");
-  await admin.fill("#lg-name", "Sync League"); await admin.fill("#lg-slug", slug);
-  await admin.fill("#lg-stat", "tablet-pass"); await admin.fill("#lg-admin", "admin-pass"); await admin.fill("#lg-admin2", "admin-pass");
-  await admin.click("text=Create league");
-  await expect(admin.locator("main")).toContainText("unlocked for league admin");
-  await admin.goto("/");
+  // A season made in the admin's browser, moved online into a league created in the same step.
+  await admin.goto("/#/admin");
   await admin.getByRole("link", { name: /New season/ }).click();
   await admin.fill("#ns-name", "Winter Online");
   await admin.fill("#ns-roster", ROSTER);
@@ -73,23 +68,31 @@ test("a season moved online gets a tablet's recording live, with and without a s
   await admin.click("text=Fill in weekly dates");
   await admin.click("text=Create season");
   await admin.click("nav.tabs >> text=Admin"); await admin.click(".subtabs >> text=Setup");
-  await admin.fill('input[list="known-leagues"]', slug);
-  await admin.getByLabel("League admin password").fill("admin-pass");
-  await admin.getByRole("button", { name: "Move this season online" }).click();
+  await expect(admin.getByRole("button", { name: "Create a new league" })).toHaveAttribute("aria-pressed", "true");
+  await admin.fill("#mv-name", "Sync League"); await admin.fill("#mv-slug", slug);
+  await admin.fill("#mv-stat", "tablet-pass"); await admin.fill("#mv-admin", "admin-pass"); await admin.fill("#mv-admin2", "admin-pass");
+  await admin.getByRole("button", { name: "Create the league and move this season" }).click();
   await expect(admin).toHaveURL(new RegExp(`/l/${slug}/s/`));
   await expect(admin.locator(".role-pill")).toHaveText("Admin");
+  // The league's settings are at the bottom of Admin → Setup.
+  await admin.click("nav.tabs >> text=Admin"); await admin.click(".subtabs >> text=Setup");
+  await expect(admin.locator(".league-settings")).toContainText("New stats entry password");
+  await admin.getByLabel("League name").fill("Sync League Online");
+  await admin.getByRole("button", { name: "Rename" }).click();
+  await expect(admin.locator(".league-settings .ok-text")).toHaveText("League renamed.");
+  // The first season online goes on the main page.
+  await expect(admin.locator(".league-settings")).toContainText("This season is on the main page");
 
-  // The tablet unlocks for stats entry and opens the season: no Admin tab.
-  await tablet.goto(`/#/l/${slug}`);
+  // The tablet opens /stats, unlocks once with the stats-entry password and lands in Track Stats,
+  // with the Games tab beside it and nothing else.
+  await tablet.goto("/#/stats");
   await tablet.getByLabel("Stats entry password").fill("tablet-pass");
   await tablet.getByRole("button", { name: "Unlock", exact: true }).click();
-  await expect(tablet.locator("main")).toContainText("unlocked for stats entry");
-  await tablet.click("text=Winter Online");
+  await expect(tablet).toHaveURL(new RegExp(`/l/${slug}/s/[^/]+/record$`));
   await expect(tablet.locator(".role-pill")).toHaveText("Stats entry");
-  await expect(tablet.locator("nav.tabs")).not.toContainText("Admin");
+  await expect(tablet.locator("nav.tabs a")).toHaveText(["Games"]);
 
   // Record: each tap is saved on the tablet and synced to the league.
-  await tablet.click(".track-stats");
   await tablet.fill('input[type="date"]', "2027-01-04");
   await tablet.click("text=Start recording");
   await tap(tablet, "Ann Arbour", "Touch");
@@ -129,6 +132,15 @@ test("a season moved online gets a tablet's recording live, with and without a s
   await expect(visitor.locator(".pub-standings tbody tr").first().locator("td").nth(2)).toHaveText("3", { timeout: 15_000 });
   await expect(visitor.locator(".pub")).toContainText("Ann Arbour");
   await expect(visitor.locator("body")).not.toContainText("$");
+  // The site's main address shows the same page.
+  await visitor.goto("/");
+  await expect(visitor.locator(".pub-standings tbody tr").first()).toContainText("1–0");
+
+  // The tablet sees the game's box score, as stats entry does: plays per player, no salaries.
+  await tablet.getByRole("link", { name: "Open the game" }).click();
+  await expect(tablet.locator(".game-summary").first()).toContainText("Team A3–0 W");
+  await expect(tablet.locator(".game-summary thead").first()).toHaveText("PlayerPointAssistTouchD-PlayThrowawayDropGSO");
+  await expect(tablet.locator("main")).not.toContainText("$");
 
   // The admin sees the finished game, and the standings follow it.
   await admin.goto(seasonUrl);
@@ -139,5 +151,53 @@ test("a season moved online gets a tablet's recording live, with and without a s
   await expect(admin.locator(".standings tbody tr").first()).toContainText("1–0");
   await admin.click("nav.tabs >> text=Player stats");
   await expect(admin.getByRole("link", { name: "Open the public page" })).toHaveAttribute("href", new RegExp(`/l/${slug}/p/`));
+
+  // Team B's side, recorded on the same tablet: a flag with a note made during the game, then the
+  // tablet is closed without Finish. Nothing is lost.
+  await tablet.click(".track-stats");
+  await tablet.fill('input[type="date"]', "2027-01-04");
+  await tablet.getByLabel("Recording for").selectOption("Team B");
+  await tablet.getByLabel("Against").selectOption("Team A");
+  await tablet.click("text=Start recording");
+  await tap(tablet, "Bea Brook", "Touch");
+  await tap(tablet, "Bo Birch", "Point");
+  // Finish sits beside "Add a sub".
+  await expect(tablet.locator(".roster-actions")).toContainText("Finish game");
+  await tablet.getByRole("button", { name: "Flag this possession" }).first().click();
+  await tablet.locator(".flag-note").fill("Bo may have caught it out");
+  await expect(tablet.locator("[data-sync]")).toHaveText("Synced", { timeout: 15_000 });
+  await tablet.close();
+
+  // The tablet reopens at the site's main address: its open game is one tap away, as it was.
+  const reopened = await tabletCtx.newPage();
+  reopened.on("pageerror", (e) => errors.push(e.message));
+  await reopened.goto("/");
+  await expect(reopened.locator(".continue-game")).toContainText("Team B v Team A");
+  await reopened.getByRole("link", { name: "Continue recording" }).click();
+  await expect(reopened.locator(".score-team strong").first()).toHaveText("1");
+  await expect(reopened.locator(".flag-note")).toHaveValue("Bo may have caught it out");
+  await reopened.close();
+
+  // Two days later an admin sees the game wasn't finished, with its plays and the flag's note in.
+  const later = await (await browser.newContext()).newPage();
+  later.on("pageerror", (e) => errors.push(e.message));
+  await later.clock.setFixedTime(new Date("2027-01-06T12:00:00"));
+  await later.goto(`/#/l/${slug}`);
+  await later.getByRole("button", { name: "League admin" }).click();
+  await later.getByLabel("League admin password").fill("admin-pass");
+  await later.getByRole("button", { name: "Unlock", exact: true }).click();
+  await expect(later.locator("main")).toContainText("unlocked for league admin");
+  await later.goto(seasonUrl.replace(/\/games$/, "/admin"));
+  await expect(later.locator("#unfinished-title + p + ul li")).toContainText("Team B's recording v Team A, 2027-01-04");
+  await expect(later.locator(".tabs .badge.alert")).toContainText(/\d/);
+  await later.click("text=Team B's recording v Team A, 2027-01-04");
+  await expect(later.locator("main")).toContainText("Bo may have caught it out");
+  await later.click("nav.tabs >> text=Games");
+  await expect(later.locator(".pill")).toHaveText("not finished");
+  await later.click("nav.tabs >> text=Admin");
+  await later.getByRole("button", { name: "Mark finished" }).click();
+  await expect(later.locator("#unfinished-title")).toHaveCount(0, { timeout: 15_000 });
+  await later.click("nav.tabs >> text=Games");
+  await expect(later.locator(".pill")).not.toHaveText("not finished");
   expect(errors).toEqual([]);
 });

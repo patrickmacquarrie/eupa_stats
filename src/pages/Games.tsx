@@ -18,6 +18,8 @@ export function gameStatus(g: Game, openFlags = 0): { label: string; tone: "ok" 
 
 export function Games() {
   const { games, season, input, online } = useSeason();
+  const isUnfinished = (g: Game) => !!online?.unfinished.some((u) =>
+    [g.a, g.b].includes(u.team) && [g.a, g.b].includes(u.opp) && weekOfDate(input.schedule, u.date) === g.week);
   const isLive = (g: Game) => !!online && (online.live.has(`${g.week}|${g.a}|${g.b}`) || online.live.has(`${g.week}|${g.b}|${g.a}`));
   const flagsFor = (g: Game) => (season.flags ?? []).filter((f) => !f.resolved && [g.a, g.b].includes(f.team) &&
     [g.a, g.b].includes(f.opp) && weekOfDate(input.schedule, f.date) === g.week).length;
@@ -43,7 +45,8 @@ export function Games() {
             <thead><tr><th>Game</th><th className="num">First team's tablet</th><th className="num">Second team's tablet</th><th>Status</th></tr></thead>
             <tbody>
               {shown.filter((g) => g.week === w).map((g) => {
-                const s = isLive(g) ? { label: "live", tone: "info" as const } : gameStatus(g, flagsFor(g));
+                const s = isLive(g) ? { label: "live", tone: "info" as const }
+                  : isUnfinished(g) ? { label: "not finished", tone: "warn" as const } : gameStatus(g, flagsFor(g));
                 return (
                   <tr key={`${g.a}|${g.b}`}>
                     <td><Link to={`${g.week}/${encodeURIComponent(g.a)}/${encodeURIComponent(g.b)}`}>{shortTeam(g.a)} v {shortTeam(g.b)}</Link></td>

@@ -80,12 +80,17 @@ export async function moveSeasonOnline(slug: string, season: Season) {
 }
 
 /** Track Stats: the recording as it stands, written while recording and again at Finish. */
-export async function pushRecording(slug: string, sid: string, d: Draft, status: RecordingDoc["status"], finish?: { present: string[]; flags: SavedFlag[] }) {
+export async function pushRecording(slug: string, sid: string, d: Draft, status: RecordingDoc["status"], extra?: { present?: string[]; flags?: SavedFlag[] }) {
   const uid = await deviceId();
   await setDoc(recRef(slug, sid, recId(d.date, d.team, d.opp)), {
     uid, status, date: d.date, team: d.team, opp: d.opp, events: d.events, newPlayers: d.newPlayers, checkIn: d.present, subs: d.subs,
-    ...(finish ?? {}), updatedAt: serverTimestamp(),
+    ...(extra ?? {}), updatedAt: serverTimestamp(),
   }, { merge: true });
+}
+
+/** Admin: marks a recording finished when its tablet was closed without pressing Finish. */
+export async function markFinished(slug: string, sid: string, d: Pick<Draft, "date" | "team" | "opp">) {
+  await updateDoc(recRef(slug, sid, recId(d.date, d.team, d.opp)), { status: "finished", updatedAt: serverTimestamp() });
 }
 
 /** Track Stats: removes this device's recording (Discard). */

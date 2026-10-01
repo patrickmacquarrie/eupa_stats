@@ -4,48 +4,71 @@ import { Link } from "react-router-dom";
 import { tallyRecording } from "../../engine/compute";
 import { genderOf } from "../../engine/pairing";
 import type { Player } from "../../engine/types";
-import { shortTeam } from "../lib/format";
+import { shortTeam, todayIso as today } from "../lib/format";
 import { nameKey, suggestPlayer } from "../lib/names";
 import { elapsedMs, gameTime, parseClock, possessions, press, setClock, stateOf, toggleClock, toggleFlag, toTabletCsv, undoPress, type Draft, type Phase, type Press } from "../lib/recorder";
-import { weekOfDate, withoutFlagsFor } from "../lib/season";
+import { weekOfDate, withoutFlagsFor, type SavedFlag } from "../lib/season";
 import { quietKey } from "../lib/review";
 import { useSeason } from "../lib/SeasonContext";
 import { clearDraft, downloadText, loadDraft, saveDraft } from "../lib/store";
 
-const today = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-};
+/** The game's flags as the season keeps them, each with its possession's current end and its note. */
+function savedFlags(d: Draft, notes?: Record<number, string>): SavedFlag[] {
+  const poss = possessions(d.events);
+  return (d.flags ?? []).map((f) => ({
+    date: d.date, team: d.team, opp: d.opp, start: f.start,
+    end: poss.find((p) => p.start === f.start)?.end ?? f.end, clock: f.clock, note: (notes?.[f.start] ?? f.note)?.trim() || undefined,
+  }));
+}
 
 export function Record() {
   const { draftKey, canRecord, online } = useSeason();
   const [draft, setDraft] = useState<Draft | null | undefined>(undefined);
-  const [reviewing, setReviewing] = useState(false);
-  useEffect(() => { loadDraft(draftKey).then((d) => setDraft(d ?? null)); }, [draftKey]);
 
   // Every tap is saved on this device first (localStorage and IndexedDB); if both fail, the
-  // stat-taker is told. For an online season the recording is also sent to the league every few
-  // seconds; Firestore queues it while there's no signal.
+  // stat-taker is told. For an online season the recording is also sent to the league a few
+  // seconds after a tap, at once when the tablet sleeps or closes, and again when Track Stats
+  // reopens. Firestore keeps each send on the device until it has a signal.
   const [unsafe, setUnsafe] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [waiting, setWaiting] = useState(false);
   const latest = useRef<Draft | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onlineRef = useRef(online);
+  onlineRef.current = online;
   const send = () => {
     timer.current = null;
-    const d = latest.current;
-    if (d && online) online.pushRecording(d, "live").then(() => setSyncError(null)).catch((e) => setSyncError(syncProblem(e)));
+    setWaiting(false);
+    const d = latest.current, o = onlineRef.current;
+    if (d && o) o.pushRecording(d, "live", { flags: savedFlags(d) }).then(() => setSyncError(null)).catch((e) => setSyncError(syncProblem(e)));
   };
-  useEffect(() => () => { if (timer.current) { clearTimeout(timer.current); send(); } }, []);
+  const flush = () => { if (timer.current) { clearTimeout(timer.current); send(); } };
+  useEffect(() => {
+    const hidden = () => { if (document.visibilityState === "hidden") flush(); };
+    document.addEventListener("visibilitychange", hidden);
+    window.addEventListener("pagehide", flush);
+    return () => { document.removeEventListener("visibilitychange", hidden); window.removeEventListener("pagehide", flush); flush(); };
+  }, []);
+  useEffect(() => {
+    loadDraft(draftKey).then((d) => {
+      setDraft(d ?? null);
+      latest.current = d ?? null;
+      // A game left open (the tablet closed or crashed): send it again in case the last taps didn't go.
+      if (d?.events?.length && d.present !== undefined) send();
+    });
+  }, [draftKey]);
   // Finish and Discard send their own final write; a "live" send still waiting would land after it.
-  const cancelSend = () => { if (timer.current) clearTimeout(timer.current); timer.current = null; };
+  const cancelSend = () => { if (timer.current) clearTimeout(timer.current); timer.current = null; setWaiting(false); };
   const change = (d: Draft | null, sendNow = false) => {
     setDraft(d);
     latest.current = d;
     if (d) saveDraft(d).then((r) => setUnsafe(!r.local && !r.db)); else clearDraft(draftKey).catch(() => {});
-    if (!online || !d) { if (timer.current) clearTimeout(timer.current); timer.current = null; return; }
+    if (!online || !d) { cancelSend(); return; }
     if (sendNow) { if (timer.current) clearTimeout(timer.current); send(); }
-    else if (!timer.current) timer.current = setTimeout(send, 3000);
+    else if (!timer.current) { timer.current = setTimeout(send, 3000); setWaiting(true); }
   };
+  // Saved: off this tablet at once, so reopening Track Stats can't bring the game back as live.
+  const saved = () => { cancelSend(); latest.current = null; clearDraft(draftKey).catch(() => {}); };
 
   if (!canRecord) {
     return (
@@ -58,8 +81,9 @@ export function Record() {
   }
   if (draft === undefined) return <main className="page"><p className="muted">Loading…</p></main>;
   if (!draft || !draft.events || draft.present === undefined) return <GameSetup onStart={(d) => change(d, true)} />;
-  if (reviewing) return <Review draft={draft} cancelSend={cancelSend} onBack={() => setReviewing(false)} onDone={() => { change(null); setReviewing(false); }} />;
-  return <Live draft={draft} onChange={change} onFinish={() => setReviewing(true)} unsafe={unsafe} syncError={syncError} />;
+  // The Finish screen is part of the saved game, so closing the browser there comes back to it.
+  if (draft.finishing) return <Review draft={draft} onChange={change} cancelSend={cancelSend} onSaved={saved} onBack={() => change({ ...draft, finishing: undefined })} onDone={() => change(null)} />;
+  return <Live draft={draft} onChange={change} onFinish={() => change({ ...draft, finishing: { here: [] } })} unsafe={unsafe} syncError={syncError} waiting={waiting} />;
 }
 
 const syncProblem = (e: unknown) => ((e as { code?: string }).code === "permission-denied"
@@ -67,7 +91,7 @@ const syncProblem = (e: unknown) => ((e as { code?: string }).code === "permissi
   : `Couldn't send the recording: ${(e as Error).message}. It's still saved on this tablet.`);
 
 /** "Saved on this tablet · Synced", or "… · will sync when online" while the league hasn't got the latest. */
-function SyncStatus({ draft }: { draft: Draft }) {
+function SyncStatus({ draft, waiting }: { draft: Draft; waiting: boolean }) {
   const { online } = useSeason();
   const [synced, setSynced] = useState(false);
   const [onLine, setOnLine] = useState(navigator.onLine);
@@ -78,7 +102,9 @@ function SyncStatus({ draft }: { draft: Draft }) {
   }, []);
   useEffect(() => (online ? online.watchSynced(draft, setSynced) : undefined), [online?.slug, draft.date, draft.team, draft.opp]);
   if (!online) return <>, saved on this device</>;
-  return <> · Saved on this tablet · <span className={synced ? "ok-text" : "attn"} data-sync={synced ? "synced" : "pending"}>{synced ? "Synced" : onLine ? "syncing…" : "will sync when online"}</span></>;
+  // A tap waiting a few seconds to be sent isn't synced yet, whatever the server has.
+  const ok = synced && !waiting;
+  return <> · Saved on this tablet · <span className={ok ? "ok-text" : "attn"} data-sync={ok ? "synced" : "pending"}>{ok ? "Synced" : onLine ? "syncing…" : "will sync when online"}</span></>;
 }
 
 /* ------------------------------------------------------------------ setup */
@@ -224,7 +250,8 @@ function AddSub({ exclude, pending, onAdd }: { exclude: string[]; pending: Playe
 
 /* ------------------------------------------------------------------ live */
 
-function Live({ draft, onChange, onFinish, unsafe, syncError }: { draft: Draft; onChange: (d: Draft) => void; onFinish: () => void; unsafe?: boolean; syncError?: string | null }) {
+function Live({ draft, onChange, onFinish, unsafe, syncError, waiting }: { draft: Draft; onChange: (d: Draft) => void; onFinish: () => void; unsafe?: boolean; syncError?: string | null; waiting?: boolean }) {
+  const { online } = useSeason();
   const [msg, setMsg] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [, tick] = useState(0);
@@ -234,10 +261,31 @@ function Live({ draft, onChange, onFinish, unsafe, syncError }: { draft: Draft; 
 
   useEffect(() => { if (!running) return; const t = setInterval(() => tick((x) => x + 1), 1000); return () => clearInterval(t); }, [running]);
   // Keep the tablet's screen on while recording.
-  const lock = useRef<any>(null);
+  // The tablet drops the request whenever its screen locks or the browser goes to the background,
+  // so it's asked again on the way back, and on any tap if a request didn't take.
   useEffect(() => {
-    (navigator as any).wakeLock?.request("screen").then((l: any) => { lock.current = l; }).catch(() => {});
-    return () => { lock.current?.release?.().catch?.(() => {}); };
+    let lock: any = null, asking = false, live = true;
+    const ask = () => {
+      if (lock || asking || document.visibilityState !== "visible") return;
+      const wl = (navigator as any).wakeLock;
+      if (!wl) return;
+      asking = true;
+      wl.request("screen").then((l: any) => {
+        asking = false;
+        if (!live) { l.release?.().catch?.(() => {}); return; }
+        lock = l;
+        l.addEventListener?.("release", () => { lock = null; });
+      }).catch(() => { asking = false; });
+    };
+    ask();
+    document.addEventListener("visibilitychange", ask);
+    document.addEventListener("pointerdown", ask);
+    return () => {
+      live = false;
+      document.removeEventListener("visibilitychange", ask);
+      document.removeEventListener("pointerdown", ask);
+      lock?.release?.().catch?.(() => {});
+    };
   }, []);
 
   const go = (p: Press) => {
@@ -268,6 +316,13 @@ function Live({ draft, onChange, onFinish, unsafe, syncError }: { draft: Draft; 
         </div>
         <div className="score-team right"><strong>{s.them}</strong><span>{shortTeam(draft.opp)}</span></div>
       </div>
+
+      {draft.date < today() && (
+        <div className="note attn-note unfinished-note" role="status">
+          <span>This game from {new Date(draft.date + "T12:00:00").toLocaleDateString("en-CA", { weekday: "long", month: "long", day: "numeric" })} was never finished on this tablet.{online ? " Its plays already reached the league." : " Its plays are only on this tablet until it's finished."}</span>
+          <button className="primary small-btn" disabled={!draft.events.length} onClick={onFinish}>Finish it now</button>
+        </div>
+      )}
 
       {adjusting && <ClockAdjust draft={draft} onApply={(d) => { onChange(d); setAdjusting(false); }} onCancel={() => setAdjusting(false)} />}
 
@@ -302,7 +357,10 @@ function Live({ draft, onChange, onFinish, unsafe, syncError }: { draft: Draft; 
               </div>
             );
           })}
-          <button className="prow add" onClick={() => setShowAdd(!showAdd)}>+ Add a sub</button>
+          <div className="roster-actions">
+            <button className="prow add" onClick={() => setShowAdd(!showAdd)}>+ Add a sub</button>
+            <button className="primary finish-btn" disabled={!draft.events.length} onClick={onFinish}>Finish game</button>
+          </div>
         </div>
 
         <aside className="log" aria-label="Recent possessions">
@@ -321,6 +379,11 @@ function Live({ draft, onChange, onFinish, unsafe, syncError }: { draft: Draft; 
                       onClick={() => onChange(toggleFlag(draft, p))}>⚑</button>
                   </div>
                   <div className="log-text">{p.summary}{p.open && <span className="muted"> …</span>}</div>
+                  {flagged && (
+                    <input className="flag-note" placeholder="Note (optional): what went wrong?" aria-label={`Note for the flagged possession at ${(end.clock ?? "").slice(0, 5)}`}
+                      value={draft.flags!.find((f) => f.start === p.start)!.note ?? ""}
+                      onChange={(e) => onChange({ ...draft, flags: draft.flags!.map((f) => (f.start === p.start ? { ...f, note: e.target.value } : f)) })} />
+                  )}
                 </li>
               );
             })}
@@ -338,11 +401,9 @@ function Live({ draft, onChange, onFinish, unsafe, syncError }: { draft: Draft; 
       )}
 
       <div className="row gap live-foot">
-        <span className="muted small">{shortTeam(draft.team)} v {shortTeam(draft.opp)} · {draft.date} · {draft.events.length} plays{draft.flags?.length ? ` · ${draft.flags.length} flagged` : ""}{unsafe ? "" : <SyncStatus draft={draft} />}</span>
+        <span className="muted small">{shortTeam(draft.team)} v {shortTeam(draft.opp)} · {draft.date} · {draft.events.length} plays{draft.flags?.length ? ` · ${draft.flags.length} flagged` : ""}{unsafe ? "" : <SyncStatus draft={draft} waiting={!!waiting} />}</span>
         {syncError && <span className="error small" role="alert">{syncError}</span>}
         {unsafe && <span className="error small" role="alert">This device isn't saving the game (storage blocked or full). Don't close or refresh: finish and save, or download the CSV.</span>}
-        <span className="grow" />
-        <button className="primary" disabled={!draft.events.length} onClick={onFinish}>Finish game</button>
       </div>
     </main>
   );
@@ -380,12 +441,15 @@ function ClockAdjust({ draft, onApply, onCancel }: { draft: Draft; onApply: (d: 
 
 /* ------------------------------------------------------------------ review */
 
-function Review({ draft, cancelSend, onBack, onDone }: { draft: Draft; cancelSend: () => void; onBack: () => void; onDone: () => void }) {
+function Review({ draft, onChange, cancelSend, onSaved, onBack, onDone }: { draft: Draft; onChange: (d: Draft) => void; cancelSend: () => void; onSaved: () => void; onBack: () => void; onDone: () => void }) {
   const { season, updateSeason, online } = useSeason();
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<{ week: number } | null>(null);
-  const [here, setHere] = useState<Set<string>>(new Set());
-  const [notes, setNotes] = useState<Record<number, string>>(() => Object.fromEntries((draft.flags ?? []).map((f) => [f.start, f.note ?? ""])));
+  // Ticks and notes are saved with the game as they're made.
+  const here = new Set(draft.finishing?.here ?? []);
+  const setHere = (x: Set<string>) => onChange({ ...draft, finishing: { here: [...x] } });
+  const notes: Record<number, string> = Object.fromEntries((draft.flags ?? []).map((f) => [f.start, f.note ?? ""]));
+  const setNotes = (n: Record<number, string>) => onChange({ ...draft, flags: (draft.flags ?? []).map((f) => ({ ...f, note: n[f.start] })) });
   const poss = possessions(draft.events);
   const tally = useMemo(() => tallyRecording(draft.events, (n) => n), [draft.events]);
   const s = stateOf(draft);
@@ -400,23 +464,18 @@ function Review({ draft, cancelSend, onBack, onDone }: { draft: Draft; cancelSen
   const save = async () => {
     if (online) {
       if (exists) { setError(`Another tablet already sent ${draft.team}'s recording for ${draft.date}. Ask a league admin to remove it first, or download this game's CSV.`); return; }
-      const flags = (draft.flags ?? []).map((f) => ({
-        date: draft.date, team: draft.team, opp: draft.opp, start: f.start,
-        end: poss.find((p) => p.start === f.start)?.end ?? f.end, clock: f.clock, note: notes[f.start]?.trim() || undefined,
-      }));
+      const flags = savedFlags(draft, notes);
       // Not awaited: with no signal Firestore keeps it on this tablet and sends it later.
       cancelSend();
       online.pushRecording(draft, "finished", { present: [...here], flags }).catch((e) => setError((e as Error).message));
+      onSaved();
       setSaved({ week });
       return;
     }
     if (exists && !(await askConfirm(`${draft.team} already has a recording for ${draft.date}. Replace it with this one?`, { ok: "Replace" }))) return;
     await updateSeason((x) => {
       const have = new Set(x.input.players.map((p) => nameKey(p.name)));
-      const flags = (draft.flags ?? []).map((f) => ({
-        date: draft.date, team: draft.team, opp: draft.opp, start: f.start,
-        end: poss.find((p) => p.start === f.start)?.end ?? f.end, clock: f.clock, note: notes[f.start]?.trim() || undefined,
-      }));
+      const flags = savedFlags(draft, notes);
       // A player no longer ticked loses any "present with no stats" acknowledgement for this game.
       const ticked = new Set([...here].map((p) => quietKey(week, draft.team, draft.opp, p)));
       const gamePrefix = `${week}|${draft.team}|${draft.opp}|`;
@@ -432,6 +491,7 @@ function Review({ draft, cancelSend, onBack, onDone }: { draft: Draft; cancelSen
         ],
       } };
     });
+    onSaved();
     setSaved({ week });
   };
 

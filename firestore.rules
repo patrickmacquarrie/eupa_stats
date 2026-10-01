@@ -8,6 +8,7 @@ rules_version = '2';
 //   leagues/{league}/seasons/{season}     rules, players, schedule, overrides (no plays)
 //   leagues/{league}/seasons/{season}/recordings/{id}   one team's side of one game
 //   leagues/{league}/public/{season}      the player stats page's snapshot
+//   site/main                             { league, season }: what the site's main page shows
 //
 // A key is sha256(salt + ":" + password), computed in the browser. A device unlocks by writing
 // its member record with the key; the write is allowed only if the key matches the stored one.
@@ -27,6 +28,16 @@ service cloud.firestore {
     }
     function isAdmin(l) { return unlocked(l) && get(memberPath(l)).data.role == "admin"; }
     function canRecord(l) { return unlocked(l) && get(memberPath(l)).data.role in ["stat", "admin"]; }
+
+    // The main page's season: set by an admin of its league. Another league's admin can't take
+    // it over once it's set.
+    match /site/{doc} {
+      allow read: if true;
+      allow create, update: if doc == "main" && request.resource.data.keys().hasOnly(["league", "season"])
+        && request.resource.data.league is string && isAdmin(request.resource.data.league)
+        && (resource == null || isAdmin(resource.data.league));
+      allow delete: if false;
+    }
 
     match /leagues/{l} {
       allow read: if true;

@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
-import { HashRouter, Navigate, NavLink, Outlet, Route, Routes, useLocation, useParams } from "react-router-dom";
+import { HashRouter, Navigate, NavLink, Outlet, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { adminCounts } from "./lib/review";
 import { ConfirmHost } from "./lib/confirm";
@@ -23,6 +23,8 @@ const AdminFrame = lazy(() => import("./pages/Admin").then((m) => ({ default: m.
 const AdminReview = lazy(() => import("./pages/Admin").then((m) => ({ default: m.AdminReview })));
 const NewLeague = lazy(() => import("./pages/League").then((m) => ({ default: m.NewLeague })));
 const LeagueHome = lazy(() => import("./pages/League").then((m) => ({ default: m.LeagueHome })));
+const MainPage = lazy(() => import("./pages/Entry").then((m) => ({ default: m.MainPage })));
+const StatsEntry = lazy(() => import("./pages/Entry").then((m) => ({ default: m.StatsEntry })));
 const PublicPage = lazy(() => import("./pages/PublicPage").then((m) => ({ default: m.PublicPage })));
 const OnlineSeasonProvider = lazy(() => import("./lib/OnlineSeason"));
 const Subs = lazy(() => import("./pages/Subs").then((m) => ({ default: m.Subs })));
@@ -40,14 +42,17 @@ export function App() {
       <RouteBoundary>
       <Suspense fallback={<p className="muted pad">Loading…</p>}>
       <Routes>
-        <Route path="/" element={<Home />} />
+        {/* The main page is the main season's player stats; tablets use /stats; admins /admin. */}
+        <Route path="/" element={<MainPage />} />
+        <Route path="/stats" element={<StatsEntry />} />
+        <Route path="/admin" element={<Home />} />
         <Route path="/new" element={<NewSeason />} />
         <Route path="/new-league" element={<NewLeague />} />
         <Route path="/l/:slug" element={<LeagueHome />} />
         <Route path="/l/:slug/p/:sid" element={<PublicPage />} />
         <Route path="/s/:id" element={<SeasonShell />}>{seasonRoutes()}</Route>
         <Route path="/l/:slug/s/:sid" element={<OnlineSeasonShell />}>{seasonRoutes()}</Route>
-        <Route path="*" element={<p className="pad">Page not found. <a href="#/">Seasons</a></p>} />
+        <Route path="*" element={<p className="pad">Page not found. <a href="#/">Player stats</a> · <a href="#/admin">Seasons</a></p>} />
       </Routes>
       </Suspense>
       </RouteBoundary>
@@ -120,21 +125,24 @@ function SeasonScreen({ reset }: { reset: string }) {
 function Header() {
   const { season, nameIssueCount, open, result, base, canAdmin, canRecord, online: league } = useSeason();
   const online = useOnline();
-  const admin = adminCounts(open, nameIssueCount, result.warnings.length).total;
-  const tabs: [string, string][] = [["", "Overview"], ["/players", "Players"], ["/games", "Games"], ["/stats", "Player stats"], ...(canAdmin ? [["/admin", "Admin"] as [string, string]] : [])];
+  const admin = adminCounts(open, nameIssueCount, result.warnings.length, league?.unfinished.length).total;
+  // Admins see every tab; stats entry (and a locked device) sees the games, each with its box score.
+  const tabs: [string, string][] = canAdmin
+    ? [["", "Overview"], ["/players", "Players"], ["/games", "Games"], ["/stats", "Player stats"], ["/admin", "Admin"]]
+    : [["/games", "Games"]];
   return (
     <header className="app-header">
       <div className="header-bar">
         <div className="header-top">
-          <NavLink to="/" className="brand" aria-label="EUPA Stats, all seasons"><span className="brand-badge">EUPA</span>Stats</NavLink>
+          <BackButton />
+          <NavLink to={canAdmin ? "/admin" : "/"} className="brand" aria-label={canAdmin ? "EUPA Stats, all seasons" : "EUPA player stats"}><span className="brand-badge">EUPA</span>Stats</NavLink>
           <span className="season-title">{season.name}</span>
           <span className="grow" />
           {!online && <span className="offline-pill" title="Everything still saves on this device">Offline</span>}
-          {league && (
-            <NavLink to={`/l/${league.slug}`} className="role-pill" title="This device's access to the league">
-              {league.role === "admin" ? "Admin" : league.role === "stat" ? "Stats entry" : "View only · Unlock"}
-            </NavLink>
-          )}
+          {/* What this device can do; only a locked device links to the league page, to unlock. */}
+          {league && (league.role
+            ? <span className="role-pill" title="This device's access to the league">{league.role === "admin" ? "Admin" : "Stats entry"}</span>
+            : <NavLink to={`/l/${league.slug}`} className="role-pill">View only · Unlock</NavLink>)}
           <button className="small-btn" onClick={() => downloadJson(`${season.name}.json`, season)}>Export</button>
         </div>
       </div>
@@ -151,6 +159,13 @@ function Header() {
       </div>
     </header>
   );
+}
+
+/** One screen back, like the browser's Back; hidden on the first screen opened. */
+function BackButton() {
+  const nav = useNavigate();
+  if (useLocation().key === "default") return null;
+  return <button className="back-btn" onClick={() => nav(-1)} aria-label="Back" title="Back">←</button>;
 }
 
 function useOnline() {

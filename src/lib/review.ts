@@ -110,8 +110,8 @@ export function describeItems(items: OpenItem[]) {
  * What the Admin tab's red bubbles count. Unknown names are counted once, by the Names tab's
  * own list, rather than once per week here.
  */
-export function adminCounts(items: OpenItem[], nameIssues: number, warnings: number) {
-  const review = items.filter((i) => i.kind !== "name" && i.kind !== "sub").length + warnings;
+export function adminCounts(items: OpenItem[], nameIssues: number, warnings: number, unfinished = 0) {
+  const review = items.filter((i) => i.kind !== "name" && i.kind !== "sub").length + warnings + unfinished;
   const subs = items.filter((i) => i.kind === "sub").length;
   return { review, names: nameIssues, subs, total: review + nameIssues + subs };
 }

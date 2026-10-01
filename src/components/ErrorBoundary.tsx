@@ -19,7 +19,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode; reset?: stri
           <div className="row gap-sm wrap">
             <button className="primary" onClick={() => location.reload()}>Reload</button>
             {this.props.onExport && <button onClick={this.props.onExport}>Export this season</button>}
-            <a href="#/">Back to seasons</a>
+            <a href="#/admin">Back to seasons</a>
           </div>
         </section>
       </main>

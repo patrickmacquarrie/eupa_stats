@@ -2,17 +2,15 @@
 // Two passwords unlock changes: the stat password (Track Stats) and the admin password
 // (everything). See firestore.rules for how the passwords are checked without a server.
 import {
-  collection, doc, getDoc, getDocs, onSnapshot, query, serverTimestamp, where, writeBatch, deleteDoc, setDoc,
+  collection, doc, getDoc, getDocs, onSnapshot, query, serverTimestamp, updateDoc, where, writeBatch, deleteDoc, setDoc,
 } from "firebase/firestore";
 import { deviceId, firebase } from "./firebase";
+import { passwordProblem, slugProblem } from "./leagueForm";
 
 export type Role = "stat" | "admin";
 export interface League { slug: string; name: string; salt: string; seasons: { id: string; name: string }[] }
 
-export const SLUG = /^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/;
-export const slugProblem = (s: string) =>
-  SLUG.test(s) ? null : "Use 3 to 40 lower-case letters, numbers and dashes, starting and ending with a letter or number.";
-export const passwordProblem = (p: string) => (p.length >= 6 ? null : "Use at least 6 characters.");
+export { passwordProblem, slugProblem } from "./leagueForm";
 
 /** The key stored for a password: sha256 of the league's salt and the password, as hex. */
 export async function keyOf(salt: string, password: string) {
@@ -83,6 +81,12 @@ export async function changePassword(slug: string, role: Role, password: string)
   // An admin changing the admin password stays unlocked with the new one.
   if (role === "admin") b.set(memberRef(slug, uid), { role, key, at: serverTimestamp() });
   await b.commit();
+}
+
+/** Admin: renames the league (its link name stays). */
+export async function renameLeague(slug: string, name: string) {
+  if (!name.trim()) throw new Error("Give the league a name.");
+  await updateDoc(leagueRef(slug), { name: name.trim() });
 }
 
 /** This device's role in a league, live: "admin", "stat", or null when locked. */

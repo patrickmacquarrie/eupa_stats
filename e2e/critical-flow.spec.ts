@@ -27,8 +27,24 @@ test("create season, record, refresh recovery, finish, dispute, correct, export 
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
 
+  // A stand-in for the tablet's "keep the screen on" request, which the tablet drops when it locks.
+  await page.addInitScript(() => {
+    const locks: any[] = ((window as any).__locks = []);
+    Object.defineProperty(navigator, "wakeLock", { configurable: true, value: { request: () => {
+      const l: any = { ls: [], addEventListener: (_: string, f: () => void) => l.ls.push(f), release: () => { l.ls.forEach((f: () => void) => f()); return Promise.resolve(); } };
+      locks.push(l);
+      return Promise.resolve(l);
+    } } });
+  });
+  const locks = () => page.evaluate(() => (window as any).__locks.length as number);
+  const setVisible = (v: boolean) => page.evaluate((v) => {
+    Object.defineProperty(document, "visibilityState", { configurable: true, get: () => (v ? "visible" : "hidden") });
+    if (!v) (window as any).__locks.at(-1)?.release();
+    document.dispatchEvent(new Event("visibilitychange"));
+  }, v);
+
   // 1. Create a season from a pasted roster.
-  await page.goto("/");
+  await page.goto("/#/admin");
   await page.getByRole("link", { name: /New season/ }).click();
   await page.fill("#ns-name", "E2E Winter");
   await page.fill("#ns-roster", ROSTER);
@@ -61,6 +77,13 @@ test("create season, record, refresh recovery, finish, dispute, correct, export 
   await tap(page, "Amy Ash", "Point");                 // 2–1
   expect(await score(page)).toBe("2–1");
 
+  // The screen stays on while recording, and after the tablet locks and unlocks it asks again.
+  await expect.poll(locks).toBe(1);
+  await setVisible(false);
+  await setVisible(true);
+  await expect.poll(locks).toBe(2);
+  expect(await score(page)).toBe("2–1");
+
   // 3. A refresh mid-game resumes exactly where it was.
   await page.reload();
   await expect(page.locator(".scorebar")).toBeVisible();
@@ -68,6 +91,13 @@ test("create season, record, refresh recovery, finish, dispute, correct, export 
 
   // 4. Finish: the CSV download is a valid tablet recording; save to the season.
   await page.click("text=Finish game");
+  // Closing the browser on the Finish screen comes back to it, ticks and all.
+  const ada = page.locator(".noplays label", { hasText: "Ada Alto" }).locator("input");
+  await ada.check();
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Save to season" })).toBeVisible();
+  await expect(ada).toBeChecked();
+  await ada.uncheck();
   const [csvDownload] = await Promise.all([page.waitForEvent("download"), page.click("text=Download CSV")]);
   const csvPath = testInfo.outputPath("teamA.csv");
   await csvDownload.saveAs(csvPath);
@@ -116,6 +146,10 @@ test("create season, record, refresh recovery, finish, dispute, correct, export 
   // Ada didn't play; ticking "Was here" makes her an admin item, which the admin acknowledges.
   await page.click("nav.tabs >> text=Games");
   await page.click("text=Team A v Team B");
+  // Back goes one screen back, to the games list.
+  await page.getByRole("button", { name: "Back" }).click();
+  await expect(page).toHaveURL(/\/games$/);
+  await page.click("text=Team A v Team B");
   await page.locator("tr", { hasText: "Ada Alto" }).locator("text=Was here").click();
   await page.click("nav.tabs >> text=Admin");
   await expect(page.locator(".tabs .badge.alert")).toHaveText("2");
@@ -128,7 +162,7 @@ test("create season, record, refresh recovery, finish, dispute, correct, export 
   const [jsonDownload] = await Promise.all([page.waitForEvent("download"), page.click("header >> text=Export")]);
   const jsonPath = testInfo.outputPath("season.json");
   await jsonDownload.saveAs(jsonPath);
-  await page.goto("/");
+  await page.goto("/#/admin");
   await page.click(".season-list li:has-text('E2E Winter') >> button:text-is('Delete')");
   await page.click(".modal >> button:text-is('Delete')");
   await expect(page.locator(".season-list li")).toHaveCount(0);
@@ -149,7 +183,7 @@ test("create season, record, refresh recovery, finish, dispute, correct, export 
 });
 
 test("works offline once loaded", async ({ page, context }) => {
-  await page.goto("/");
+  await page.goto("/#/admin");
   await page.evaluate(async () => { await navigator.serviceWorker.ready; });
   await page.reload(); // now controlled by the service worker
   await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);

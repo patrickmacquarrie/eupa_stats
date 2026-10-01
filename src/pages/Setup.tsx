@@ -1,4 +1,4 @@
-import { useDeferredValue, useMemo, useState } from "react";
+import { lazy, Suspense, useDeferredValue, useMemo, useState } from "react";
 import { computeLeague } from "../../engine/compute";
 import { ruleProblems } from "../../engine/rules";
 import type { LeagueRules, Player, StatWeights } from "../../engine/types";
@@ -6,8 +6,11 @@ import { delta, money, shortTeam } from "../lib/format";
 import { BOARDS, COLUMNS, DEFAULT_PUBLIC, type PublicSettings } from "../lib/publicStats";
 import { newPlug } from "../lib/newSeason";
 import { recentLeagues } from "../lib/recentLeagues";
+import { newLeagueProblem, slugFrom } from "../lib/leagueForm";
 import { Link, useNavigate } from "react-router-dom";
 import { teamPayroll, useSeason } from "../lib/SeasonContext";
+
+const LeagueSettings = lazy(() => import("./LeagueSettings"));
 
 const WEIGHTS: [keyof StatWeights, string][] = [
   ["win", "Win"], ["goal", "Goal"], ["assist", "Assist"], ["secondAssist", "2nd assist"],
@@ -138,7 +141,7 @@ export function Setup() {
 }
 
 function SeasonBasics() {
-  const { season, update, updateSeason } = useSeason();
+  const { season, update, updateSeason, online } = useSeason();
   const { input } = season;
   const [name, setName] = useState(season.name);
   const [np, setNp] = useState<Player>({ name: "", gender: "M", initialSalary: 0, team: null, isSub: true });
@@ -201,6 +204,7 @@ function SeasonBasics() {
       </section>
       <PlugsCard />
       <MoveOnlineCard />
+      {online && online.role === "admin" && <Suspense fallback={null}><LeagueSettings slug={online.slug} sid={season.id} /></Suspense>}
     </div>
   );
 }
@@ -288,12 +292,19 @@ function PublicSettingsCard() {
 }
 
 /** A season kept only in this browser can be moved online to a league; this copy stays as it is. */
+/**
+ * Puts a season kept in this browser into a league online: one the browser already knows, or a new
+ * one made right here. Either way it ends in the online season, where everything else continues.
+ */
 function MoveOnlineCard() {
   const { season, online, updateSeason } = useSeason();
   const nav = useNavigate();
   const leagues = recentLeagues();
+  const [mode, setMode] = useState<"existing" | "new">(leagues.length ? "existing" : "new");
   const [slug, setSlug] = useState(leagues[0]?.slug ?? "");
   const [password, setPassword] = useState("");
+  const [f, setF] = useState({ name: "", slug: "", stat: "", admin: "", admin2: "" });
+  const [slugTouched, setSlugTouched] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   if (online) return null;
@@ -305,30 +316,64 @@ function MoveOnlineCard() {
       </section>
     );
   }
+  const form = { ...f, slug: slugTouched ? f.slug : slugFrom(f.name) };
+  const problem = mode === "new" ? newLeagueProblem(form) : !slug ? "Pick the league." : null;
+  const typed = mode === "new" ? !!(form.stat || form.admin) : false;
+  const target = mode === "new" ? form.slug : slug;
+
+  const move = async () => {
+    setBusy(true); setError(null);
+    try {
+      const league = await import("../lib/league");
+      if (mode === "new") await league.createLeague(form.slug, form.name, form.stat, form.admin);
+      else if (password) await league.unlock(slug, "admin", password);
+      const { moveSeasonOnline } = await import("../lib/onlineSeason");
+      try { await moveSeasonOnline(target, season); }
+      catch (e) {
+        if ((e as { code?: string }).code === "permission-denied") throw new Error("This device isn't unlocked as that league's admin. Enter its admin password.");
+        throw e;
+      }
+      if (mode === "new") (await import("../lib/recentLeagues")).rememberLeague(form.slug, form.name.trim());
+      // The first season online goes on the main page; after that an admin chooses in Setup.
+      await (await import("../lib/site")).setMainIfNone({ league: target, season: season.id }).catch(() => {});
+      await updateSeason((s) => ({ ...s, movedOnline: { slug: target, at: new Date().toISOString() } }));
+      nav(`/l/${target}/s/${season.id}`);
+    } catch (e) { setError((e as Error).message); setBusy(false); }
+  };
+
   return (
-    <section className="card">
+    <section className="card move-online">
       <h2>Move this season online</h2>
       <p className="muted small">Puts the season in a league online, where every tablet and admin shares it and recordings arrive as they're made. This browser keeps its copy.</p>
-      <div className="fields">
-        <label className="field"><span>League link name</span>
-          <input list="known-leagues" value={slug} onChange={(e) => setSlug(e.target.value.trim().toLowerCase())} placeholder="eupa-fall" />
-          <datalist id="known-leagues">{leagues.map((l) => <option key={l.slug} value={l.slug}>{l.name}</option>)}</datalist>
-          <small className="muted">No league yet? <Link to="/new-league">Create one</Link>.</small></label>
-        <label className="field"><span>League admin password</span>
-          <input type="password" value={password} onChange={(e) => { setPassword(e.target.value); setError(null); }} /></label>
+      <div className="seg" role="group" aria-label="League">
+        <button aria-pressed={mode === "existing"} onClick={() => setMode("existing")} disabled={!leagues.length}>A league I've opened</button>
+        <button aria-pressed={mode === "new"} onClick={() => setMode("new")}>Create a new league</button>
       </div>
-      {error && <p className="error">{error}</p>}
-      <button className="primary" disabled={!slug || !password || busy} onClick={async () => {
-        setBusy(true); setError(null);
-        try {
-          const { unlock } = await import("../lib/league");
-          await unlock(slug, "admin", password);
-          const { moveSeasonOnline } = await import("../lib/onlineSeason");
-          await moveSeasonOnline(slug, season);
-          await updateSeason((s) => ({ ...s, movedOnline: { slug, at: new Date().toISOString() } }));
-          nav(`/l/${slug}/s/${season.id}`);
-        } catch (e) { setError((e as Error).message); setBusy(false); }
-      }}>{busy ? "Moving…" : "Move this season online"}</button>
+      {mode === "existing" ? (
+        <div className="fields">
+          <label className="field"><span>League</span>
+            <select value={slug} onChange={(e) => setSlug(e.target.value)}>
+              {leagues.map((l) => <option key={l.slug} value={l.slug}>{l.name} ({l.slug})</option>)}
+            </select></label>
+          <label className="field"><span>League admin password</span>
+            <input type="password" value={password} onChange={(e) => { setPassword(e.target.value); setError(null); }} />
+            <small className="muted">Not needed if this device is already unlocked as its admin.</small></label>
+        </div>
+      ) : (
+        <div className="fields">
+          <label className="field"><span>League name</span><input id="mv-name" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="EUPA" /></label>
+          <label className="field"><span>Link name</span>
+            <input id="mv-slug" value={form.slug} onChange={(e) => { setSlugTouched(true); setF({ ...f, slug: e.target.value.toLowerCase() }); }} placeholder="eupa" /></label>
+          <label className="field"><span>Stats-entry password</span><input id="mv-stat" type="password" autoComplete="new-password" value={f.stat} onChange={(e) => setF({ ...f, stat: e.target.value })} />
+            <small className="muted">For the volunteers with the tablets.</small></label>
+          <label className="field"><span>Admin password</span><input id="mv-admin" type="password" autoComplete="new-password" value={f.admin} onChange={(e) => setF({ ...f, admin: e.target.value })} /></label>
+          <label className="field"><span>Admin password again</span><input id="mv-admin2" type="password" autoComplete="new-password" value={f.admin2} onChange={(e) => setF({ ...f, admin2: e.target.value })} /></label>
+        </div>
+      )}
+      {(error || (problem && typed)) && <p className="error">{error ?? problem}</p>}
+      <button className="primary" disabled={!!problem || busy} onClick={move}>
+        {busy ? "Moving…" : mode === "new" ? "Create the league and move this season" : "Move this season online"}
+      </button>
     </section>
   );
 }

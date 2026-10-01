@@ -51,12 +51,16 @@ interface Ctx {
 export interface OnlineCtx {
   slug: string;
   role: "stat" | "admin" | null;
-  /** Recordings still being recorded, by date|team|opp. */
+  /** Today's recordings still being recorded, by week|team|opp. */
   live: Set<string>;
+  /** Recordings from an earlier day whose tablet never pressed Finish. Their plays are in. */
+  unfinished: { date: string; team: string; opp: string }[];
+  /** Admin: marks a recording finished when its tablet never did. */
+  markFinished: (d: { date: string; team: string; opp: string }) => Promise<void>;
   /** The device that recorded each recording, by date|team|opp. */
   owners: Map<string, string>;
   uid: string;
-  pushRecording: (d: Draft, status: "live" | "finished", finish?: { present: string[]; flags: SavedFlag[] }) => Promise<void>;
+  pushRecording: (d: Draft, status: "live" | "finished", extra?: { present?: string[]; flags?: SavedFlag[] }) => Promise<void>;
   deleteRecording: (d: Pick<Draft, "date" | "team" | "opp">) => Promise<void>;
   /** Calls back with true when this device's writes to the recording have reached the server. */
   watchSynced: (d: Pick<Draft, "date" | "team" | "opp">, onSynced: (synced: boolean) => void) => () => void;
@@ -132,7 +136,7 @@ export function SeasonProvider({ id, children }: { id: string; children: ReactNo
   const [loadError, setLoadError] = useState<string | null>(null);
 
   if (season === undefined) return <p className="muted pad">Loading season…</p>;
-  if (season === null) return <p className="pad">{loadError ?? "That season isn't in this browser."} <a href="#/">Back to seasons</a></p>;
+  if (season === null) return <p className="pad">{loadError ?? "That season isn't in this browser."} <a href="#/admin">Back to seasons</a></p>;
   return (
     <SeasonView season={season} persist={persist} saveError={saveError} base={`/s/${season.id}`} draftKey={season.id} canAdmin canRecord>
       {children}
@@ -159,7 +163,7 @@ export function SeasonView({ season, persist, saveError, base, draftKey, canAdmi
         <h1>This season's numbers can't be calculated</h1>
         <pre className="crash-msg">{computed.error}</pre>
         <p>Its data is still stored. Export it to keep a copy, then fix the rules or data it names.</p>
-        <div className="row gap-sm"><button className="primary" onClick={() => downloadJson(`${season.name}.json`, season)}>Export this season</button><a href="#/">Back to seasons</a></div>
+        <div className="row gap-sm"><button className="primary" onClick={() => downloadJson(`${season.name}.json`, season)}>Export this season</button><a href="#/admin">Back to seasons</a></div>
       </section></main>
     );
   }

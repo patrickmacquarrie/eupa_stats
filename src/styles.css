@@ -112,6 +112,7 @@ ul.plain li { padding: 2px 0; }
 .season-title { color: var(--on-brand-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-left: 1px solid rgb(255 255 255 / 0.25); padding-left: 12px; }
 .header-top button { background: transparent; color: var(--on-brand); border-color: rgb(255 255 255 / 0.45); }
 .header-top button:hover:not(:disabled) { background: rgb(255 255 255 / 0.12); }
+.header-top button.back-btn { font-size: 1.25rem; line-height: 1; padding: 6px 12px; min-width: 44px; min-height: 40px; }
 .tab-bar { background: var(--brand-deep); border-top: 1px solid rgb(255 255 255 / 0.18); }
 .tab-row { display: flex; align-items: center; gap: 12px; padding: 0 12px; max-width: 1200px; margin: 0 auto; }
 .tabs { display: flex; gap: 2px; overflow-x: auto; flex: 1; min-width: 0; }
@@ -479,9 +480,22 @@ table.data th { text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.
 .leagues-online { margin: 8px 0 20px; }
 .leagues-online input { min-width: 240px; }
 a.button-link { display: inline-block; padding: 6px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-1); color: var(--text); }
+a.button-link.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
 a.button-link:hover { text-decoration: none; background: var(--surface-2); }
+a.button-link.primary:hover { background: var(--accent); filter: brightness(1.08); }
 .unlock-row { margin-top: 10px; align-items: flex-end; }
 .ok-text { color: var(--good); }
 .role-pill { font-size: 0.8rem; padding: 3px 10px; border-radius: 999px; border: 1px solid rgb(255 255 255 / 0.45); color: var(--on-brand); white-space: nowrap; }
 .role-pill:hover { text-decoration: none; background: rgb(255 255 255 / 0.12); }
 .moved-note { background: var(--info-bg); padding: 8px 16px; font-size: 0.9rem; text-align: center; }
+
+/* Track Stats: Finish sits beside "Add a sub", where it's seen; a flagged possession takes a note. */
+.roster-actions { display: flex; gap: 8px; align-items: stretch; }
+.roster-actions .prow.add { flex: 1; }
+.roster-actions .finish-btn { min-height: 52px; padding: 0 22px; font-size: 1rem; }
+.log .flag-note { width: 100%; margin-top: 4px; font-size: 0.85rem; padding: 4px 6px; }
+.unfinished-note { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; justify-content: space-between; margin: 8px 0; }
+
+.pub-foot { max-width: 1200px; margin: 24px auto 32px; padding: 0 16px; text-align: center; }
+.continue-game { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap;
+  padding: 12px 16px; background: var(--warn-bg); border-bottom: 1px solid var(--border); }

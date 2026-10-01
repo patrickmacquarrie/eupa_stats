@@ -3,11 +3,12 @@ import { Link, NavLink } from "react-router-dom";
 import { adminCounts, describeItems, isDisputed } from "../lib/review";
 import { setOfficial } from "../lib/official";
 import { useSeason } from "../lib/SeasonContext";
+import { weekOfDate } from "../lib/season";
 
 /** The Admin tab's own tabs, shown above each admin screen. */
 export function AdminFrame({ children }: { children: ReactNode }) {
-  const { base: seasonBase, open, nameIssueCount, result } = useSeason();
-  const counts = adminCounts(open, nameIssueCount, result.warnings.length);
+  const { base: seasonBase, open, nameIssueCount, result, online } = useSeason();
+  const counts = adminCounts(open, nameIssueCount, result.warnings.length, online?.unfinished.length);
   const base = `${seasonBase}/admin`;
   const tabs: [string, string, number][] = [
     ["", "Needs attention", counts.review], ["/names", "Names", counts.names], ["/subs", "Subs", counts.subs],
@@ -29,12 +30,13 @@ export function AdminFrame({ children }: { children: ReactNode }) {
 
 /** Everything that keeps a week provisional, plus the engine's own warnings. */
 export function AdminReview() {
-  const { season, input, result, games, computeMs, nameIssueCount, open, provisional, update, updateSeason } = useSeason();
+  const { season, input, result, games, computeMs, nameIssueCount, open, provisional, update, updateSeason, online } = useSeason();
+  const unfinished = online?.unfinished ?? [];
   const quiet = open.filter((i) => i.kind === "quiet");
   const last = input.throughWeek;
   const disputed = games.filter((g) => g.week <= last && isDisputed(g)).length;
   const notes = sessionStorage.getItem(`notes:${season.id}`);
-  const clear = !provisional.length && !nameIssueCount && !result.warnings.length && !quiet.length;
+  const clear = !provisional.length && !nameIssueCount && !result.warnings.length && !quiet.length && !unfinished.length;
 
   return (
     <main className="page">
@@ -74,6 +76,25 @@ export function AdminReview() {
               </details>
             );
           })}
+        </section>
+      )}
+
+      {unfinished.length > 0 && (
+        <section className="card" aria-labelledby="unfinished-title">
+          <h2 id="unfinished-title">Not finished on the tablet</h2>
+          <p className="muted small">These tablets were closed without pressing Finish. Every play they recorded is already in the season; only the end-of-game check (players here with no plays, notes on flags) was skipped. Check the game, then mark it finished.</p>
+          <ul className="plain small item-list">{unfinished.map((u) => {
+            const week = weekOfDate(input.schedule, u.date);
+            const [a, b] = [u.team, u.opp].sort();
+            return (
+              <li key={`${u.date}|${u.team}|${u.opp}`}>
+                {week !== null ? <Link to={`../games/${week}/${encodeURIComponent(a)}/${encodeURIComponent(b)}`}>{u.team}'s recording v {u.opp}, {u.date}</Link> : <span>{u.team}'s recording v {u.opp}, {u.date}</span>}
+                <span className="approve-inline">
+                  <button className="small-btn" onClick={() => online!.markFinished(u).catch(() => {})}>Mark finished</button>
+                </span>
+              </li>
+            );
+          })}</ul>
         </section>
       )}
 
