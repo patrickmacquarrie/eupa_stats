@@ -114,6 +114,15 @@ device offline skips it rather than queueing old numbers. The page reads the sna
 marks provisional weeks. The copy-and-paste shareable page (`npm run build:share`) remains
 for seasons kept in a browser, and until the online page has replaced it.
 
+Backups: every Monday, `.github/workflows/backup.yml` saves every online league's details and
+each season, in the same format as the app's Export, as a download on that run's page in the
+repo's Actions tab ("Backup"), kept for 90 days. To restore a season, download it, unzip it and
+use Import on the Seasons screen; from there an admin can move it online again. "Run workflow"
+on the Backup page takes one at any time. It needs no secret, because everything it saves is
+readable by anyone already; the password keys aren't readable and aren't saved. While the repo is
+public, anyone signed in to GitHub can download these files too. `npm run backup -- <folder>`
+does the same from a computer.
+
 CI (`.github/workflows/ci.yml`) runs typecheck, unit tests, the validation baseline, both
 builds and the browser test on every push and pull request. Its two jobs, `Typecheck` and
 `Browser`, are the required checks for merging into `main`.

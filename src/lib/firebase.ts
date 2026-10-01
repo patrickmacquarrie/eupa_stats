@@ -1,19 +1,10 @@
-// The league's Firebase project. These values identify the project to browsers and are meant to
-// be public; what anyone can do with them is decided by firestore.rules.
+// The league's Firebase project, for the browser.
 import { initializeApp, type FirebaseApp } from "firebase/app";
 import { connectAuthEmulator, getAuth, signInAnonymously, type Auth } from "firebase/auth";
 import {
   connectFirestoreEmulator, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, type Firestore,
 } from "firebase/firestore";
-
-const config = {
-  apiKey: "AIzaSyC53kTEHsAh7uWVPdLBY4XKVUgUdK1Y0mw",
-  authDomain: "eupa-stats.firebaseapp.com",
-  projectId: "eupa-stats",
-  storageBucket: "eupa-stats.firebasestorage.app",
-  messagingSenderId: "1056256623242",
-  appId: "1:1056256623242:web:76bd60956eff966002a373",
-};
+import { config } from "./firebaseConfig";
 
 /** Browser tests and local development run against the Firebase emulators instead. */
 const EMULATOR = import.meta.env.VITE_FIREBASE_EMULATOR === "true";
