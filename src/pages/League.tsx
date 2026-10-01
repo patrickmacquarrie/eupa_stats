@@ -21,7 +21,7 @@ export function NewLeague() {
 
   return (
     <main className="page narrow">
-      <p className="crumbs"><Link to="/">Seasons</Link> /</p>
+      <p className="crumbs"><Link to="/admin">Seasons</Link> /</p>
       <h1>Create a league online</h1>
       <p className="muted">Anyone with the league's link can see its standings and stats. The stats-entry password lets a tablet record games; the admin password allows everything else. You can change either one later.</p>
       <section className="card">
@@ -61,13 +61,13 @@ export function LeagueHome() {
     return () => { live = false; stop(); };
   }, [slug]);
 
-  if (error) return <main className="page narrow"><p className="error">{error}</p><Link to="/">Back to seasons</Link></main>;
+  if (error) return <main className="page narrow"><p className="error">{error}</p><Link to="/admin">Back to seasons</Link></main>;
   if (league === undefined) return <p className="muted pad">Loading league…</p>;
-  if (league === null) return <main className="page narrow"><p>There's no league called “{slug}”.</p><Link to="/">Back to seasons</Link></main>;
+  if (league === null) return <main className="page narrow"><p>There's no league called “{slug}”.</p><Link to="/admin">Back to seasons</Link></main>;
 
   return (
     <main className="page narrow">
-      <p className="crumbs"><Link to="/">Seasons</Link> /</p>
+      <p className="crumbs"><Link to="/admin">Seasons</Link> /</p>
       <h1>{league.name}</h1>
       <p className="muted">
         {role ? <>This device is unlocked for <strong>{ROLE_LABEL[role].toLowerCase()}</strong>.</> : role === null ? "Anyone with this link can see the standings and stats." : ""}
@@ -78,7 +78,7 @@ export function LeagueHome() {
         <h2>Seasons</h2>
         {league.seasons.length ? (
           <ul className="plain season-links">{league.seasons.map((s) => (
-            <li key={s.id}><Link to={`/l/${slug}/s/${s.id}`}>{s.name}</Link> · <Link to={`/l/${slug}/p/${s.id}`} className="small">Player stats</Link></li>
+            <li key={s.id}><Link to={`/l/${slug}/s/${s.id}${role === "admin" ? "" : "/games"}`}>{s.name}</Link> · <Link to={`/l/${slug}/p/${s.id}`} className="small">Player stats</Link></li>
           ))}</ul>
         ) : <p className="muted">No seasons online yet.{role === "admin" ? " Open a season from this device's list and choose “Move this season online”." : ""}</p>}
       </section>
@@ -92,7 +92,7 @@ export function LeagueHome() {
   );
 }
 
-function UnlockCard({ slug, current }: { slug: string; current: Role | null }) {
+export function UnlockCard({ slug, current }: { slug: string; current: Role | null }) {
   const [which, setWhich] = useState<Role>(current === "stat" ? "admin" : "stat");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);

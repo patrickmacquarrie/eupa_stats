@@ -28,7 +28,7 @@ test("create season, record, refresh recovery, finish, dispute, correct, export 
   page.on("pageerror", (e) => errors.push(e.message));
 
   // 1. Create a season from a pasted roster.
-  await page.goto("/");
+  await page.goto("/#/admin");
   await page.getByRole("link", { name: /New season/ }).click();
   await page.fill("#ns-name", "E2E Winter");
   await page.fill("#ns-roster", ROSTER);
@@ -132,7 +132,7 @@ test("create season, record, refresh recovery, finish, dispute, correct, export 
   const [jsonDownload] = await Promise.all([page.waitForEvent("download"), page.click("header >> text=Export")]);
   const jsonPath = testInfo.outputPath("season.json");
   await jsonDownload.saveAs(jsonPath);
-  await page.goto("/");
+  await page.goto("/#/admin");
   await page.click(".season-list li:has-text('E2E Winter') >> button:text-is('Delete')");
   await page.click(".modal >> button:text-is('Delete')");
   await expect(page.locator(".season-list li")).toHaveCount(0);
@@ -153,7 +153,7 @@ test("create season, record, refresh recovery, finish, dispute, correct, export 
 });
 
 test("works offline once loaded", async ({ page, context }) => {
-  await page.goto("/");
+  await page.goto("/#/admin");
   await page.evaluate(async () => { await navigator.serviceWorker.ready; });
   await page.reload(); // now controlled by the service worker
   await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);

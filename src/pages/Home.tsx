@@ -1,9 +1,11 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { askConfirm } from "../lib/confirm";
 import { Link, useNavigate } from "react-router-dom";
 import { recentLeagues } from "../lib/recentLeagues";
 import { seasonFromFixture, seasonFromJson, type SeasonMeta } from "../lib/season";
 import { deleteSeason, downloadJson, listSeasons, loadSeason, saveSeason } from "../lib/store";
+
+const MainSeasonLink = lazy(() => import("./Entry").then((m) => ({ default: m.MainSeasonLink })));
 
 type Demo = { name: string; detail: string; url: string };
 /** Demo seasons exist only in demo builds; the import is removed from production builds. */
@@ -39,6 +41,8 @@ export function Home() {
       <span className="pub-band-sub">Edmonton Ultimate Players Association</span>
     </div></header>
     <main className="page narrow">
+      {/* Only a browser that has opened a league loads Firebase here. */}
+      {recentLeagues().length > 0 && <Suspense fallback={null}><MainSeasonLink /></Suspense>}
       <h1>Seasons</h1>
       <p className="muted">
         Every salary, cap and box score is recalculated from the raw tablet recordings and the league's rules.

@@ -18,6 +18,52 @@ const STATS: [keyof StatLine, string][] = [
 ];
 
 export function GameDetail() {
+  const { canAdmin } = useSeason();
+  return canAdmin ? <GameAdmin /> : <GameSummary />;
+}
+
+/** Stats entry's view of a game: each team's score and every player's line, nothing to change. */
+function GameSummary() {
+  const { week: wk = "", a = "", b = "" } = useParams();
+  const week = Number(wk);
+  const { input, result } = useSeason();
+  const date = input.events.find((e) => [a, b].includes(e.statTeam) && [a, b].includes(e.otherTeam) && weekOfDate(input.schedule, e.date) === week)?.date
+    ?? input.schedule.find((s) => s.week === week)?.date;
+  const COLS: [keyof StatLine, string][] = [["goals", "Point"], ["assists", "Assist"], ["touches", "Touch"], ["blocks", "D-Play"], ["throwaways", "Throwaway"], ["drops", "Drop"], ["gso", "GSO"]];
+  return (
+    <main className="page">
+      <p className="crumbs"><Link to="../games">Games</Link> / Week {week}</p>
+      <h1>{a} v {b}</h1>
+      {date && <p className="muted">{new Date(date + "T12:00:00").toLocaleDateString("en-CA", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}</p>}
+      <div className="two-col">
+        {[[a, b], [b, a]].map(([team, opp]) => {
+          const rec = result.recordings.find((r) => r.week === week && r.team === team && r.opp === opp);
+          const lines = result.lines.filter((l) => l.week === week && l.team === team && l.opp === opp && l.role !== "absent")
+            .sort((x, y) => Number(x.role === "sub") - Number(y.role === "sub") || x.player.localeCompare(y.player));
+          return (
+            <section key={team} className="card scroll-x game-summary">
+              <div className="row">
+                <h2 className="grow">{team}</h2>
+                {rec && !Number.isNaN(rec.finalScore) && <span className="score">{rec.finalScore}–{rec.finalOppScore} {resultLabel(rec.result)}</span>}
+              </div>
+              {!rec ? <p className="muted small">No recording for this side yet.</p> : (
+                <table className="data">
+                  <thead><tr><th>Player</th>{COLS.map(([, l]) => <th key={l} className="num">{l}</th>)}</tr></thead>
+                  <tbody>{lines.map((l) => (
+                    <tr key={l.player}><td>{l.player}{l.role === "sub" && <span className="tag">sub</span>}</td>
+                      {COLS.map(([k, l2]) => <td key={l2} className="num">{l[k]}</td>)}</tr>
+                  ))}</tbody>
+                </table>
+              )}
+            </section>
+          );
+        })}
+      </div>
+    </main>
+  );
+}
+
+function GameAdmin() {
   const { week: wk = "", a = "", b = "" } = useParams();
   const week = Number(wk);
   const { season, input, result } = useSeason();

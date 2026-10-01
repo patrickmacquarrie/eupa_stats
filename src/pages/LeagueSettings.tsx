@@ -4,10 +4,11 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { changePassword, getLeague, lock, passwordProblem, renameLeague, type Role } from "../lib/league";
 import { rememberLeague } from "../lib/recentLeagues";
+import { setMain, watchMain, type MainSeason } from "../lib/site";
 
 export const ROLE_LABEL: Record<Role, string> = { stat: "Stats entry", admin: "League admin" };
 
-export default function LeagueSettings({ slug }: { slug: string }) {
+export default function LeagueSettings({ slug, sid }: { slug: string; sid: string }) {
   const nav = useNavigate();
   const [name, setName] = useState<string | null>(null);
   const [saved, setSaved] = useState("");
@@ -30,6 +31,7 @@ export default function LeagueSettings({ slug }: { slug: string }) {
           }}>Rename</button>
         </div>
       )}
+      <MainPageSetting slug={slug} sid={sid} onMessage={(m, e) => { setMsg(m); setError(e); }} />
       <Passwords slug={slug} onMessage={(m, e) => { setMsg(m); setError(e); }} />
       {msg && <p className="ok-text">{msg}</p>}
       {error && <p className="error">{error}</p>}
@@ -38,6 +40,29 @@ export default function LeagueSettings({ slug }: { slug: string }) {
         <span className="muted"> · it'll need a password again to record or change anything.</span>
       </p>
     </section>
+  );
+}
+
+/** Whether this season is the one at the site's main address (and where /stats sends tablets). */
+function MainPageSetting({ slug, sid, onMessage }: { slug: string; sid: string; onMessage: (msg: string | null, error: string | null) => void }) {
+  const [main, setMainState] = useState<MainSeason | null | undefined>(undefined);
+  useEffect(() => watchMain(setMainState, () => setMainState(null)), []);
+  if (main === undefined) return null;
+  const here = main?.league === slug && main.season === sid;
+  return (
+    <>
+      <h3>Main page</h3>
+      {here ? (
+        <p className="small">This season is on the main page: player stats at the site's address, and Track Stats at <code>/stats</code>.</p>
+      ) : (
+        <div className="row gap-sm wrap">
+          <p className="small grow">{main ? "Another season is on the main page." : "No season is on the main page yet."} The main page shows its player stats, and tablets at <code>/stats</code> record into it.</p>
+          <button onClick={() => setMain({ league: slug, season: sid }).then(() => onMessage("This season is now on the main page.", null))
+            .catch((e) => onMessage(null, (e as { code?: string }).code === "permission-denied" ? "Another league's season is on the main page; only its admin can change that." : (e as Error).message))}>
+            Show this season on the main page</button>
+        </div>
+      )}
+    </>
   );
 }
 

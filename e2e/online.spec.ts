@@ -41,7 +41,7 @@ test("create a league, unlock a tablet with the stats password, and lock it out 
   await expect(tablet.locator("main")).toContainText("Anyone with this link can see");
 
   // The league is listed on each device's Seasons screen.
-  await tablet.goto("/#/");
+  await tablet.goto("/#/admin");
   await expect(tablet.locator(".leagues-online")).toContainText("E2E League");
   expect(errors).toEqual([]);
 });
@@ -60,7 +60,7 @@ test("a season moved online gets a tablet's recording live, with and without a s
   for (const p of [admin, tablet]) p.on("pageerror", (e) => errors.push(e.message));
 
   // A season made in the admin's browser, moved online into a league created in the same step.
-  await admin.goto("/");
+  await admin.goto("/#/admin");
   await admin.getByRole("link", { name: /New season/ }).click();
   await admin.fill("#ns-name", "Winter Online");
   await admin.fill("#ns-roster", ROSTER);
@@ -80,18 +80,19 @@ test("a season moved online gets a tablet's recording live, with and without a s
   await admin.getByLabel("League name").fill("Sync League Online");
   await admin.getByRole("button", { name: "Rename" }).click();
   await expect(admin.locator(".league-settings .ok-text")).toHaveText("League renamed.");
+  // The first season online goes on the main page.
+  await expect(admin.locator(".league-settings")).toContainText("This season is on the main page");
 
-  // The tablet unlocks for stats entry and opens the season: no Admin tab.
-  await tablet.goto(`/#/l/${slug}`);
+  // The tablet opens /stats, unlocks once with the stats-entry password and lands in Track Stats,
+  // with the Games tab beside it and nothing else.
+  await tablet.goto("/#/stats");
   await tablet.getByLabel("Stats entry password").fill("tablet-pass");
   await tablet.getByRole("button", { name: "Unlock", exact: true }).click();
-  await expect(tablet.locator("main")).toContainText("unlocked for stats entry");
-  await tablet.click("text=Winter Online");
+  await expect(tablet).toHaveURL(new RegExp(`/l/${slug}/s/[^/]+/record$`));
   await expect(tablet.locator(".role-pill")).toHaveText("Stats entry");
-  await expect(tablet.locator("nav.tabs")).not.toContainText("Admin");
+  await expect(tablet.locator("nav.tabs a")).toHaveText(["Games"]);
 
   // Record: each tap is saved on the tablet and synced to the league.
-  await tablet.click(".track-stats");
   await tablet.fill('input[type="date"]', "2027-01-04");
   await tablet.click("text=Start recording");
   await tap(tablet, "Ann Arbour", "Touch");
@@ -131,6 +132,15 @@ test("a season moved online gets a tablet's recording live, with and without a s
   await expect(visitor.locator(".pub-standings tbody tr").first().locator("td").nth(2)).toHaveText("3", { timeout: 15_000 });
   await expect(visitor.locator(".pub")).toContainText("Ann Arbour");
   await expect(visitor.locator("body")).not.toContainText("$");
+  // The site's main address shows the same page.
+  await visitor.goto("/");
+  await expect(visitor.locator(".pub-standings tbody tr").first()).toContainText("1–0");
+
+  // The tablet sees the game's box score, as stats entry does: plays per player, no salaries.
+  await tablet.getByRole("link", { name: "Open the game" }).click();
+  await expect(tablet.locator(".game-summary").first()).toContainText("Team A3–0 W");
+  await expect(tablet.locator(".game-summary thead").first()).toHaveText("PlayerPointAssistTouchD-PlayThrowawayDropGSO");
+  await expect(tablet.locator("main")).not.toContainText("$");
 
   // The admin sees the finished game, and the standings follow it.
   await admin.goto(seasonUrl);
@@ -144,7 +154,7 @@ test("a season moved online gets a tablet's recording live, with and without a s
 
   // Team B's side, recorded on the same tablet: a flag with a note made during the game, then the
   // tablet is closed without Finish. Nothing is lost.
-  await tablet.getByRole("button", { name: "Record another game" }).click();
+  await tablet.click(".track-stats");
   await tablet.fill('input[type="date"]', "2027-01-04");
   await tablet.getByLabel("Recording for").selectOption("Team B");
   await tablet.getByLabel("Against").selectOption("Team A");

@@ -21,11 +21,23 @@ npm run e2e:online   # two devices on one online league, in the Firebase emulato
                      # moving a season online, a tablet recording live and with no signal
 ```
 
-What's in the app (`src/`). The header has five tabs (Overview, Players, Games, Player stats, Admin) and, on the right, **Track Stats** for stat-takers. Admin's red bubble counts everything waiting on an admin.
+The site has three addresses:
+
+| Address | Who | What |
+|---|---|---|
+| https://eupa-stats.web.app | Everyone | The main season's player stats: standings, leaderboards and totals, no salaries |
+| …/stats | Stat-takers | Unlock once with the stats-entry password, then straight to Track Stats, with a Games tab of each game's box score |
+| …/admin | League admins | The seasons in this browser (new, import, export) and a shortcut to the main season online, with every tab |
+
+The main season is the first season moved online; an admin can switch it in Admin → Setup ("Show
+this season on the main page"). `/stats` and `/admin` are Firebase Hosting redirects to the app's
+`#/stats` and `#/admin`.
+
+What's in the app (`src/`). An admin's header has five tabs (Overview, Players, Games, Player stats, Admin) and, on the right, **Track Stats** for stat-takers. Admin's red bubble counts everything waiting on an admin.
 
 | Screen | What it does |
 |---|---|
-| Seasons | Start a new season by pasting the roster from a spreadsheet (player, gender, team, starting salary), setting the weekly schedule (with a Skip for holidays) and choosing the rules (a short team is offered a plug: "Team 2 has 9 players, the largest team has 10. Add a plug?"); or start from one of the three demo seasons, import a season export or a master-sheet fixture, export, delete |
+| Seasons (/admin) | Start a new season by pasting the roster from a spreadsheet (player, gender, team, starting salary), setting the weekly schedule (with a Skip for holidays) and choosing the rules (a short team is offered a plug: "Team 2 has 9 players, the largest team has 10. Add a plug?"); or start from one of the three demo seasons, import a season export or a master-sheet fixture, export, delete |
 | Overview | Team standings after any week: record, goals for and against, goal difference and salary (over-cap salaries in red), with the cap as a footnote; salary-by-week chart |
 | Players | Sortable salary and stat table by team and week; each player has a salary chart and game log |
 | Games | Every game with both tablets' scores; when the tablets' finals differ, the game page shows a recommended score with a plain-language reason for every goal only one tablet has (a missed tap, a tablet that stopped recording, O-Error tapped instead of scored-on, two quick scores) and any goal the other tablet contradicts; an admin clicks Approve or Change, and nothing settles on its own. The page also shows the official score, a "Was here" box for rostered players with no plays (otherwise they count as absent), stat-takers' flagged possessions, and a possession editor for either side's recording: edit a possession's catches and how it ended, insert possessions (in pairs, so the teams keep alternating), or delete a pair. The editor previews the stat, score and salary effect before saving. A side can also be replaced with a box score |
@@ -34,8 +46,8 @@ What's in the app (`src/`). The header has five tabs (Overview, Players, Games, 
 | Admin → Names | Recorded spellings that match no player, with a suggested match (typos like Katelyn/Katelynn, short first names like Jess/Jessica); the sheet's old "Name Sub" records, merged in one click; likely duplicate player records. Merges are aliases applied when computing, so recordings keep the tablet's spelling and every merge can be undone |
 | Admin → Subs | Who each sub covered. With auto-match subs on (Setup), every sub is matched automatically and tagged "auto-matched"; any match can be overridden, including "Nobody (extra player)", and "Clear override" hands it back to auto-match. A filter shows only overrides and unmatched subs |
 | Admin → Recordings | Upload tablet CSVs (one per team per game), preview problems and the cross-check before saving, delete recordings |
-| Admin → Setup | Edit the league rules with a live preview of who moves before saving; schedule, counted-through week, game length, auto-match subs, add players, add plugs per team (removal waits for the trades screen once games exist), public stats columns |
-| Track Stats | Live stat entry for one team's side, on a tablet: check in who's here, add subs, then record with buttons behind each name, like the old tablet app: Touch / Point / Drop on offense (Drop becomes Throwaway on the row of whoever has the disc), D-Play / GSO on defense, plus an Offensive error button. Point on a receiver records the catch and the point in one press. Undo reverts a whole press. Beside the roster is a log of recent possessions; flagging one (⚑) sends it to the game page for the admin. Saved on every tap; resumes after a refresh. The clock starts with the first play. Finish shows the box score and lists checked-in players with no plays (absent unless ticked), then saves to the season and/or downloads the old app's CSV |
+| Admin → Setup | Edit the league rules with a live preview of who moves before saving; schedule, counted-through week, game length, auto-match subs, add players, add plugs per team (removal waits for the trades screen once games exist), public stats columns. For a season kept in the browser, "Move this season online" (into a league it creates there, or one already opened); for an online season, the league's name, both passwords, the main page and "Lock this device" |
+| Track Stats | Live stat entry for one team's side, on a tablet: check in who's here, add subs, then record with buttons behind each name, like the old tablet app: Touch / Point / Drop on offense (Drop becomes Throwaway on the row of whoever has the disc), D-Play / GSO on defense, plus an Offensive error button. Point on a receiver records the catch and the point in one press. Undo reverts a whole press. Beside the roster is a log of recent possessions; flagging one (⚑) sends it to the game page for the admin, with a note typed right there. Saved on every tap; resumes after a refresh. The clock starts with the first play. Finish (beside "+ Add a sub") shows the box score and lists checked-in players with no plays (absent unless ticked), then saves to the season and/or downloads the old app's CSV. Online, a tablet closed without Finish loses nothing: its plays are sent when it sleeps or closes, and again when Track Stats reopens; the game shows as "not finished" until an admin marks it finished under Needs attention |
 
 The shareable player stats page is a separate single-file page (`npm run build:share` → `dist-share/stats-page.html`) containing only the stats view and a snapshot of player totals, so sharing its link exposes nothing else. Its owner updates it by pasting a snapshot from the Player stats tab; the page republishes itself with the new numbers.
 

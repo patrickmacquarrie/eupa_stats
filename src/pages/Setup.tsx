@@ -204,7 +204,7 @@ function SeasonBasics() {
       </section>
       <PlugsCard />
       <MoveOnlineCard />
-      {online && online.role === "admin" && <Suspense fallback={null}><LeagueSettings slug={online.slug} /></Suspense>}
+      {online && online.role === "admin" && <Suspense fallback={null}><LeagueSettings slug={online.slug} sid={season.id} /></Suspense>}
     </div>
   );
 }
@@ -334,6 +334,8 @@ function MoveOnlineCard() {
         throw e;
       }
       if (mode === "new") (await import("../lib/recentLeagues")).rememberLeague(form.slug, form.name.trim());
+      // The first season online goes on the main page; after that an admin chooses in Setup.
+      await (await import("../lib/site")).setMainIfNone({ league: target, season: season.id }).catch(() => {});
       await updateSeason((s) => ({ ...s, movedOnline: { slug: target, at: new Date().toISOString() } }));
       nav(`/l/${target}/s/${season.id}`);
     } catch (e) { setError((e as Error).message); setBusy(false); }

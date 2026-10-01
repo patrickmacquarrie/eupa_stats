@@ -60,11 +60,11 @@ export function NewSeason() {
   return (
     <>
       <header className="pub-band"><div className="pub-band-inner">
-        <Link to="/" className="brand-badge brand-link">EUPA</Link>
+        <Link to="/admin" className="brand-badge brand-link">EUPA</Link>
         <span className="pub-band-name">New season</span>
       </div></header>
       <main className="page narrow">
-        <p className="crumbs"><Link to="/">Seasons</Link> /</p>
+        <p className="crumbs"><Link to="/admin">Seasons</Link> /</p>
         <h1>Start a new season</h1>
 
         <section className="card">
@@ -184,7 +184,7 @@ export function NewSeason() {
         <div className="row gap-sm wrap">
           {problem && <span className="attn">{problem}</span>}
           <span className="grow" />
-          <Link to="/">Cancel</Link>
+          <Link to="/admin">Cancel</Link>
           <button className="primary big" disabled={!!problem || busy} onClick={create}>Create season</button>
         </div>
       </main>

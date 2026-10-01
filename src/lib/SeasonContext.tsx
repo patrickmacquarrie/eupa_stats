@@ -136,7 +136,7 @@ export function SeasonProvider({ id, children }: { id: string; children: ReactNo
   const [loadError, setLoadError] = useState<string | null>(null);
 
   if (season === undefined) return <p className="muted pad">Loading season…</p>;
-  if (season === null) return <p className="pad">{loadError ?? "That season isn't in this browser."} <a href="#/">Back to seasons</a></p>;
+  if (season === null) return <p className="pad">{loadError ?? "That season isn't in this browser."} <a href="#/admin">Back to seasons</a></p>;
   return (
     <SeasonView season={season} persist={persist} saveError={saveError} base={`/s/${season.id}`} draftKey={season.id} canAdmin canRecord>
       {children}
@@ -163,7 +163,7 @@ export function SeasonView({ season, persist, saveError, base, draftKey, canAdmi
         <h1>This season's numbers can't be calculated</h1>
         <pre className="crash-msg">{computed.error}</pre>
         <p>Its data is still stored. Export it to keep a copy, then fix the rules or data it names.</p>
-        <div className="row gap-sm"><button className="primary" onClick={() => downloadJson(`${season.name}.json`, season)}>Export this season</button><a href="#/">Back to seasons</a></div>
+        <div className="row gap-sm"><button className="primary" onClick={() => downloadJson(`${season.name}.json`, season)}>Export this season</button><a href="#/admin">Back to seasons</a></div>
       </section></main>
     );
   }

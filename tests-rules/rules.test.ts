@@ -142,3 +142,22 @@ describe("creating a league", () => {
     await assertFails(b.commit());
   });
 });
+
+describe("the main page's season", () => {
+  it("is set by an admin of its league, never by a stat-taker or visitor", async () => {
+    for (const uid of [null, "stranger", "tablet"]) await assertFails(setDoc(doc(as(uid), "site/main"), { league: "eupa", season: "fall" }));
+    await assertSucceeds(setDoc(doc(as("admin1"), "site/main"), { league: "eupa", season: "fall" }));
+    await assertSucceeds(getDoc(doc(as(null), "site/main")));
+    await assertFails(setDoc(doc(as("admin1"), "site/main"), { league: "eupa", season: "fall", extra: 1 }));
+  });
+  it("can't be taken over by another league's admin", async () => {
+    await assertSucceeds(setDoc(doc(as("admin1"), "site/main"), { league: "eupa", season: "fall" }));
+    await env.withSecurityRulesDisabled(async (c) => {
+      const db = c.firestore();
+      await setDoc(doc(db, "leagues/other"), { slug: "other", name: "Other", salt: SALT, seasons: [] });
+      await setDoc(doc(db, "leagues/other/secrets/keys"), { statKey: key("o-stat"), adminKey: key("o-admin") });
+      await setDoc(doc(db, "leagues/other/members/otherAdmin"), { role: "admin", key: key("o-admin") });
+    });
+    await assertFails(setDoc(doc(as("otherAdmin"), "site/main"), { league: "other", season: "x" }));
+  });
+});
