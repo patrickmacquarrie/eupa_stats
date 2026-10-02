@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { PublicStatsView } from "../components/PublicStatsView";
+import { SiteNav } from "../components/SiteNav";
 import { watchPublic } from "../lib/onlineSeason";
 import type { Snapshot } from "../lib/publicStats";
 import { Loading } from "../components/Loading";
@@ -23,7 +24,7 @@ export function PublicPage({ slug: slugProp, sid: sidProp }: { slug?: string; si
   );
 }
 
-/** The public pages' band and footer; the footer has the way in for volunteers and admins. */
+/** The public pages' band, with the way in for volunteers and admins. */
 export function PublicShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="pub-shell">
@@ -31,10 +32,10 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
         <div className="pub-band-inner">
           <span className="brand-badge">EUPA</span>
           <span className="pub-band-name">Player stats</span>
+          <SiteNav current="stats" />
         </div>
       </header>
       <main className="page">{children}</main>
-      <footer className="pub-foot muted small"><Link to="/stats">Stats entry</Link> · <Link to="/admin">League admin</Link></footer>
     </div>
   );
 }

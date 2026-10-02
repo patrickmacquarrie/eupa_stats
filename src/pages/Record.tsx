@@ -3,7 +3,7 @@ import { askConfirm } from "../lib/confirm";
 import { Link } from "react-router-dom";
 import { tallyRecording } from "../../engine/compute";
 import { genderOf } from "../../engine/pairing";
-import type { Player } from "../../engine/types";
+import type { PlayEvent, Player } from "../../engine/types";
 import { shortTeam, todayIso as today } from "../lib/format";
 import { nameKey, suggestPlayer } from "../lib/names";
 import { elapsedMs, gameTime, parseClock, possessions, press, setClock, stateOf, toggleClock, toggleFlag, toTabletCsv, undoPress, csvName, type Draft, type Phase, type Press } from "../lib/recorder";
@@ -12,6 +12,22 @@ import { quietKey } from "../lib/review";
 import { useSeason } from "../lib/SeasonContext";
 import { clearDraft, downloadText, loadDraft, saveDraft } from "../lib/store";
 import { Loading } from "../components/Loading";
+import { useInstallAsStatsEntry } from "../lib/installAs";
+
+/** What a tap recorded, in a few words: "Point · Al Ames (assist Ann Arbour)". */
+export function tapLabel(e: PlayEvent | undefined): string {
+  if (!e) return "";
+  switch (e.action) {
+    case "Touch": return `Touch · ${e.player}`;
+    case "Point": return `Point · ${e.player ?? "?"}${e.lastPlayer ? ` (assist ${e.lastPlayer})` : ""}`;
+    case "Drop": return `Drop · ${e.player}`;
+    case "T-Away": return `Throwaway · ${e.player}`;
+    case "D-Play": return `D-Play · ${e.player}`;
+    case "O-Error": return "Their turnover · our disc";
+    case "GSO": return `Scored on${e.player ? ` · ${e.player} (GSO)` : ""}`;
+    default: return e.action;
+  }
+}
 
 /** The game's flags as the season keeps them, each with its possession's current end and its note. */
 function savedFlags(d: Draft, notes?: Record<number, string>): SavedFlag[] {
@@ -30,6 +46,7 @@ function savedFlags(d: Draft, notes?: Record<number, string>): SavedFlag[] {
 const SEND_EVERY_MS = 8000;
 
 export function Record() {
+  useInstallAsStatsEntry();
   const { draftKey, canRecord, online } = useSeason();
   const [draft, setDraft] = useState<Draft | null | undefined>(undefined);
 
@@ -318,8 +335,22 @@ function Live({ draft, onChange, onFinish, unsafe, syncError, waiting }: { draft
     // A short buzz says the tap counted (phones that support it; iPhones ignore it).
     try { navigator.vibrate?.(8); } catch { /* not allowed here */ }
     setMsg(null);
+    say(tapLabel(r.events[r.events.length - 1]));
     onChange(r);
   };
+  const undo = () => {
+    setMsg(null);
+    say(`Undid ${tapLabel(draft.events[draft.events.length - 1])}`, true);
+    onChange(undoPress(draft));
+  };
+  // A brief line saying exactly what the last tap recorded ("Point · Al Ames (assist Ann)").
+  const [toast, setToast] = useState<{ text: string; undo: boolean; n: number } | null>(null);
+  const say = (text: string, undo = false) => setToast((t) => ({ text, undo, n: (t?.n ?? 0) + 1 }));
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 1600);
+    return () => clearTimeout(t);
+  }, [toast?.n]);
   const clock = () => onChange(toggleClock(draft));
   const [adjusting, setAdjusting] = useState(false);
 
@@ -331,6 +362,7 @@ function Live({ draft, onChange, onFinish, unsafe, syncError, waiting }: { draft
 
   return (
     <main className="live">
+      {toast && <div key={toast.n} className={"tap-toast" + (toast.undo ? " undo" : "")} role="status" aria-live="polite">{toast.text}</div>}
       <div className={"scorebar" + (draft.jersey ? ` split ours-${draft.jersey}` : "")}>
         <div className="score-team"><span>{shortTeam(draft.team)}</span><strong key={s.us} className="score-num">{s.us}</strong></div>
         <div className="score-mid">
@@ -356,7 +388,7 @@ function Live({ draft, onChange, onFinish, unsafe, syncError, waiting }: { draft
         <span key={s.phase} className={`poss ${s.phase} poss-narrow`}>{offense ? "Offense" : "Defense"}</span>
         <p className={"prompt " + s.phase} aria-live="polite">{prompt}</p>
         {!offense && <button className="rbtn turnover" onClick={() => go({ kind: "offensiveError" })}>Offensive error</button>}
-        <button className="rbtn quiet" disabled={!draft.events.length} onClick={() => { setMsg(null); onChange(undoPress(draft)); }}>Undo</button>
+        <button className="rbtn quiet" disabled={!draft.events.length} onClick={undo}>Undo</button>
         <button className="rbtn quiet log-toggle" aria-expanded={showLog} onClick={() => setShowLog(!showLog)}>
           Log{draft.flags?.length ? ` ⚑${draft.flags.length}` : ""}</button>
       </div>

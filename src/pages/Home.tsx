@@ -5,6 +5,7 @@ import { recentLeagues } from "../lib/recentLeagues";
 import { seasonFromFixture, seasonFromJson, type SeasonMeta } from "../lib/season";
 import { deleteSeason, downloadJson, listSeasons, loadSeason, saveSeason } from "../lib/store";
 import { Loading } from "../components/Loading";
+import { SiteNav } from "../components/SiteNav";
 
 const MainSeasonLink = lazy(() => import("./Entry").then((m) => ({ default: m.MainSeasonLink })));
 
@@ -40,6 +41,7 @@ export function Home() {
       <span className="brand-badge">EUPA</span>
       <span className="pub-band-name">Stats</span>
       <span className="pub-band-sub">Edmonton Ultimate Players Association</span>
+      <SiteNav current="admin" />
     </div></header>
     <main className="page narrow">
       {/* Only a browser that has opened a league loads Firebase here. */}

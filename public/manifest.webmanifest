@@ -1,11 +1,21 @@
 {
+  "id": "./",
   "name": "EUPA Stats",
   "short_name": "EUPA Stats",
-  "description": "League stats, salaries and live stat entry for the Edmonton Ultimate Players Association.",
+  "description": "Player stats, standings and live stat entry for the Edmonton Ultimate Players Association.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#efefef",
+  "background_color": "#346d25",
   "theme_color": "#346d25",
-  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ],
+  "shortcuts": [
+    { "name": "Stats entry", "short_name": "Stats entry", "url": "./#/stats", "icons": [{ "src": "icon-entry-192.png", "sizes": "192x192", "type": "image/png" }] },
+    { "name": "Admin", "url": "./#/admin", "icons": [{ "src": "icon-192.png", "sizes": "192x192", "type": "image/png" }] }
+  ]
 }

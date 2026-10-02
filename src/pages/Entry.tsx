@@ -9,6 +9,7 @@ import type { Draft } from "../lib/recorder";
 import { UnlockCard } from "./League";
 import { PublicPage, PublicShell } from "./PublicPage";
 import { Loading } from "../components/Loading";
+import { useInstallAsStatsEntry } from "../lib/installAs";
 
 function useMain() {
   const [main, setMain] = useState<MainSeason | null | undefined>(undefined);
@@ -45,6 +46,7 @@ function ContinueGame({ main }: { main: MainSeason }) {
 
 /** /stats: a tablet unlocks once with the stats-entry password, then goes straight to Track Stats. */
 export function StatsEntry() {
+  useInstallAsStatsEntry();
   const { main, error } = useMain();
   const [role, setRole] = useState<Role | null | undefined>(undefined);
   useEffect(() => (main ? watchRole(main.league, setRole) : undefined), [main?.league]);
