@@ -185,7 +185,7 @@ export function NewSeason() {
           {problem && <span className="attn">{problem}</span>}
           <span className="grow" />
           <Link to="/admin">Cancel</Link>
-          <button className="primary big" disabled={!!problem || busy} onClick={create}>Create season</button>
+          <button className="primary big" aria-busy={busy} disabled={!!problem || busy} onClick={create}>Create season</button>
         </div>
       </main>
     </>

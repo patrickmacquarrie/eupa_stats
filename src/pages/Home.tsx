@@ -4,6 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { recentLeagues } from "../lib/recentLeagues";
 import { seasonFromFixture, seasonFromJson, type SeasonMeta } from "../lib/season";
 import { deleteSeason, downloadJson, listSeasons, loadSeason, saveSeason } from "../lib/store";
+import { Loading } from "../components/Loading";
 
 const MainSeasonLink = lazy(() => import("./Entry").then((m) => ({ default: m.MainSeasonLink })));
 
@@ -49,7 +50,7 @@ export function Home() {
         Seasons are stored in this browser; export one to move it or back it up.
       </p>
 
-      {seasons === null ? <p className="muted">Loading…</p> : seasons.length === 0 ? (
+      {seasons === null ? <Loading /> : seasons.length === 0 ? (
         <p className="empty">No seasons yet. Start a new season below, or import one you exported.</p>
       ) : (
         <ul className="season-list">

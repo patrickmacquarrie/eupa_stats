@@ -371,7 +371,7 @@ function MoveOnlineCard() {
         </div>
       )}
       {(error || (problem && typed)) && <p className="error">{error ?? problem}</p>}
-      <button className="primary" disabled={!!problem || busy} onClick={move}>
+      <button className="primary" aria-busy={busy} disabled={!!problem || busy} onClick={move}>
         {busy ? "Moving…" : mode === "new" ? "Create the league and move this season" : "Move this season online"}
       </button>
     </section>

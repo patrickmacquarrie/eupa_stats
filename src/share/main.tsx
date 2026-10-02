@@ -75,7 +75,7 @@ function UpdatePanel({ artifact, onReadOnly }: { artifact: ArtifactNs; onReadOnl
       {msg && <p className="error small">{msg}</p>}
       <div className="row gap-sm">
         <button onClick={() => { setOpen(false); setText(""); }}>Cancel</button>
-        <button className="primary" disabled={!parsed || busy} onClick={publish}>{busy ? "Publishing…" : "Publish for everyone"}</button>
+        <button className="primary" aria-busy={busy} disabled={!parsed || busy} onClick={publish}>{busy ? "Publishing…" : "Publish for everyone"}</button>
       </div>
     </section>
   );

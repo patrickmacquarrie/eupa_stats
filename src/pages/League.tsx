@@ -4,6 +4,7 @@ import { createLeague, getLeague, lock, unlock, watchRole, type League, type Rol
 import { newLeagueProblem, slugFrom } from "../lib/leagueForm";
 import { rememberLeague } from "../lib/recentLeagues";
 import { Passwords, ROLE_LABEL } from "./LeagueSettings";
+import { Loading } from "../components/Loading";
 
 /** Create a league: a name, a link name, and the two passwords. */
 export function NewLeague() {
@@ -36,7 +37,7 @@ export function NewLeague() {
           <label className="field"><span>Admin password again</span><input id="lg-admin2" type="password" autoComplete="new-password" value={admin2} onChange={(e) => setAdmin2(e.target.value)} /></label>
         </div>
         {(error || (problem && (stat || admin))) && <p className="error">{error ?? problem}</p>}
-        <button className="primary" disabled={!!problem || busy} onClick={async () => {
+        <button className="primary" aria-busy={busy} disabled={!!problem || busy} onClick={async () => {
           setBusy(true); setError(null);
           try { await createLeague(link, name, stat, admin); rememberLeague(link, name.trim()); nav(`/l/${link}`); }
           catch (e) { setError((e as Error).message); setBusy(false); }
@@ -62,7 +63,7 @@ export function LeagueHome() {
   }, [slug]);
 
   if (error) return <main className="page narrow"><p className="error">{error}</p><Link to="/admin">Back to seasons</Link></main>;
-  if (league === undefined) return <p className="muted pad">Loading league…</p>;
+  if (league === undefined) return <Loading pad label="Loading league…" />;
   if (league === null) return <main className="page narrow"><p>There's no league called “{slug}”.</p><Link to="/admin">Back to seasons</Link></main>;
 
   return (
@@ -109,7 +110,7 @@ export function UnlockCard({ slug, current }: { slug: string; current: Role | nu
       <div className="row gap-sm wrap unlock-row">
         <input type="password" aria-label={`${ROLE_LABEL[which]} password`} placeholder="Password" value={password}
           onChange={(e) => { setPassword(e.target.value); setError(null); }} />
-        <button className="primary" disabled={!password || busy} onClick={async () => {
+        <button className="primary" aria-busy={busy} disabled={!password || busy} onClick={async () => {
           setBusy(true);
           try { await unlock(slug, which, password); setPassword(""); setError(null); }
           catch (e) { setError((e as Error).message); }
