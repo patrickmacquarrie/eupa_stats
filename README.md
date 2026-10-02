@@ -69,9 +69,10 @@ subs, ticked no-play players and flags). Stat-takers write only their own record
 reassembles the season from the documents (`src/lib/onlineShape.ts`), so every screen works the
 same as for a season kept in a browser, and an admin's change is written back as only the
 documents it touched. Track Stats still saves every tap on the tablet first, sends the recording
-to the league every few seconds, and shows "Saved on this tablet · Synced" or "· will sync when
+to the league within 8 seconds of a tap (at once when the tablet sleeps or closes), and shows "Saved on this tablet · Synced" or "· will sync when
 online"; Firestore keeps the device's own copy, so the season opens and records with no signal and
-catches up when one returns. The admin's Games page shows each game as "live" while it's being
+catches up when one returns. While a game is being recorded, the tablet doesn't rebuild the
+season on each send (it's applied when recording stops), so taps never wait on the engine. The admin's Games page shows each game as "live" while it's being
 recorded. A season kept in a browser has "Move this season online" in Admin → Setup (admin
 password needed); the browser's copy stays, marked as moved. Admin → Recordings keeps CSV upload
 and download as a backup.

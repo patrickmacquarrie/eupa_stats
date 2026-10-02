@@ -26,9 +26,16 @@ export function watchSeason(slug: string, sid: string, onChange: (r: Remote) => 
   let gotSeason = false, gotRecs = false;
   const emit = () => onChange({ seasonDoc, recs, ready: gotSeason && gotRecs });
   const a = onSnapshot(seasonRef(slug, sid), (s) => { gotSeason = true; seasonDoc = s.exists() ? (s.data() as Season) : null; emit(); }, onError);
+  // Only the recordings that changed are read again: a tablet's send touches one of dozens.
   const b = onSnapshot(recsRef(slug, sid), (q) => {
     gotRecs = true;
-    recs = new Map(q.docs.map((d) => { const x = d.data() as RecordingDoc & { updatedAt?: unknown }; delete x.updatedAt; return [d.id, x]; }));
+    recs = new Map(recs);
+    for (const c of q.docChanges()) {
+      if (c.type === "removed") { recs.delete(c.doc.id); continue; }
+      const x = c.doc.data() as RecordingDoc & { updatedAt?: unknown };
+      delete x.updatedAt;
+      recs.set(c.doc.id, x);
+    }
     emit();
   }, onError);
   return () => { a(); b(); };

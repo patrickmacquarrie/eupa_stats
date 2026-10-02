@@ -23,14 +23,23 @@ export default function OnlineSeasonProvider({ slug, sid, children }: { slug: st
   const [uid, setUid] = useState("");
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  useEffect(() => watchSeason(slug, sid, setRemote, (e) => setLoadError(message(e))), [slug, sid]);
+  const remoteRef = useRef(remote);
+  remoteRef.current = remote;
+  // While this device records a game, updates (its own sends, mostly) wait: rebuilding the whole
+  // season on each one would compete with the stat-taker's taps, and recording doesn't use it.
+  const held = useRef(false), heldRemote = useRef<Remote | null>(null);
+  useEffect(() => watchSeason(slug, sid, (r) => {
+    if (held.current && remoteRef.current?.ready) heldRemote.current = r; else setRemote(r);
+  }, (e) => setLoadError(message(e))), [slug, sid]);
+  const holdUpdates = useCallback((on: boolean) => {
+    held.current = on;
+    if (!on && heldRemote.current) { setRemote(heldRemote.current); heldRemote.current = null; }
+  }, []);
   useEffect(() => watchRole(slug, setRole), [slug]);
   useEffect(() => { deviceId().then(setUid).catch(() => {}); }, []);
   useEffect(() => { getLeague(slug).then((l) => l && rememberLeague(slug, l.name)).catch(() => {}); }, [slug]);
 
   const season = useMemo<Season | null>(() => (remote?.seasonDoc ? assemble(remote.seasonDoc, [...remote.recs.values()]) : null), [remote]);
-  const remoteRef = useRef(remote);
-  remoteRef.current = remote;
 
   // Firestore shows a write at once (even offline) and sends it when it can; a refusal arrives later.
   const persist = useCallback(async (next: Season) => {
@@ -57,8 +66,9 @@ export default function OnlineSeasonProvider({ slug, sid, children }: { slug: st
       pushRecording: (d, status, finish) => pushRecording(slug, sid, d, status, finish),
       deleteRecording: (d) => deleteRecording(slug, sid, d),
       watchSynced: (d, cb) => watchSynced(slug, sid, d, cb),
+      holdUpdates,
     };
-  }, [remote, season, slug, sid, role, uid]);
+  }, [remote, season, slug, sid, role, uid, holdUpdates]);
 
   // A tablet keeps the public page current once its own game is finished, so the page catches up
   // after game night even if no admin opens the app. Mid-game, it leaves that to the admin.

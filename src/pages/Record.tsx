@@ -21,6 +21,13 @@ function savedFlags(d: Draft, notes?: Record<number, string>): SavedFlag[] {
   }));
 }
 
+/**
+ * How long a tap waits before the recording goes to the league. Every tap is already saved on the
+ * tablet, and a waiting send goes at once when the tablet sleeps or closes; sending less often
+ * keeps the tablet free for taps (each send writes the whole recording).
+ */
+const SEND_EVERY_MS = 8000;
+
 export function Record() {
   const { draftKey, canRecord, online } = useSeason();
   const [draft, setDraft] = useState<Draft | null | undefined>(undefined);
@@ -65,7 +72,7 @@ export function Record() {
     if (d) saveDraft(d).then((r) => setUnsafe(!r.local && !r.db)); else clearDraft(draftKey).catch(() => {});
     if (!online || !d) { cancelSend(); return; }
     if (sendNow) { if (timer.current) clearTimeout(timer.current); send(); }
-    else if (!timer.current) { timer.current = setTimeout(send, 3000); setWaiting(true); }
+    else if (!timer.current) { timer.current = setTimeout(send, SEND_EVERY_MS); setWaiting(true); }
   };
   // Saved: off this tablet at once, so reopening Track Stats can't bring the game back as live.
   const saved = () => { cancelSend(); latest.current = null; clearDraft(draftKey).catch(() => {}); };
@@ -259,7 +266,15 @@ function Live({ draft, onChange, onFinish, unsafe, syncError, waiting }: { draft
   // set off by accident, and the roster sized to fit (see "recording" in styles.css).
   useEffect(() => {
     document.documentElement.classList.add("recording");
-    return () => document.documentElement.classList.remove("recording");
+    online?.holdUpdates(true);
+    // iOS Safari shows :active (the pressed look) only when a touch listener exists.
+    const touch = () => {};
+    document.addEventListener("touchstart", touch, { passive: true });
+    return () => {
+      document.documentElement.classList.remove("recording");
+      online?.holdUpdates(false);
+      document.removeEventListener("touchstart", touch);
+    };
   }, []);
   const [, tick] = useState(0);
   const s = stateOf(draft);
@@ -298,6 +313,8 @@ function Live({ draft, onChange, onFinish, unsafe, syncError, waiting }: { draft
   const go = (p: Press) => {
     const r = press(draft, p);
     if (typeof r === "string") { setMsg(r); return; }
+    // A short buzz says the tap counted (phones that support it; iPhones ignore it).
+    try { navigator.vibrate?.(8); } catch { /* not allowed here */ }
     setMsg(null);
     onChange(r);
   };

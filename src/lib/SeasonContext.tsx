@@ -64,6 +64,8 @@ export interface OnlineCtx {
   deleteRecording: (d: Pick<Draft, "date" | "team" | "opp">) => Promise<void>;
   /** Calls back with true when this device's writes to the recording have reached the server. */
   watchSynced: (d: Pick<Draft, "date" | "team" | "opp">, onSynced: (synced: boolean) => void) => () => void;
+  /** Track Stats: hold the season's updates while recording (they're applied when it lets go). */
+  holdUpdates: (on: boolean) => void;
 }
 
 const SeasonCtx = createContext<Ctx | null>(null);
