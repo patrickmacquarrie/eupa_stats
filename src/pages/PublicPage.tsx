@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { PublicStatsView } from "../components/PublicStatsView";
 import { watchPublic } from "../lib/onlineSeason";
 import type { Snapshot } from "../lib/publicStats";
+import { Loading } from "../components/Loading";
 
 /** The player stats page for one season: standings, leaderboards and totals, kept current by the league's devices. */
 export function PublicPage({ slug: slugProp, sid: sidProp }: { slug?: string; sid?: string }) {
@@ -15,7 +16,7 @@ export function PublicPage({ slug: slugProp, sid: sidProp }: { slug?: string; si
   return (
     <PublicShell>
       {error ? <p className="error">{error}</p>
-        : snap === undefined ? <p className="muted">Loading…</p>
+        : snap === undefined ? <Loading label="Loading stats…" />
         : snap === null ? <p className="empty">No stats published for this season yet.</p>
         : <PublicStatsView snapshot={snap} />}
     </PublicShell>

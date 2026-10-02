@@ -11,6 +11,7 @@ import { weekOfDate, withoutFlagsFor, type SavedFlag } from "../lib/season";
 import { quietKey } from "../lib/review";
 import { useSeason } from "../lib/SeasonContext";
 import { clearDraft, downloadText, loadDraft, saveDraft } from "../lib/store";
+import { Loading } from "../components/Loading";
 
 /** The game's flags as the season keeps them, each with its possession's current end and its note. */
 function savedFlags(d: Draft, notes?: Record<number, string>): SavedFlag[] {
@@ -86,7 +87,7 @@ export function Record() {
       </main>
     );
   }
-  if (draft === undefined) return <main className="page"><p className="muted">Loading…</p></main>;
+  if (draft === undefined) return <main className="page"><Loading /></main>;
   if (!draft || !draft.events || draft.present === undefined) return <GameSetup onStart={(d) => change(d, true)} />;
   // The Finish screen is part of the saved game, so closing the browser there comes back to it.
   if (draft.finishing) return <Review draft={draft} onChange={change} cancelSend={cancelSend} onSaved={saved} onBack={() => change({ ...draft, finishing: undefined })} onDone={() => change(null)} />;
@@ -260,6 +261,7 @@ function AddSub({ exclude, pending, onAdd }: { exclude: string[]; pending: Playe
 function Live({ draft, onChange, onFinish, unsafe, syncError, waiting }: { draft: Draft; onChange: (d: Draft) => void; onFinish: () => void; unsafe?: boolean; syncError?: string | null; waiting?: boolean }) {
   const { online } = useSeason();
   const [msg, setMsg] = useState<string | null>(null);
+  const [refusals, setRefusals] = useState(0);   // replays the shake when the same tap is refused again
   const [showAdd, setShowAdd] = useState(false);
   const [showLog, setShowLog] = useState(false);
   // While recording, the screen is a fixed panel: no page scroll, pull-to-refresh or zoom to
@@ -312,7 +314,7 @@ function Live({ draft, onChange, onFinish, unsafe, syncError, waiting }: { draft
 
   const go = (p: Press) => {
     const r = press(draft, p);
-    if (typeof r === "string") { setMsg(r); return; }
+    if (typeof r === "string") { setMsg(r); setRefusals((n) => n + 1); return; }
     // A short buzz says the tap counted (phones that support it; iPhones ignore it).
     try { navigator.vibrate?.(8); } catch { /* not allowed here */ }
     setMsg(null);
@@ -330,15 +332,15 @@ function Live({ draft, onChange, onFinish, unsafe, syncError, waiting }: { draft
   return (
     <main className="live">
       <div className={"scorebar" + (draft.jersey ? ` split ours-${draft.jersey}` : "")}>
-        <div className="score-team"><span>{shortTeam(draft.team)}</span><strong>{s.us}</strong></div>
+        <div className="score-team"><span>{shortTeam(draft.team)}</span><strong key={s.us} className="score-num">{s.us}</strong></div>
         <div className="score-mid">
-          <span className={`poss ${s.phase}`}>{offense ? "Offense" : "Defense"}</span>
+          <span key={s.phase} className={`poss ${s.phase}`}>{offense ? "Offense" : "Defense"}</span>
           <button className={"clock" + (running ? " on" : "")} onClick={clock} aria-label={running ? "Pause clock" : "Start clock"}>
             {gameTime(draft)} {running ? "❚❚" : "▶"}
           </button>
           <button className="link small clock-adjust" onClick={() => setAdjusting(!adjusting)} aria-expanded={adjusting}>Adjust clock</button>
         </div>
-        <div className="score-team right"><strong>{s.them}</strong><span>{shortTeam(draft.opp)}</span></div>
+        <div className="score-team right"><strong key={s.them} className="score-num">{s.them}</strong><span>{shortTeam(draft.opp)}</span></div>
       </div>
 
       {draft.date < today() && (
@@ -351,14 +353,14 @@ function Live({ draft, onChange, onFinish, unsafe, syncError, waiting }: { draft
       {adjusting && <ClockAdjust draft={draft} onApply={(d) => { onChange(d); setAdjusting(false); }} onCancel={() => setAdjusting(false)} />}
 
       <div className="live-top">
-        <span className={`poss ${s.phase} poss-narrow`}>{offense ? "Offense" : "Defense"}</span>
+        <span key={s.phase} className={`poss ${s.phase} poss-narrow`}>{offense ? "Offense" : "Defense"}</span>
         <p className={"prompt " + s.phase} aria-live="polite">{prompt}</p>
         {!offense && <button className="rbtn turnover" onClick={() => go({ kind: "offensiveError" })}>Offensive error</button>}
         <button className="rbtn quiet" disabled={!draft.events.length} onClick={() => { setMsg(null); onChange(undoPress(draft)); }}>Undo</button>
         <button className="rbtn quiet log-toggle" aria-expanded={showLog} onClick={() => setShowLog(!showLog)}>
           Log{draft.flags?.length ? ` ⚑${draft.flags.length}` : ""}</button>
       </div>
-      {msg && <p className="error small center">{msg}</p>}
+      {msg && <p key={refusals} className="error small center refused" role="alert">{msg}</p>}
 
       <div className="live-body">
         <div className="roster-col">

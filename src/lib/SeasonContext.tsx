@@ -12,6 +12,7 @@ import type { SubAssignment } from "../../engine/types";
 import { autoMatchOn, type SavedFlag, type Season } from "./season";
 import type { Draft } from "./recorder";
 import { downloadJson, loadSeason, saveSeason } from "./store";
+import { Loading } from "../components/Loading";
 
 
 interface Ctx {
@@ -137,7 +138,7 @@ export function SeasonProvider({ id, children }: { id: string; children: ReactNo
   }, []);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  if (season === undefined) return <p className="muted pad">Loading season…</p>;
+  if (season === undefined) return <Loading pad label="Loading season…" />;
   if (season === null) return <p className="pad">{loadError ?? "That season isn't in this browser."} <a href="#/admin">Back to seasons</a></p>;
   return (
     <SeasonView season={season} persist={persist} saveError={saveError} base={`/s/${season.id}`} draftKey={season.id} canAdmin canRecord>

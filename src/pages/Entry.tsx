@@ -8,6 +8,7 @@ import { shortTeam } from "../lib/format";
 import type { Draft } from "../lib/recorder";
 import { UnlockCard } from "./League";
 import { PublicPage, PublicShell } from "./PublicPage";
+import { Loading } from "../components/Loading";
 
 function useMain() {
   const [main, setMain] = useState<MainSeason | null | undefined>(undefined);
@@ -22,7 +23,7 @@ export function MainPage() {
   if (main) return <><ContinueGame main={main} /><PublicPage slug={main.league} sid={main.season} /></>;
   return (
     <PublicShell>
-      {error ? <p className="error">{error}</p> : main === undefined ? <p className="muted">Loading…</p> : (
+      {error ? <p className="error">{error}</p> : main === undefined ? <Loading /> : (
         <p className="empty">Player stats appear here once a league admin puts a season online.</p>
       )}
     </PublicShell>
@@ -49,7 +50,7 @@ export function StatsEntry() {
   useEffect(() => (main ? watchRole(main.league, setRole) : undefined), [main?.league]);
 
   if (error) return <main className="page narrow"><p className="error">{error}</p></main>;
-  if (main === undefined || (main && role === undefined)) return <p className="muted pad">Loading…</p>;
+  if (main === undefined || (main && role === undefined)) return <Loading pad />;
   if (!main) return <main className="page narrow"><h1>Stats entry</h1><p>No season is online yet. A league admin sets one up under <Link to="/admin">League admin</Link>.</p></main>;
   if (role) return <Navigate to={`/l/${main.league}/s/${main.season}/record`} replace />;
   return (

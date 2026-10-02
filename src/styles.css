@@ -571,3 +571,51 @@ html.recording .live > .card.sheet { position: fixed; left: 8px; right: 8px; bot
 /* The moment a button is pressed it looks pressed: CSS only, so it shows before any work runs. */
 .rbtn, .roster-actions button { -webkit-tap-highlight-color: transparent; transition: transform 60ms ease-out, filter 60ms ease-out; }
 .rbtn:active:not(:disabled), .roster-actions button:active:not(:disabled) { transform: scale(0.95); filter: brightness(0.88); transition: none; }
+
+/* ------------------------------------------------------------------ motion
+   Short, and only to confirm what just happened: transform and opacity only, so it never costs
+   a tap any time. Everything below is switched off for reduced motion (end of this section). */
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes rise-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes slide-up { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+@keyframes pop { 0% { transform: scale(1); } 40% { transform: scale(1.28); } 100% { transform: scale(1); } }
+@keyframes flash { 0% { filter: brightness(1.35) saturate(1.4); transform: scale(1.08); } 100% { filter: none; transform: none; } }
+@keyframes shake { 0%, 100% { transform: none; } 20% { transform: translateX(-6px); } 40% { transform: translateX(5px); } 60% { transform: translateX(-3px); } 80% { transform: translateX(2px); } }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+/* Loading: a spinner that appears only if loading takes more than a moment. */
+.loading { display: flex; align-items: center; gap: 10px; color: var(--text-muted); margin: 16px 0;
+  opacity: 0; animation: fade-in 200ms ease-out 150ms forwards; }
+.loading.pad { padding: 16px; margin: 0; }
+.spinner { width: 18px; height: 18px; border-radius: 50%; border: 2.5px solid var(--border); border-top-color: var(--accent);
+  animation: spin 0.7s linear infinite; flex: none; }
+/* A button that's working shows a spinner beside its label. */
+button[aria-busy="true"] { display: inline-flex; align-items: center; gap: 8px; }
+button[aria-busy="true"]::before { content: ""; width: 14px; height: 14px; border-radius: 50%; border: 2px solid currentColor;
+  border-top-color: transparent; animation: spin 0.7s linear infinite; }
+
+/* Every button, tab and link-button gives a little the moment it's pressed. */
+button, a.button-link, .tabs a, .subtabs a, .track-stats { transition: transform 80ms ease-out, background-color 120ms, filter 120ms; }
+button:active:not(:disabled), a.button-link:active, .tabs a:active, .subtabs a:active, .track-stats:active { transform: scale(0.96); transition: none; }
+
+/* Screens fade in; panels and dialogs slide up. */
+main.page, .pub-shell main { animation: rise-in 180ms ease-out; }
+main.live { animation: fade-in 150ms ease-out; }
+.modal-backdrop { animation: fade-in 120ms ease-out; }
+.modal, html.recording .live > .card.sheet, html.recording .log.open { animation: slide-up 180ms cubic-bezier(0.2, 0.8, 0.3, 1); }
+
+/* Track Stats: the score pops when it changes, Offense/Defense flashes when possession flips,
+   new possessions slide into the log, the disc moves smoothly, and a refused tap shakes. */
+.score-num { display: inline-block; animation: pop 260ms ease-out; }
+.poss { display: inline-block; animation: flash 320ms ease-out; }
+.log li { animation: rise-in 200ms ease-out; }
+.prow { transition: background-color 140ms ease-out, border-color 140ms ease-out, box-shadow 140ms ease-out; }
+.refused { animation: shake 300ms ease-out; }
+[data-sync="pending"] { animation: pulse 1.2s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; animation-delay: 0ms !important;
+    transition-duration: 0.01ms !important; }
+  .spinner, button[aria-busy="true"]::before { animation: none; }
+}

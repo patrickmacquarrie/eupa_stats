@@ -5,6 +5,7 @@ import { adminCounts } from "./lib/review";
 import { ConfirmHost } from "./lib/confirm";
 import { SeasonProvider, useSeason } from "./lib/SeasonContext";
 import { downloadJson } from "./lib/store";
+import { Loading } from "./components/Loading";
 
 // Each screen loads when first opened, so the recorder on a tablet doesn't wait for the rest.
 const GameDetail = lazy(() => import("./pages/GameDetail").then((m) => ({ default: m.GameDetail })));
@@ -40,7 +41,7 @@ export function App() {
     <HashRouter>
       <ConfirmHost />
       <RouteBoundary>
-      <Suspense fallback={<p className="muted pad">Loading…</p>}>
+      <Suspense fallback={<Loading pad />}>
       <Routes>
         {/* The main page is the main season's player stats; tablets use /stats; admins /admin. */}
         <Route path="/" element={<MainPage />} />
@@ -89,7 +90,7 @@ function OnlineSeasonShell() {
   const { pathname } = useLocation();
   return (
     <ErrorBoundary reset={`${slug}/${sid}`}>
-      <Suspense fallback={<p className="muted pad">Loading season…</p>}>
+      <Suspense fallback={<Loading pad label="Loading season…" />}>
         <OnlineSeasonProvider slug={slug} sid={sid}>
           <Header />
           <SeasonScreen reset={pathname} />
@@ -117,7 +118,7 @@ function SeasonScreen({ reset }: { reset: string }) {
   const { season } = useSeason();
   return (
     <ErrorBoundary reset={reset} onExport={() => downloadJson(`${season.name}.json`, season)}>
-      <Suspense fallback={<p className="muted pad">Loading…</p>}><Outlet /></Suspense>
+      <Suspense fallback={<Loading pad />}><Outlet /></Suspense>
     </ErrorBoundary>
   );
 }

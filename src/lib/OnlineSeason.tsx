@@ -10,6 +10,7 @@ import { rememberLeague } from "./recentLeagues";
 import { todayIso } from "./format";
 import { SeasonView, useSeason, type OnlineCtx } from "./SeasonContext";
 import { weekOfDate, type Season } from "./season";
+import { Loading } from "../components/Loading";
 
 const message = (e: unknown) => {
   const code = (e as { code?: string }).code;
@@ -75,7 +76,7 @@ export default function OnlineSeasonProvider({ slug, sid, children }: { slug: st
   const ownLive = [...(remote?.recs.values() ?? [])].some((r) => r.uid === uid && r.status === "live");
 
   if (loadError) return <p className="pad">{loadError} <a href={`#/l/${slug}`}>Back to the league</a></p>;
-  if (!remote?.ready) return <p className="muted pad">Loading season…</p>;
+  if (!remote?.ready) return <Loading pad label="Loading season…" />;
   if (!season) return <p className="pad">This league has no season “{sid}”. <a href={`#/l/${slug}`}>Back to the league</a></p>;
   return (
     <SeasonView season={season} persist={persist} saveError={saveError} base={`/l/${slug}/s/${sid}`} draftKey={`l:${slug}:${sid}`}
