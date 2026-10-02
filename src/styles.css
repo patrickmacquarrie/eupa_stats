@@ -624,3 +624,14 @@ main.live { animation: fade-in 150ms ease-out; }
     transition-duration: 0.01ms !important; }
   .spinner, button[aria-busy="true"]::before { animation: none; }
 }
+
+/* Track Stats: a brief line saying what the last tap recorded. It floats over the header, never
+   blocks a tap, and the next tap replaces it. */
+@keyframes toast-in { from { opacity: 0; transform: translate(-50%, -8px) scale(0.96); } to { opacity: 1; transform: translate(-50%, 0); } }
+@keyframes toast-out { to { opacity: 0; transform: translate(-50%, -6px); } }
+.tap-toast { position: fixed; z-index: 30; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 8px); transform: translate(-50%, 0);
+  max-width: calc(100vw - 24px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none;
+  background: var(--brand-darkest); color: #fff; font-weight: 600; font-size: 0.95rem; padding: 8px 16px; border-radius: 999px;
+  box-shadow: 0 6px 24px rgb(0 0 0 / 0.25); animation: toast-in 140ms ease-out, toast-out 260ms ease-in 1340ms forwards; }
+.tap-toast.undo { background: #5b4a12; }
+@media (prefers-reduced-motion: reduce) { .tap-toast { animation: none; } }

@@ -69,10 +69,16 @@ test("create season, record, refresh recovery, finish, dispute, correct, export 
   await page.click("text=Start recording");
   await tap(page, "Ann Arbour", "Touch");
   await tap(page, "Al Ames", "Point");                 // 1–0, assist Ann
+  // A brief line confirms exactly what the tap recorded.
+  await expect(page.locator(".tap-toast")).toHaveText("Point · Al Ames (assist Ann Arbour)");
   await tap(page, "Art Aldo", "GSO");                  // 1–1
   await tap(page, "Amy Ash", "Touch");
   await tap(page, "Amy Ash", "Throwaway");
   await page.click("text=Offensive error");
+  await tap(page, "Ann Arbour", "Touch");
+  // Undo says what it took back.
+  await page.getByRole("button", { name: "Undo" }).click();
+  await expect(page.locator(".tap-toast")).toHaveText("Undid Touch · Ann Arbour");
   await tap(page, "Ann Arbour", "Touch");
   await tap(page, "Amy Ash", "Point");                 // 2–1
   expect(await score(page)).toBe("2–1");
