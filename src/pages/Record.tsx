@@ -254,6 +254,13 @@ function Live({ draft, onChange, onFinish, unsafe, syncError, waiting }: { draft
   const { online } = useSeason();
   const [msg, setMsg] = useState<string | null>(null);
   const [showAdd, setShowAdd] = useState(false);
+  const [showLog, setShowLog] = useState(false);
+  // While recording, the screen is a fixed panel: no page scroll, pull-to-refresh or zoom to
+  // set off by accident, and the roster sized to fit (see "recording" in styles.css).
+  useEffect(() => {
+    document.documentElement.classList.add("recording");
+    return () => document.documentElement.classList.remove("recording");
+  }, []);
   const [, tick] = useState(0);
   const s = stateOf(draft);
   const [holder, thrower] = s.chain;
@@ -327,13 +334,17 @@ function Live({ draft, onChange, onFinish, unsafe, syncError, waiting }: { draft
       {adjusting && <ClockAdjust draft={draft} onApply={(d) => { onChange(d); setAdjusting(false); }} onCancel={() => setAdjusting(false)} />}
 
       <div className="live-top">
-        <p className="prompt" aria-live="polite">{prompt}</p>
+        <span className={`poss ${s.phase} poss-narrow`}>{offense ? "Offense" : "Defense"}</span>
+        <p className={"prompt " + s.phase} aria-live="polite">{prompt}</p>
         {!offense && <button className="rbtn turnover" onClick={() => go({ kind: "offensiveError" })}>Offensive error</button>}
         <button className="rbtn quiet" disabled={!draft.events.length} onClick={() => { setMsg(null); onChange(undoPress(draft)); }}>Undo</button>
+        <button className="rbtn quiet log-toggle" aria-expanded={showLog} onClick={() => setShowLog(!showLog)}>
+          Log{draft.flags?.length ? ` ⚑${draft.flags.length}` : ""}</button>
       </div>
       {msg && <p className="error small center">{msg}</p>}
 
       <div className="live-body">
+        <div className="roster-col">
         <div className={"roster " + s.phase}>
           {draft.present.map((n) => {
             const isHolder = offense && n === holder;
@@ -357,14 +368,16 @@ function Live({ draft, onChange, onFinish, unsafe, syncError, waiting }: { draft
               </div>
             );
           })}
+        </div>
           <div className="roster-actions">
             <button className="prow add" onClick={() => setShowAdd(!showAdd)}>+ Add a sub</button>
             <button className="primary finish-btn" disabled={!draft.events.length} onClick={onFinish}>Finish game</button>
           </div>
         </div>
 
-        <aside className="log" aria-label="Recent possessions">
-          <div className="log-head"><strong>Possessions</strong><span className="muted small">⚑ flag one to fix later</span></div>
+        <aside className={"log" + (showLog ? " open" : "")} aria-label="Recent possessions">
+          <div className="log-head"><strong>Possessions</strong><span className="muted small">⚑ flag one to fix later</span>
+            <button className="small-btn log-close" onClick={() => setShowLog(false)}>Close</button></div>
           {poss.length === 0 && <p className="muted small">Nothing recorded yet.</p>}
           <ol>
             {poss.slice(-8).reverse().map((p) => {
@@ -392,11 +405,12 @@ function Live({ draft, onChange, onFinish, unsafe, syncError, waiting }: { draft
       </div>
 
       {showAdd && (
-        <section className="card">
+        <section className="card sheet">
           <AddSub exclude={draft.present} pending={draft.newPlayers} onAdd={(name, np) => {
             onChange({ ...draft, present: [...draft.present, name], subs: [...draft.subs, name], newPlayers: np ? [...draft.newPlayers, np] : draft.newPlayers });
             setShowAdd(false);
           }} />
+          <div className="row"><span className="grow" /><button onClick={() => setShowAdd(false)}>Cancel</button></div>
         </section>
       )}
 
@@ -419,7 +433,7 @@ function ClockAdjust({ draft, onApply, onCancel }: { draft: Draft; onApply: (d: 
   const nudge = (s: number) => setLeft(fmt(Math.max(0, (leftMs ?? leftNow) + s * 1000)));
   const ok = leftMs !== null && lenMin > 0 && leftMs <= lenMin * 60000;
   return (
-    <section className="card clock-panel" aria-label="Adjust clock">
+    <section className="card clock-panel sheet" aria-label="Adjust clock">
       <div className="row wrap gap-sm">
         <label className="field"><span>Time left (min:sec)</span>
           <input id="clock-left" inputMode="numeric" value={left} onChange={(e) => setLeft(e.target.value)} /></label>

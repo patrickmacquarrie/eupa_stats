@@ -204,3 +204,59 @@ test("works offline once loaded", async ({ page, context }) => {
   await page.getByRole("link", { name: /New season/ }).click();                 // a screen loaded on demand, from the cache
   await expect(page.locator("h1")).toHaveText("Start a new season");
 });
+
+test("on a phone, a 12-player team fits on one screen and the page can't be scrolled while recording", async ({ browser }) => {
+  const { devices } = await import("@playwright/test");
+  const ctx = await browser.newContext({ ...devices["iPhone 13"], defaultBrowserType: undefined } as any);
+  const page = await ctx.newPage();
+  const big = ["Player\tGender\tTeam\tStarting Salary",
+    ...Array.from({ length: 12 }, (_, i) => `Alexandria Longname${i + 1}\t${i % 2 ? "M" : "F"}\tTeam A\t$1,000,000`),
+    ...Array.from({ length: 12 }, (_, i) => `Bea B${i + 1}\t${i % 2 ? "M" : "F"}\tTeam B\t$1,000,000`)].join("\n");
+  await page.goto("/#/admin");
+  await page.getByRole("link", { name: /New season/ }).click();
+  await page.fill("#ns-name", "Phone");
+  await page.fill("#ns-roster", big);
+  await page.fill("#ns-first", "2027-01-04"); await page.fill("#ns-weeks", "4");
+  await page.click("text=Fill in weekly dates");
+  // The page stays phone-width (a wide table scrolls inside itself instead of zooming the page out).
+  expect(await page.evaluate(() => innerWidth)).toBe(390);
+  await page.getByRole("button", { name: "Create season" }).click();
+  await page.click(".track-stats");
+  await page.fill('input[type="date"]', "2027-01-04");
+  await page.click("text=Start recording");
+
+  const fits = () => page.evaluate(() => {
+    const vh = innerHeight, rows = [...document.querySelectorAll(".roster .prow")];
+    return {
+      pageScrolls: document.documentElement.scrollHeight > vh,
+      rows: rows.length,
+      allOnScreen: rows.every((r) => { const b = r.getBoundingClientRect(); return b.top >= 0 && b.bottom <= vh; }),
+      finishOnScreen: document.querySelector(".finish-btn")!.getBoundingClientRect().bottom <= vh,
+      shortestButton: Math.min(...[...document.querySelectorAll(".roster .rbtn")].map((b) => b.getBoundingClientRect().height)),
+    };
+  });
+  for (const phase of ["offense", "defense"]) {
+    const f = await fits();
+    expect(f, phase).toMatchObject({ pageScrolls: false, rows: 12, allOnScreen: true, finishOnScreen: true });
+    expect(f.shortestButton, phase).toBeGreaterThanOrEqual(28);
+    // A swipe or a scroll wheel doesn't move the page.
+    await page.mouse.wheel(0, 600);
+    await page.touchscreen.tap(200, 300).catch(() => {});
+    expect(await page.evaluate(() => scrollY)).toBe(0);
+    if (phase === "offense") {
+      await tap(page, "Alexandria Longname1", "Touch");
+      await tap(page, "Alexandria Longname2", "Point");
+      await expect(page.locator(".poss-narrow")).toHaveText("Defense");
+    }
+  }
+  // The possession log opens as a panel, where a possession can still be flagged.
+  await page.getByRole("button", { name: "Log" }).click();
+  await expect(page.locator(".log.open")).toBeVisible();
+  await page.getByRole("button", { name: "Flag this possession" }).first().click();
+  await page.locator(".log").getByRole("button", { name: "Close" }).click();
+  await expect(page.getByRole("button", { name: /Log ⚑1/ })).toBeVisible();
+  // Leaving the recording screen gives the page back its scrolling.
+  await page.getByRole("button", { name: "Finish game" }).click();
+  expect(await page.evaluate(() => document.documentElement.classList.contains("recording"))).toBe(false);
+  await ctx.close();
+});
