@@ -102,7 +102,7 @@ ul.plain { list-style: none; padding: 0; margin: 0.3rem 0; }
 ul.plain li { padding: 2px 0; }
 
 /* header */
-.app-header { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; box-shadow: 0 1px 0 rgb(0 0 0 / 0.08); }
+.app-header { position: sticky; top: 0; padding-top: env(safe-area-inset-top, 0px); background: var(--brand); z-index: 5; box-shadow: 0 1px 0 rgb(0 0 0 / 0.08); }
 .header-bar { background: var(--brand); border-top: 3px solid var(--brand-bright); }
 .header-top { display: flex; align-items: center; gap: 12px; padding: 8px 16px; max-width: 1200px; margin: 0 auto; color: var(--on-brand); }
 .brand { display: inline-flex; align-items: center; gap: 8px; color: var(--on-brand); font-family: var(--font-display); font-weight: 600; font-size: 1.15rem; letter-spacing: 0.02em; }
@@ -429,7 +429,7 @@ table.data th { text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .lb-title { color: var(--accent); } }
 :root[data-theme="dark"] .lb-title { color: var(--accent); }
 /* public stats page: the association band across the top */
-.pub-band { background: var(--brand); border-top: 3px solid var(--brand-bright); border-bottom: 4px solid var(--brand-deep); }
+.pub-band { padding-top: env(safe-area-inset-top, 0px); background: var(--brand); border-top: 3px solid var(--brand-bright); border-bottom: 4px solid var(--brand-deep); }
 .pub-band-inner { max-width: 1200px; margin: 0 auto; padding: 10px 16px; display: flex; align-items: center; gap: 12px; color: var(--on-brand); }
 .pub-band-name { font-family: var(--font-display); font-weight: 600; font-size: 1.15rem; letter-spacing: 0.02em; }
 .pub-band-sub { color: var(--on-brand-muted); border-left: 1px solid rgb(255 255 255 / 0.25); padding-left: 12px; }

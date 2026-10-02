@@ -10,7 +10,7 @@ function serviceWorker(): Plugin {
     apply: "build",
     generateBundle(_, bundle) {
       const files = Object.keys(bundle).filter((f) => !f.endsWith(".json") && f !== "sw.js").sort();
-      files.push("manifest.webmanifest", "icon.svg");
+      files.push("manifest.webmanifest", "manifest-entry.webmanifest", "icon.svg", "icon-192.png", "icon-entry-192.png");
       const version = createHash("sha256").update(files.join("\n")).digest("hex").slice(0, 12);
       const source = readFileSync("scripts/sw-template.js", "utf8")
         .replace("__VERSION__", version).replace("__PRECACHE__", JSON.stringify(files.map((f) => `./${f}`)));

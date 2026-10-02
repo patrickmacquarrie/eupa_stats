@@ -12,6 +12,7 @@ import { quietKey } from "../lib/review";
 import { useSeason } from "../lib/SeasonContext";
 import { clearDraft, downloadText, loadDraft, saveDraft } from "../lib/store";
 import { Loading } from "../components/Loading";
+import { useInstallAsStatsEntry } from "../lib/installAs";
 
 /** The game's flags as the season keeps them, each with its possession's current end and its note. */
 function savedFlags(d: Draft, notes?: Record<number, string>): SavedFlag[] {
@@ -30,6 +31,7 @@ function savedFlags(d: Draft, notes?: Record<number, string>): SavedFlag[] {
 const SEND_EVERY_MS = 8000;
 
 export function Record() {
+  useInstallAsStatsEntry();
   const { draftKey, canRecord, online } = useSeason();
   const [draft, setDraft] = useState<Draft | null | undefined>(undefined);
 
