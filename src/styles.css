@@ -568,3 +568,6 @@ html.recording .live > .card.sheet { position: fixed; left: 8px; right: 8px; bot
   html.recording .log.open { display: block; position: fixed; left: 8px; right: 8px; bottom: calc(8px + env(safe-area-inset-bottom, 0px));
     height: auto; max-height: 75vh; max-height: 75dvh; z-index: 20; box-shadow: 0 8px 40px rgb(0 0 0 / 0.3); }
 }
+/* The moment a button is pressed it looks pressed: CSS only, so it shows before any work runs. */
+.rbtn, .roster-actions button { -webkit-tap-highlight-color: transparent; transition: transform 60ms ease-out, filter 60ms ease-out; }
+.rbtn:active:not(:disabled), .roster-actions button:active:not(:disabled) { transform: scale(0.95); filter: brightness(0.88); transition: none; }
