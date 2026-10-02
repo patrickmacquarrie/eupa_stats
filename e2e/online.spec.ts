@@ -135,6 +135,11 @@ test("a season moved online gets a tablet's recording live, with and without a s
   // The site's main address shows the same page.
   await visitor.goto("/");
   await expect(visitor.locator(".pub-standings tbody tr").first()).toContainText("1–0");
+  // The header leads to stats entry and admin.
+  await expect(visitor.locator(".site-nav a")).toHaveText(["Stats entry", "Admin"]);
+  await visitor.locator(".site-nav").getByRole("link", { name: "Admin" }).click();
+  await expect(visitor.locator("h1")).toHaveText("Seasons");
+  await expect(visitor.locator(".site-nav a")).toHaveText(["Player stats", "Stats entry"]);
 
   // The tablet sees the game's box score, as stats entry does: plays per player, no salaries.
   await tablet.getByRole("link", { name: "Open the game" }).click();
