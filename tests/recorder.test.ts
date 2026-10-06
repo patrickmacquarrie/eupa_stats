@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { tallyRecording } from "../engine/compute";
 import type { PlayEvent } from "../engine/types";
 import { tabletCsvToEvents } from "../src/lib/csv";
-import { canTap, eventFor, gameTime, parseClock, possessions, press, setClock, stateOf, toggleClock, toggleFlag, toTabletCsv, undoPress, type Draft, type Tap } from "../src/lib/recorder";
+import { canTap, changeSetup, eventFor, gameTime, parseClock, possessions, press, setClock, stateOf, toggleClock, toggleFlag, toTabletCsv, undoPress, type Draft, type Tap } from "../src/lib/recorder";
 
 const draft = (over: Partial<Draft> = {}): Draft => ({
   seasonId: "x", date: "2026-10-05", team: "A", opp: "B", startOn: "offense", gameLengthMin: 25,
@@ -151,5 +151,23 @@ describe("adjusting the clock", () => {
     expect(parseClock("5")).toBe(300_000);
     expect(parseClock("1:05:00")).toBe(3_900_000);
     expect(parseClock("ten")).toBeNull();
+  });
+});
+
+describe("changing the setup before the first play", () => {
+  it("switches a game started on offense to defense, keeping the score and the clock", () => {
+    const d = toggleClock(draft({ startOn: "offense", present: ["Al", "Ann"] }), 1_000);
+    const s = changeSetup(d, { ...d, startOn: "defense" });
+    expect(stateOf(s)).toMatchObject({ phase: "defense", us: 0, them: 0 });
+    expect(s.clock).toEqual(d.clock);
+    // The defense buttons work from the first tap.
+    expect(press(s, { kind: "block", player: "Al" })).toMatchObject({ events: [{ action: "D-Play", player: "Al" }] });
+  });
+
+  it("works again once every play is undone, and not while a play is recorded", () => {
+    const played = press(draft({ present: ["Al"] }), { kind: "touch", player: "Al" }) as Draft;
+    expect(() => changeSetup(played, { ...played, startOn: "defense" })).toThrow();
+    const undone = undoPress(played);
+    expect(changeSetup(undone, { ...undone, startOn: "defense", opp: "C" })).toMatchObject({ startOn: "defense", opp: "C", events: [] });
   });
 });

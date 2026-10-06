@@ -266,3 +266,99 @@ test("on a phone, a 12-player team fits on one screen and the page can't be scro
   expect(await page.evaluate(() => document.documentElement.classList.contains("recording"))).toBe(false);
   await ctx.close();
 });
+
+test("the setup can change until the first play", async ({ page }) => {
+  await page.goto("/#/admin");
+  await page.getByRole("link", { name: /New season/ }).click();
+  await page.fill("#ns-name", "Setup");
+  await page.fill("#ns-roster", ROSTER);
+  await page.locator(".plug-prompt").getByRole("button", { name: "Add plug" }).click();
+  await page.fill("#ns-first", "2027-01-04"); await page.fill("#ns-weeks", "4");
+  await page.click("text=Fill in weekly dates");
+  await page.click("text=Create season");
+  await page.click(".track-stats");
+  await page.fill('input[type="date"]', "2027-01-04");
+  await page.locator(".chip", { hasText: "Ada Alto" }).locator("input").uncheck();
+  await page.click("text=Start recording");
+  await expect(page.locator(".poss-narrow, .score-mid .poss").first()).toHaveText("Offense");
+
+  // Started on offense by mistake: change it to defense without inventing a throwaway.
+  await page.getByRole("button", { name: "Change setup" }).click();
+  await expect(page.locator("h1")).toHaveText("Change setup");
+  await expect(page.locator(".chip", { hasText: "Ada Alto" }).locator("input")).not.toBeChecked();   // pre-filled
+  await expect(page.locator('input[type="date"]')).toHaveValue("2027-01-04");
+  await page.getByLabel(/starts on/).selectOption("defense");
+  await page.click("text=Save setup");
+  await expect(page.locator(".score-mid .poss")).toHaveText("Defense");
+  await expect(page.locator(".prow:has(.pname:text-is('Ann Arbour')) button")).toHaveText(["D-Play", "GSO"]);
+  await expect(page.locator(".prow .pname", { hasText: "Ada Alto" })).toHaveCount(0);
+  expect(await score(page)).toBe("0–0");
+
+  // After the first play it's gone: fixes then go through the possession editor.
+  await tap(page, "Ann Arbour", "D-Play");
+  await expect(page.getByRole("button", { name: "Change setup" })).toHaveCount(0);
+  // Undone back to zero, it's back.
+  await page.getByRole("button", { name: "Undo" }).click();
+  await expect(page.getByRole("button", { name: "Change setup" })).toBeVisible();
+});
+
+test("on a 10-inch tablet and a phone, 10 players and 2 subs fit with a slim score bar", async ({ browser }) => {
+  const roster = ["Player\tGender\tTeam\tStarting Salary",
+    ...Array.from({ length: 10 }, (_, i) => `Alexandria Longname${i + 1}\t${i % 2 ? "M" : "F"}\tTeam A\t$1,000,000`),
+    ...Array.from({ length: 10 }, (_, i) => `Bea B${i + 1}\t${i % 2 ? "M" : "F"}\tTeam B\t$1,000,000`),
+    "Sully Subwoman\tF\tSub\t", "Simon Subman\tM\tSub\t"].join("\n");
+  // A 10" tablet full screen (installed) and in the browser, whose toolbars take height; a phone.
+  const screens = [
+    { name: "tablet landscape", viewport: { width: 1280, height: 800 }, tablet: true },
+    { name: "tablet landscape in the browser", viewport: { width: 1280, height: 712 }, tablet: true },
+    { name: "iPad landscape in Safari", viewport: { width: 1180, height: 740 }, tablet: true },
+    { name: "tablet portrait", viewport: { width: 800, height: 1280 }, tablet: true },
+    { name: "phone", viewport: { width: 390, height: 664 }, tablet: false },
+  ];
+  for (const sc of screens) {
+    const ctx = await browser.newContext({ viewport: sc.viewport, isMobile: !sc.tablet, hasTouch: true });
+    const page = await ctx.newPage();
+    await page.goto("/#/admin");
+    await page.getByRole("link", { name: /New season/ }).click();
+    await page.fill("#ns-name", "Tablet");
+    await page.fill("#ns-roster", roster);
+    await page.fill("#ns-first", "2027-01-04"); await page.fill("#ns-weeks", "4");
+    await page.click("text=Fill in weekly dates");
+    await page.getByRole("button", { name: "Create season" }).click();
+    await page.click(".track-stats");
+    await page.fill('input[type="date"]', "2027-01-04");
+    for (const sub of ["Sully Subwoman", "Simon Subman"]) {
+      await page.fill('input[placeholder="Start typing a name"]', sub.slice(0, 5));
+      await page.locator(".addsub button", { hasText: sub }).click();
+    }
+    await page.click("text=Start recording");
+
+    const measure = () => page.evaluate(() => {
+      const vh = innerHeight, rows = [...document.querySelectorAll(".roster .prow")], list = document.querySelector(".roster")!;
+      return {
+        pageScrolls: document.documentElement.scrollHeight > vh,
+        rows: rows.length,
+        rosterScrolls: list.scrollHeight > list.clientHeight + 1,
+        allOnScreen: rows.every((r) => { const b = r.getBoundingClientRect(); return b.top >= 0 && b.bottom <= Math.min(vh, list.getBoundingClientRect().bottom) + 0.5; }),
+        finishOnScreen: document.querySelector(".finish-btn")!.getBoundingClientRect().bottom <= vh,
+        scorebar: document.querySelector(".scorebar")!.getBoundingClientRect().height,
+        row: Math.min(...rows.map((r) => r.getBoundingClientRect().height)),
+      };
+    });
+    for (const phase of ["offense", "defense"]) {
+      const m = await measure();
+      const where = `${sc.name}, ${phase}`;
+      expect(m, where).toMatchObject({ pageScrolls: false, rows: 12, rosterScrolls: false, allOnScreen: true, finishOnScreen: true });
+      // The score bar is about half the height it was (108px), and the rows get what it gave up.
+      if (sc.tablet) {
+        expect(m.scorebar, where).toBeLessThanOrEqual(60);
+        expect(m.row, where).toBeGreaterThanOrEqual(36);
+      }
+      if (phase === "offense") {
+        await tap(page, "Alexandria Longname1", "Touch");
+        await tap(page, "Alexandria Longname2", "Point");
+      }
+    }
+    await ctx.close();
+  }
+});

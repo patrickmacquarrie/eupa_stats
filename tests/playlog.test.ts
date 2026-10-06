@@ -112,6 +112,48 @@ describe("editing by possession", () => {
     expect(back.map((r) => r.e)).toEqual(evs);
   });
 
+  it("deletes a wrong first possession on its own, leaving scores and assists as they were", () => {
+    // The real recording minus its first possession starts with Team 3's possession (an O-Error).
+    const evs = sample().slice(possessions(sample())[0].end + 1);
+    expect(possessions(evs)[0].ours).toBe(false);
+    // The stat-taker started on offense by mistake and invented a throwaway to flip it.
+    const ev = (action: string, player: string): PlayEvent => ({ ...evs[0], action, player, lastPlayer: null, secLastPlayer: null, statScore: 0, otherScore: 0 });
+    const wrong = [ev("Touch", "Ignatius Lindqvist"), ev("T-Away", "Ignatius Lindqvist"), ...evs];
+    const first = possessions(wrong)[0];
+    expect(first).toMatchObject({ ours: true, start: 0, end: 1 });
+
+    const rows = replacePossessions(rowsOf(wrong), first.start, first.end - first.start + 1, []);
+    expect(possessions(rows.map((r) => r.e))[0].ours).toBe(false);
+    expect(rows.map((r) => r.e)).toEqual(evs);
+    expect(problems(rows).size).toBe(problems(rowsOf(evs)).size);
+    // Same goals, assists and every other stat as the recording without the mistake.
+    const box = (e: PlayEvent[]) => Object.fromEntries(tallyRecording(e, (n) => n).lines);
+    expect(box(rows.map((r) => r.e))).toEqual(box(evs));
+  });
+
+  it("deleting a first possession that scored restarts the score from the new first play", () => {
+    const evs = sample();
+    const ps = possessions(evs);
+    const firstPoint = ps.findIndex((p) => evs[p.end].action === "Point");
+    // Drop everything before that point, so the recording opens with a scoring possession.
+    const opening = evs.slice(ps[firstPoint].start).map((e) => ({ ...e, statScore: e.statScore - evs[ps[firstPoint].start].statScore, otherScore: e.otherScore - evs[ps[firstPoint].start].otherScore }));
+    const p = possessions(opening)[0];
+    const rows = replacePossessions(rowsOf(opening), p.start, p.end - p.start + 1, []);
+    const after = opening.slice(p.end + 1);
+    expect(rows.map((r) => [r.e.statScore, r.e.otherScore])).toEqual(after.map((e) => [e.statScore - 1, e.otherScore]));
+  });
+
+  it("deletes the last possession on its own, and a lone possession leaves nothing", () => {
+    const evs = sample();
+    const last = possessions(evs).at(-1)!;
+    const rows = replacePossessions(rowsOf(evs), last.start, last.end - last.start + 1, []);
+    expect(rows.map((r) => r.e)).toEqual(evs.slice(0, last.start));
+
+    const lone = evs.slice(0, possessions(evs)[0].end + 1);
+    expect(possessions(lone)).toHaveLength(1);
+    expect(replacePossessions(rowsOf(lone), 0, lone.length, [])).toEqual([]);
+  });
+
   it("round-trips every possession of a real recording unchanged", () => {
     const evs = sample();
     for (const p of possessions(evs)) {

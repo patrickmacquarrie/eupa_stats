@@ -88,8 +88,14 @@ export function PlayEditor({ date, team, opp, focus, onClose }: { date: string; 
     const at = i < poss.length ? poss[i].start : rows.length;
     setEditing({ start: at, count: 0, specs: [blankSpec(a), blankSpec(b)], inserting: true, allowOpen: false });
   };
-  const deletePair = async (i: number) => {
+  const deletePossession = async (i: number) => {
     const p = poss[i], q = poss[i + 1];
+    // The first or last possession goes on its own: removing an end can't break the alternation.
+    if (i === 0 || i === poss.length - 1) {
+      if (await askConfirm(`Delete this ${p.ours ? team : opp} possession?`, { ok: "Delete", danger: true })) apply(replacePossessions(rows, p.start, p.end - p.start + 1, []));
+      return;
+    }
+    // In the middle, with the one after it, so the teams keep alternating.
     const pair = q && q.ours !== p.ours;
     const end = pair ? q.end : p.end;
     const what = pair ? `this ${p.ours ? team : opp} possession and the ${q.ours ? team : opp} possession after it` : "this possession";
@@ -111,7 +117,8 @@ export function PlayEditor({ date, team, opp, focus, onClose }: { date: string; 
       </div>
       <p className="muted small">
         Edit a possession's catches and how it ended, or insert possessions between two others. Teams alternate, so possessions are inserted
-        and deleted in pairs. Plays you don't change keep what the tablet recorded.
+        and deleted in pairs, except the first or last possession, which can be deleted on its own. Plays you don't change keep what the
+        tablet recorded.
       </p>
       {box && <p className="attn small">This side is being counted from a box score, so edits here won't count until the box score is removed.</p>}
 
@@ -143,7 +150,7 @@ export function PlayEditor({ date, team, opp, focus, onClose }: { date: string; 
                     <span className="muted small nowrap">{(end.clock ?? "").slice(0, 5)} · {end.statScore}–{end.otherScore}</span>
                     <span className="nowrap">
                       <button className="small-btn" disabled={!!editing} onClick={() => editPossession(i)}>Edit</button>{" "}
-                      <button className="small-btn danger" disabled={!!editing} onClick={() => deletePair(i)} aria-label="Delete possession">Delete</button>
+                      <button className="small-btn danger" disabled={!!editing} onClick={() => deletePossession(i)} aria-label="Delete possession">Delete</button>
                     </span>
                   </div>
                 )}
