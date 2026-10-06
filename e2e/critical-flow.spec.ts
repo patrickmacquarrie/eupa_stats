@@ -266,3 +266,38 @@ test("on a phone, a 12-player team fits on one screen and the page can't be scro
   expect(await page.evaluate(() => document.documentElement.classList.contains("recording"))).toBe(false);
   await ctx.close();
 });
+
+test("the setup can change until the first play", async ({ page }) => {
+  await page.goto("/#/admin");
+  await page.getByRole("link", { name: /New season/ }).click();
+  await page.fill("#ns-name", "Setup");
+  await page.fill("#ns-roster", ROSTER);
+  await page.locator(".plug-prompt").getByRole("button", { name: "Add plug" }).click();
+  await page.fill("#ns-first", "2027-01-04"); await page.fill("#ns-weeks", "4");
+  await page.click("text=Fill in weekly dates");
+  await page.click("text=Create season");
+  await page.click(".track-stats");
+  await page.fill('input[type="date"]', "2027-01-04");
+  await page.locator(".chip", { hasText: "Ada Alto" }).locator("input").uncheck();
+  await page.click("text=Start recording");
+  await expect(page.locator(".poss-narrow, .score-mid .poss").first()).toHaveText("Offense");
+
+  // Started on offense by mistake: change it to defense without inventing a throwaway.
+  await page.getByRole("button", { name: "Change setup" }).click();
+  await expect(page.locator("h1")).toHaveText("Change setup");
+  await expect(page.locator(".chip", { hasText: "Ada Alto" }).locator("input")).not.toBeChecked();   // pre-filled
+  await expect(page.locator('input[type="date"]')).toHaveValue("2027-01-04");
+  await page.getByLabel(/starts on/).selectOption("defense");
+  await page.click("text=Save setup");
+  await expect(page.locator(".score-mid .poss")).toHaveText("Defense");
+  await expect(page.locator(".prow:has(.pname:text-is('Ann Arbour')) button")).toHaveText(["D-Play", "GSO"]);
+  await expect(page.locator(".prow .pname", { hasText: "Ada Alto" })).toHaveCount(0);
+  expect(await score(page)).toBe("0–0");
+
+  // After the first play it's gone: fixes then go through the possession editor.
+  await tap(page, "Ann Arbour", "D-Play");
+  await expect(page.getByRole("button", { name: "Change setup" })).toHaveCount(0);
+  // Undone back to zero, it's back.
+  await page.getByRole("button", { name: "Undo" }).click();
+  await expect(page.getByRole("button", { name: "Change setup" })).toBeVisible();
+});

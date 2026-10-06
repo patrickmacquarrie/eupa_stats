@@ -175,6 +175,19 @@ export function press(d: Draft, p: Press, clock = new Date().toTimeString(), now
   return { ...next, clock: gameClock, undo: [...(d.undo ?? []), { added: taps.length }] };
 }
 
+/** What the setup screen chooses for a game. */
+export type Setup = Pick<Draft, "date" | "team" | "opp" | "startOn" | "gameLengthMin" | "jersey" | "present" | "subs" | "newPlayers">;
+
+/**
+ * Changes the setup of a game with no plays yet (the wrong starting side, say), keeping the same
+ * draft: the clock keeps whatever time has run. Once a play is recorded, fixes go through the
+ * possession editor instead.
+ */
+export function changeSetup(d: Draft, s: Setup): Draft {
+  if (d.events.length) throw new Error("The setup can't change once a play is recorded.");
+  return { ...d, ...s };
+}
+
 /** Reverts the last press (or the last event, for drafts saved before presses were tracked). */
 export function undoPress(d: Draft): Draft {
   const stack = d.undo ?? [];

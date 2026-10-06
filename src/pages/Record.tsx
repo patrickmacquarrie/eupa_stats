@@ -6,8 +6,9 @@ import { genderOf } from "../../engine/pairing";
 import type { PlayEvent, Player } from "../../engine/types";
 import { shortTeam, todayIso as today } from "../lib/format";
 import { nameKey, suggestPlayer } from "../lib/names";
-import { elapsedMs, gameTime, parseClock, possessions, press, setClock, stateOf, toggleClock, toggleFlag, toTabletCsv, undoPress, csvName, type Draft, type Phase, type Press } from "../lib/recorder";
+import { changeSetup, elapsedMs, gameTime, parseClock, possessions, press, setClock, stateOf, toggleClock, toggleFlag, toTabletCsv, undoPress, csvName, type Draft, type Phase, type Press, type Setup } from "../lib/recorder";
 import { weekOfDate, withoutFlagsFor, type SavedFlag } from "../lib/season";
+import { recKey } from "../lib/onlineShape";
 import { quietKey } from "../lib/review";
 import { useSeason } from "../lib/SeasonContext";
 import { clearDraft, downloadText, loadDraft, saveDraft } from "../lib/store";
@@ -49,6 +50,7 @@ export function Record() {
   useInstallAsStatsEntry();
   const { draftKey, canRecord, online } = useSeason();
   const [draft, setDraft] = useState<Draft | null | undefined>(undefined);
+  const [settingUp, setSettingUp] = useState(false);
 
   // Every tap is saved on this device first (localStorage and IndexedDB); if both fail, the
   // stat-taker is told. For an online season the recording is also sent to the league a few
@@ -94,6 +96,17 @@ export function Record() {
   };
   // Saved: off this tablet at once, so reopening Track Stats can't bring the game back as live.
   const saved = () => { cancelSend(); latest.current = null; clearDraft(draftKey).catch(() => {}); };
+  // Change setup (before the first play): the same draft, with the new choices. A game moved to
+  // another date or teams takes its empty online recording with it, so no phantom game is left.
+  const resetup = (d: Draft, s: Setup) => {
+    const next = changeSetup(d, s);
+    if (online && (d.date !== s.date || d.team !== s.team || d.opp !== s.opp)) {
+      const owner = online.owners.get(recKey(d.date, d.team, d.opp));
+      if (!owner || owner === online.uid) online.deleteRecording(d).catch(() => {});
+    }
+    change(next, true);
+    setSettingUp(false);
+  };
 
   if (!canRecord) {
     return (
@@ -105,10 +118,14 @@ export function Record() {
     );
   }
   if (draft === undefined) return <main className="page"><Loading /></main>;
-  if (!draft || !draft.events || draft.present === undefined) return <GameSetup onStart={(d) => change(d, true)} />;
+  if (!draft || !draft.events || draft.present === undefined) {
+    return <GameSetup onStart={(s) => change({ ...s, seasonId: draftKey, events: [], gameTimes: [], clock: { runningSince: null, elapsedMs: 0 } }, true)} />;
+  }
+  if (settingUp && !draft.events.length) return <GameSetup initial={draft} onStart={(s) => resetup(draft, s)} onCancel={() => setSettingUp(false)} />;
   // The Finish screen is part of the saved game, so closing the browser there comes back to it.
   if (draft.finishing) return <Review draft={draft} onChange={change} cancelSend={cancelSend} onSaved={saved} onBack={() => change({ ...draft, finishing: undefined })} onDone={() => change(null)} />;
-  return <Live draft={draft} onChange={change} onFinish={() => change({ ...draft, finishing: { here: [] } })} unsafe={unsafe} syncError={syncError} waiting={waiting} />;
+  return <Live draft={draft} onChange={change} onFinish={() => change({ ...draft, finishing: { here: [] } })} onChangeSetup={() => setSettingUp(true)}
+    unsafe={unsafe} syncError={syncError} waiting={waiting} />;
 }
 
 const syncProblem = (e: unknown) => ((e as { code?: string }).code === "permission-denied"
@@ -134,22 +151,29 @@ function SyncStatus({ draft, waiting }: { draft: Draft; waiting: boolean }) {
 
 /* ------------------------------------------------------------------ setup */
 
-function GameSetup({ onStart }: { onStart: (d: Draft) => void }) {
-  const { season, input, result, draftKey } = useSeason();
+/**
+ * The game's setup. With `initial` (Change setup, before the first play) it opens with that
+ * game's choices, and saving changes the same game instead of starting a new one.
+ */
+function GameSetup({ initial, onStart, onCancel }: { initial?: Draft; onStart: (s: Setup) => void; onCancel?: () => void }) {
+  const { season, input, result } = useSeason();
   const teams = input.teams.filter((t) => !t.isSubTeam).map((t) => t.name);
-  const [date, setDate] = useState(today());
-  const [team, setTeam] = useState(teams[0] ?? "");
-  const [opp, setOpp] = useState(teams[1] ?? "");
-  const [startOn, setStartOn] = useState<Phase>("offense");
-  const [len, setLen] = useState(season.gameLengthMin ?? 25);
-  const [jersey, setJersey] = useState<"light" | "dark">("light");
+  const [date, setDate] = useState(initial?.date ?? today());
+  const [team, setTeam] = useState(initial?.team ?? teams[0] ?? "");
+  const [opp, setOpp] = useState(initial?.opp ?? teams[1] ?? "");
+  const [startOn, setStartOn] = useState<Phase>(initial?.startOn ?? "offense");
+  const [len, setLen] = useState(initial?.gameLengthMin ?? season.gameLengthMin ?? 25);
+  const [jersey, setJersey] = useState<"light" | "dark">(initial?.jersey ?? "light");
   const week = weekOfDate(input.schedule, date);
   const roster = useMemo(() => (week === null ? [] : input.players.filter((p) => result.teamOf(p.name, week) === team && !p.isPlug))
     .sort((a, b) => a.name.localeCompare(b.name)), [input, result, team, week]);
-  const [absent, setAbsent] = useState<Set<string>>(new Set());
-  const [subs, setSubs] = useState<string[]>([]);
-  const [newPlayers, setNewPlayers] = useState<Player[]>([]);
-  useEffect(() => { setAbsent(new Set()); }, [team]);
+  // Reopened: whoever on the roster wasn't checked in stays unticked.
+  const [absent, setAbsent] = useState<Set<string>>(() => new Set(initial ? roster.map((p) => p.name).filter((n) => !initial.present.includes(n)) : []));
+  const [subs, setSubs] = useState<string[]>(initial?.subs ?? []);
+  const [newPlayers, setNewPlayers] = useState<Player[]>(initial?.newPlayers ?? []);
+  // A different team starts with everyone ticked (but not on opening, which would undo `initial`).
+  const shownTeam = useRef(team);
+  useEffect(() => { if (shownTeam.current !== team) { shownTeam.current = team; setAbsent(new Set()); } }, [team]);
 
   const present = [...roster.filter((p) => !absent.has(p.name)).map((p) => p.name), ...subs];
   const problem = !team || !opp ? "Pick both teams." : team === opp ? "Pick two different teams." :
@@ -158,8 +182,10 @@ function GameSetup({ onStart }: { onStart: (d: Draft) => void }) {
 
   return (
     <main className="page narrow">
-      <h1>Record a game</h1>
-      <p className="muted">This device records one team's side. The other team's tablet records theirs, and the two are cross-checked when both are in.</p>
+      <h1>{initial ? "Change setup" : "Record a game"}</h1>
+      <p className="muted">{initial
+        ? "Nothing is recorded yet, so anything here can still change. The clock keeps the time it has run."
+        : "This device records one team's side. The other team's tablet records theirs, and the two are cross-checked when both are in."}</p>
 
       <section className="card">
         <div className="fields">
@@ -207,10 +233,11 @@ function GameSetup({ onStart }: { onStart: (d: Draft) => void }) {
       </section>
 
       {problem && <p className="attn">{problem}</p>}
-      <button className="primary big" disabled={!!problem} onClick={() => onStart({
-        seasonId: draftKey, date, team, opp, startOn, gameLengthMin: len, jersey, present, subs, newPlayers,
-        events: [], gameTimes: [], clock: { runningSince: null, elapsedMs: 0 },
-      })}>Start recording</button>
+      <div className="row gap wrap">
+        <button className="primary big" disabled={!!problem} onClick={() => onStart({ date, team, opp, startOn, gameLengthMin: len, jersey, present, subs, newPlayers })}>
+          {initial ? "Save setup" : "Start recording"}</button>
+        {onCancel && <button className="big" onClick={onCancel}>Cancel</button>}
+      </div>
     </main>
   );
 }
@@ -275,7 +302,9 @@ function AddSub({ exclude, pending, onAdd }: { exclude: string[]; pending: Playe
 
 /* ------------------------------------------------------------------ live */
 
-function Live({ draft, onChange, onFinish, unsafe, syncError, waiting }: { draft: Draft; onChange: (d: Draft) => void; onFinish: () => void; unsafe?: boolean; syncError?: string | null; waiting?: boolean }) {
+function Live({ draft, onChange, onFinish, onChangeSetup, unsafe, syncError, waiting }: {
+  draft: Draft; onChange: (d: Draft) => void; onFinish: () => void; onChangeSetup: () => void; unsafe?: boolean; syncError?: string | null; waiting?: boolean;
+}) {
   const { online } = useSeason();
   const [msg, setMsg] = useState<string | null>(null);
   const [refusals, setRefusals] = useState(0);   // replays the shake when the same tap is refused again
@@ -384,11 +413,13 @@ function Live({ draft, onChange, onFinish, unsafe, syncError, waiting }: { draft
 
       {adjusting && <ClockAdjust draft={draft} onApply={(d) => { onChange(d); setAdjusting(false); }} onCancel={() => setAdjusting(false)} />}
 
-      <div className="live-top">
+      <div className={"live-top" + (draft.events.length ? "" : " before-first")}>
         <span key={s.phase} className={`poss ${s.phase} poss-narrow`}>{offense ? "Offense" : "Defense"}</span>
         <p className={"prompt " + s.phase} aria-live="polite">{prompt}</p>
         {!offense && <button className="rbtn turnover" onClick={() => go({ kind: "offensiveError" })}>Offensive error</button>}
         <button className="rbtn quiet" disabled={!draft.events.length} onClick={undo}>Undo</button>
+        {/* Until the first play the setup can still change (the wrong starting side, say). */}
+        {!draft.events.length && <button className="rbtn quiet change-setup" onClick={onChangeSetup}>Change setup</button>}
         <button className="rbtn quiet log-toggle" aria-expanded={showLog} onClick={() => setShowLog(!showLog)}>
           Log{draft.flags?.length ? ` ⚑${draft.flags.length}` : ""}</button>
       </div>

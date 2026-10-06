@@ -551,6 +551,7 @@ html.recording .live > .card.sheet { position: fixed; left: 8px; right: 8px; bot
   html.recording .live-top { gap: 6px; }
   html.recording .live-top .prompt { font-size: 0.9rem; line-height: 1.15; }
   html.recording .live-top .prompt.defense { display: none; }      /* the Defense badge says it */
+  html.recording .live-top.before-first .prompt { display: none; } /* room for Change setup; the badge says the side */
   html.recording .live-top .rbtn.quiet { min-width: 0; padding: 0 12px; }
   html.recording .live-top .rbtn.turnover { flex: 1; white-space: nowrap; padding: 0 10px; }
   html.recording .live-top { margin: 4px 0; }

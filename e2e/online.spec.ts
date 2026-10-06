@@ -92,9 +92,24 @@ test("a season moved online gets a tablet's recording live, with and without a s
   await expect(tablet.locator(".role-pill")).toHaveText("Stats entry");
   await expect(tablet.locator("nav.tabs a")).toHaveText(["Games"]);
 
-  // Record: each tap is saved on the tablet and synced to the league.
-  await tablet.fill('input[type="date"]', "2027-01-04");
+  // Started on the wrong date: Change setup moves the game before the first play, and the empty
+  // recording already sent for the wrong date goes, so no phantom game is left behind.
+  const recordingDates = async () => {
+    const sid = tablet.url().match(/\/s\/([^/]+)\/record/)![1];
+    const r = await fetch(`http://127.0.0.1:8085/v1/projects/demo-eupa-stats/databases/(default)/documents/leagues/${slug}/seasons/${sid}/recordings`,
+      { headers: { Authorization: "Bearer owner" } });
+    const j = (await r.json()) as { documents?: { fields: { date: { stringValue: string } } }[] };
+    return (j.documents ?? []).map((d) => d.fields.date.stringValue).sort();
+  };
+  await tablet.fill('input[type="date"]', "2027-01-11");
   await tablet.click("text=Start recording");
+  await expect.poll(recordingDates, { timeout: 15_000 }).toEqual(["2027-01-11"]);
+  await tablet.getByRole("button", { name: "Change setup" }).click();
+  await tablet.fill('input[type="date"]', "2027-01-04");
+  await tablet.click("text=Save setup");
+  await expect.poll(recordingDates, { timeout: 15_000 }).toEqual(["2027-01-04"]);
+
+  // Record: each tap is saved on the tablet and synced to the league.
   await tap(tablet, "Ann Arbour", "Touch");
   await tap(tablet, "Al Ames", "Point");
   await expect(tablet.locator("[data-sync]")).toHaveText("Synced", { timeout: 15_000 });
