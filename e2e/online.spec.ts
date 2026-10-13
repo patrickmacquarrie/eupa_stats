@@ -83,6 +83,16 @@ test("a season moved online gets a tablet's recording live, with and without a s
   // The first season online goes on the main page.
   await expect(admin.locator(".league-settings")).toContainText("This season is on the main page");
 
+  // A browser that has never opened the league still finds it on the Seasons screen, one tap from unlocking.
+  const fresh = await (await browser.newContext()).newPage();
+  fresh.on("pageerror", (e) => errors.push(e.message));
+  await fresh.goto("/#/admin");
+  await expect(fresh.locator(".main-season")).toContainText("Winter Online", { timeout: 15_000 });
+  await fresh.getByRole("link", { name: "Unlock admin on this device" }).click();
+  await expect(fresh).toHaveURL(new RegExp(`/l/${slug}$`));
+  await expect(fresh.locator('input[type="password"]')).toBeVisible();
+  await fresh.close();
+
   // The tablet opens /stats, unlocks once with the stats-entry password and lands in Track Stats,
   // with the Games tab beside it and nothing else.
   await tablet.goto("/#/stats");
