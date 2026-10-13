@@ -39,7 +39,9 @@ export function PlayerDetail() {
       {trades.length > 0 && (
         <section className="card">
           <h2>Moves</h2>
-          <ul>{trades.map((t, i) => <li key={i}>After week {t.afterWeek}: to {t.toTeam ?? "out of the league"}
+          <ul>{trades.map((t, i) => <li key={i}>After week {t.afterWeek}: to {t.left || !t.toTeam ? (t.left ? "out of the league" : "the sub pool")
+            : input.teams.find((x) => x.name === t.toTeam)?.isSubTeam ? "the sub pool" : t.toTeam}
+            {t.setSalary !== undefined ? `, salary set to ${money(t.setSalary)}` : ""}
             {t.effectiveWeek && t.effectiveWeek !== t.afterWeek + 1 ? ` (plays for them from week ${t.effectiveWeek})` : ""}
             {t.playerAdd ? `, salary adjusted ${delta(t.playerAdd)}` : ""}</li>)}</ul>
         </section>

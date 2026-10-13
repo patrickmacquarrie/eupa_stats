@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { LineChart } from "../components/LineChart";
 import { money, moneyShort, shortTeam } from "../lib/format";
-import { teamPayroll, useSeason } from "../lib/SeasonContext";
+import { teamCap, teamPayroll, useSeason } from "../lib/SeasonContext";
 import { recordText, standings } from "../lib/standings";
 
 export function Overview() {
@@ -44,7 +44,8 @@ export function Overview() {
           <tbody>
             {table.map((r, i) => {
               const diff = r.goalsFor - r.goalsAgainst;
-              const over = payroll[r.team] > cap;
+              const tcap = teamCap(result, r.team, w);
+              const over = payroll[r.team] > tcap;
               return (
                 <tr key={r.team}>
                   <td className="num muted hide-narrow">{i + 1}</td>
@@ -54,7 +55,7 @@ export function Overview() {
                   <td className="num">{r.goalsFor}{r.noScore > 0 && <sup title={`${r.noScore} game(s) with no score recorded`}>*</sup>}</td>
                   <td className="num">{r.goalsAgainst}</td>
                   <td className="num hide-narrow">{diff > 0 ? `+${diff}` : diff < 0 ? `−${-diff}` : "0"}</td>
-                  <td className={"num" + (over ? " over" : "")} title={over ? `Over the cap by ${money(payroll[r.team] - cap)}` : `${money(cap - payroll[r.team])} under the cap`}>
+                  <td className={"num" + (over ? " over" : "")} title={over ? `Over the cap by ${money(payroll[r.team] - tcap)}` : `${money(tcap - payroll[r.team])} under the cap`}>
                     <span className="hide-narrow">{money(payroll[r.team])}</span>
                     <span className="show-narrow">${(payroll[r.team] / 1e6).toFixed(1)}M</span>{over && " ▲"}
                   </td>
@@ -64,7 +65,9 @@ export function Overview() {
           </tbody>
         </table>
         <p className="muted small">
-          Salary cap after {w === 0 ? "the start of the season" : `week ${w}`}: {money(cap)}{table.some((r) => payroll[r.team] > cap) && " (▲ over the cap)"}.
+          Salary cap after {w === 0 ? "the start of the season" : `week ${w}`}: {money(cap)}{table.some((r) => payroll[r.team] > teamCap(result, r.team, w)) && " (▲ over the cap)"}.
+          {table.some((r) => teamCap(result, r.team, w) !== cap) && <> With cap space traded: {table.filter((r) => teamCap(result, r.team, w) !== cap)
+            .map((r) => `${shortTeam(r.team)} ${money(teamCap(result, r.team, w))}`).join(", ")}.</>}
           {input.rules.teamResultBonus && <> Salary includes the team result bonus ({money(input.rules.teamResultBonus.win)} per win), which counts against the cap.</>}
           {anyNoScore && <> * Some games have a result but no score, so they aren't in GF/GA.</>}
           {unsettled.length > 0 && <> {unsettled.length === 1 ? `Week ${unsettled[0]} has` : `${unsettled.length} weeks have`} open items, so these can still change: see <Link to="admin">Admin</Link>.</>}

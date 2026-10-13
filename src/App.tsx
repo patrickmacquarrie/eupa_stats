@@ -29,6 +29,7 @@ const StatsEntry = lazy(() => import("./pages/Entry").then((m) => ({ default: m.
 const PublicPage = lazy(() => import("./pages/PublicPage").then((m) => ({ default: m.PublicPage })));
 const OnlineSeasonProvider = lazy(() => import("./lib/OnlineSeason"));
 const Subs = lazy(() => import("./pages/Subs").then((m) => ({ default: m.Subs })));
+const Trades = lazy(() => import("./pages/Trades").then((m) => ({ default: m.Trades })));
 
 /** Catches crashes outside a season (Seasons, New season) and pages that fail to load; resets on navigation. */
 function RouteBoundary({ children }: { children: ReactNode }) {
@@ -76,6 +77,7 @@ function seasonRoutes() {
       <Route path="admin" element={<AdminFrame><AdminReview /></AdminFrame>} />
       <Route path="admin/names" element={<AdminFrame><Names /></AdminFrame>} />
       <Route path="admin/subs" element={<AdminFrame><Subs /></AdminFrame>} />
+      <Route path="admin/trades" element={<AdminFrame><Trades /></AdminFrame>} />
       <Route path="admin/recordings" element={<AdminFrame><Recordings /></AdminFrame>} />
       <Route path="admin/setup" element={<AdminFrame><Setup /></AdminFrame>} />
       {/* Old addresses, from bookmarks and earlier links. */}

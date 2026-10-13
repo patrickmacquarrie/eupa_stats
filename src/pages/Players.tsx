@@ -22,9 +22,12 @@ export function Players() {
       s.gp++; s.goals += l.goals; s.assists += l.assists; s.blocks += l.blocks; s.turnovers += l.drops + l.throwaways;
       stats.set(l.player, s);
     }
+    // The sub pool goes by where a player is that week, so a waiver pickup is on their team.
+    const real = new Set(input.teams.filter((t) => !t.isSubTeam).map((t) => t.name));
     return input.players.map((p) => ({
       p,
       team: result.teamOf(p.name, week + 1) ?? (p.isSub ? "Sub pool" : "—"),
+      inPool: !real.has(result.teamOf(p.name, week + 1) ?? ""),
       salary: result.salary[p.name][week],
       change: week === 0 ? 0 : result.salary[p.name][week] - result.salary[p.name][week - 1],
       ...(stats.get(p.name) ?? { gp: 0, goals: 0, assists: 0, blocks: 0, turnovers: 0 }),
@@ -32,7 +35,7 @@ export function Players() {
   }, [input, result, week]);
 
   const shown = rows
-    .filter((r) => (showSubs || !r.p.isSub) && (!team || r.team === team) && r.p.name.toLowerCase().includes(q.toLowerCase()))
+    .filter((r) => (showSubs || !r.inPool) && (!team || r.team === team) && r.p.name.toLowerCase().includes(q.toLowerCase()))
     .sort((a, b) => {
       const k = sort.k;
       const va = k === "name" ? a.p.name : (a as any)[k], vb = k === "name" ? b.p.name : (b as any)[k];
