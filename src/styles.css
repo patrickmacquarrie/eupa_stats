@@ -656,3 +656,18 @@ main.live { animation: fade-in 150ms ease-out; }
   box-shadow: 0 6px 24px rgb(0 0 0 / 0.25); animation: toast-in 140ms ease-out, toast-out 260ms ease-in 1340ms forwards; }
 .tap-toast.undo { background: #5b4a12; }
 @media (prefers-reduced-motion: reduce) { .tap-toast { animation: none; } }
+
+/* Admin → Trades & waivers */
+.trade-form { min-width: 0; }   /* a grid item: without this, long option text widens the page on a phone */
+.trade-form h3 { margin: 14px 0 6px; font-size: 1rem; }
+.narrow-field { max-width: 260px; }
+.trade-moves { display: flex; flex-direction: column; gap: 8px; padding: 0; margin: 0; }
+.trade-move { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.trade-move select { min-width: 0; max-width: 100%; flex: 0 1 auto; }
+.trade-move input[type="number"] { width: 140px; }
+.trade-salary { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.trade-effect { margin-top: 12px; }
+.trade-effect table { margin-bottom: 6px; }
+.over-warning { margin: 4px 0; }
+.deal-list > li.deal { padding: 8px 0; border-bottom: 1px solid var(--border); }
+.deal-list > li.deal:last-child { border-bottom: none; }

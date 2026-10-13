@@ -175,9 +175,13 @@ export function computeLeague(input: LeagueInput): EngineResult {
       (beforeWeek === undefined || l.week < beforeWeek)).map((l) => l.growth);
     return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null;
   };
-  const startSalary = (p: Player) =>
-    p.initialSalary + trades.filter((t) => canon(t.player) === p.name && t.afterWeek === 0)
-      .reduce((a, t) => a + (t.playerAdd ?? 0), 0);
+  // Salary moves at a week: a waiver's new salary replaces the running one; adjustments add on top.
+  const movesAt = (p: Player, w: number) => {
+    const ts = trades.filter((t) => canon(t.player) === p.name && t.afterWeek === w);
+    const set = ts.filter((t) => t.setSalary !== undefined).at(-1)?.setSalary;
+    return { set, add: ts.reduce((a, t) => a + (t.playerAdd ?? 0), 0) };
+  };
+  const startSalary = (p: Player) => { const m = movesAt(p, 0); return (m.set ?? p.initialSalary) + m.add; };
 
   for (const l of lines) {
     if (l.role !== "absent") continue;
@@ -210,6 +214,7 @@ export function computeLeague(input: LeagueInput): EngineResult {
   const horizon = Math.max(1, input.throughWeek,
     ...sched.map((s) => s.week),
     ...trades.map((t) => Math.max(t.afterWeek + 1, t.effectiveWeek ?? 0)),
+    ...(input.capTrades ?? []).map((c) => c.afterWeek + 1),
     ...Object.keys(rules.capExtraByWeek).map(Number).filter(Number.isFinite),
     ...lines.map((l) => l.week),
     ...input.subAssignments.map((a) => a.week),
@@ -222,9 +227,8 @@ export function computeLeague(input: LeagueInput): EngineResult {
     for (let w = 1; w <= horizon; w++) {
       const growth = lines.filter((l) => l.player === p.name && l.week === w && l.role !== "sub")
         .reduce((a, l) => a + l.growth, 0);
-      const adds = trades.filter((t) => canon(t.player) === p.name && t.afterWeek === w && w > 0)
-        .reduce((a, t) => a + (t.playerAdd ?? 0), 0);
-      row.push(row[w - 1] + growth + adds);
+      const m = movesAt(p, w);
+      row.push((m.set ?? row[w - 1] + growth) + m.add);
     }
     salary[p.name] = row;
   }
@@ -233,7 +237,8 @@ export function computeLeague(input: LeagueInput): EngineResult {
   // the average of all rostered real players.
   if (rules.plugMode === "leagueAverage") {
     const subTeams = new Set(input.teams.filter((t) => t.isSubTeam).map((t) => t.name));
-    const real = input.players.filter((p) => !p.isSub && !p.isPlug);
+    // Anyone on a team that week counts, a waiver pickup from the sub pool included.
+    const real = input.players.filter((p) => !p.isPlug);
     const avg = (ps: Player[], w: number) => ps.reduce((a, p) => a + salary[p.name][w], 0) / ps.length;
     for (const plug of input.players.filter((p) => p.isPlug)) {
       salary[plug.name] = salary[plug.name].map((_, w) => {
@@ -259,5 +264,13 @@ export function computeLeague(input: LeagueInput): EngineResult {
     return total / rules.teamsForCapAverage + rules.capBuffer + (rules.capExtraByWeek[String(w)] ?? 0);
   });
 
-  return { lines, recordings, salary, capByWeek, teamBonus, teamOf, warnings, horizon };
+  const capSpace: Record<string, number[]> = {};
+  for (const c of input.capTrades ?? []) {
+    for (const [team, sign] of [[c.to, 1], [c.from, -1]] as const) {
+      capSpace[team] ??= Array(horizon + 1).fill(0);
+      for (let w = Math.max(0, c.afterWeek); w <= horizon; w++) capSpace[team][w] += sign * c.amount;
+    }
+  }
+
+  return { lines, recordings, salary, capByWeek, capSpace, teamBonus, teamOf, warnings, horizon };
 }

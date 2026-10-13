@@ -362,3 +362,77 @@ test("on a 10-inch tablet and a phone, 10 players and 2 subs fit with a slim sco
     await ctx.close();
   }
 });
+
+test("trades and waivers: move players and cap space from a week, see the cap, undo", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  await page.goto("/#/admin");
+  await page.getByRole("link", { name: /New season/ }).click();
+  await page.fill("#ns-name", "Trades");
+  await page.fill("#ns-roster", ROSTER);
+  await page.locator(".plug-prompt").getByRole("button", { name: "Add plug" }).click();
+  await page.fill("#ns-first", "2027-01-04"); await page.fill("#ns-weeks", "4");
+  await page.click("text=Fill in weekly dates");
+  await page.click("text=Create season");
+  await page.click("nav.tabs >> text=Admin");
+  await page.click(".subtabs >> text=Trades & waivers");
+  await expect(page.locator(".deal-list, .empty").first()).toHaveText("No trades or waiver moves yet.");
+
+  // A trade from week 2: Al Ames for Bo Birch, with $250,000 of cap space from Team B to Team A.
+  await page.getByLabel("Takes effect from").selectOption({ label: "Week 2 (2027-01-11)" });
+  await page.getByLabel("Player 1", { exact: true }).selectOption("Al Ames");
+  await page.getByLabel("Where player 1 goes").selectOption("Team B");
+  await page.getByRole("button", { name: "+ Add a player" }).click();
+  await page.getByLabel("Player 2", { exact: true }).selectOption("Bo Birch");
+  await page.getByLabel("Where player 2 goes").selectOption("Team A");
+  await page.getByRole("button", { name: "+ Add cap space" }).click();
+  await page.getByLabel("Cap space 1: from").selectOption("Team B");
+  await page.getByLabel("Cap space 1: amount").fill("250000");
+  await page.getByLabel("Cap space 1: to").selectOption("Team A");
+  await expect(page.locator(".trade-effect tbody tr")).toHaveCount(2);
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.locator(".deal")).toHaveCount(1);
+  await expect(page.locator(".deal").first()).toContainText("Trade · from week 2");
+  await expect(page.locator(".deal").first()).toContainText("Cap space: $250,000 from Team B to Team A");
+
+  // Waivers: pick up Casey Sub at $3,000,000 (over the cap: a warning, still saved), drop Ada Alto at $300,000.
+  await page.getByLabel("Player 1", { exact: true }).selectOption("Casey Sub");
+  await page.getByLabel("Where player 1 goes").selectOption("Team A");
+  await expect(page.getByLabel("Casey Sub's salary from week 2")).toBeVisible();
+  await page.getByLabel("Casey Sub's salary from week 2").fill("3000000");
+  await page.getByRole("button", { name: "+ Add a player" }).click();
+  await page.getByLabel("Player 2", { exact: true }).selectOption("Ada Alto");
+  await page.getByLabel("Where player 2 goes").selectOption("Sub pool");
+  await page.getByLabel("Ada Alto's salary from week 2").fill("300000");
+  await expect(page.locator(".over-warning")).toContainText("Team A would be over the cap by");
+  // On a phone the form fits the width (the payroll table scrolls inside itself).
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  await page.setViewportSize({ width: 1024, height: 768 });
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.locator(".deal")).toHaveCount(2);
+  await expect(page.locator(".deal").first()).toContainText("Waivers · from week 2");
+  await expect(page.locator(".deal").first()).toContainText("Casey Sub: sub pool → Team A, salary $3,000,000");
+
+  // Week 2's Team A: Bo Birch and Casey Sub in, Al Ames and Ada Alto out.
+  await page.click(".track-stats");
+  await page.fill('input[type="date"]', "2027-01-11");
+  const names = () => page.locator(".checkin .chip").allTextContents();
+  await expect.poll(async () => (await names()).join("|")).toContain("Bo Birch");
+  expect((await names()).join("|")).toContain("Casey Sub");
+  expect((await names()).join("|")).not.toContain("Al Ames");
+  expect((await names()).join("|")).not.toContain("Ada Alto");
+  // Week 1 is as it was.
+  await page.fill('input[type="date"]', "2027-01-04");
+  await expect.poll(async () => (await names()).join("|")).toContain("Al Ames");
+
+  // Undo the trade: Al is back on Team A in week 2; the waiver moves stay.
+  await page.goBack();
+  await page.click("nav.tabs >> text=Admin");
+  await page.click(".subtabs >> text=Trades & waivers");
+  await page.getByRole("button", { name: "Undo the trade from week 2" }).click();
+  await page.getByRole("button", { name: "Undo it" }).click();
+  await expect(page.locator(".deal")).toHaveCount(1);
+  await expect(page.locator(".deal").first()).toContainText("Waivers");
+  expect(errors).toEqual([]);
+});

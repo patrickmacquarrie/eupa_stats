@@ -79,9 +79,19 @@ export interface Trade {
   /** First week the player plays for the new team (defaults to afterWeek + 1). */
   effectiveWeek?: number;
   player: string;
-  toTeam: string | null;   // null = removed from league
+  toTeam: string | null;   // null = removed from league (or the sub pool, in a season with no sub team)
   playerAdd?: number;      // salary adjustment applied to the player at that week (waivers)
+  /** Waivers: the player's salary after `afterWeek` is set to this (an adjustment still adds on top). */
+  setSalary?: number;
+  /** Moves entered together (one trade, or one round of waiver moves) share an id. */
+  id?: number;
+  /** The player left the league (rather than going to the sub pool). */
+  left?: boolean;
 }
+
+/** Cap room one team sends another in a trade: from the cap after `afterWeek` on, `to`'s cap is
+ * higher by `amount` and `from`'s lower. */
+export interface CapTrade { id?: number; afterWeek: number; from: string; to: string; amount: number }
 
 export interface ScheduleWeek { week: number; date: string }
 
@@ -104,6 +114,8 @@ export interface LeagueInput {
   teams: Team[];
   players: Player[];
   trades: Trade[];
+  /** Cap space traded between teams. */
+  capTrades?: CapTrade[];
   schedule: ScheduleWeek[];
   events: PlayEvent[];
   boxScores?: BoxScore[];
@@ -157,6 +169,8 @@ export interface EngineResult {
   /** salary[player][week] — index 0 is before week 1. */
   salary: Record<string, number[]>;
   capByWeek: number[];
+  /** Cap room each team has gained (+) or given away (−) in trades, by week; a team's own cap is capByWeek[w] + this. */
+  capSpace: Record<string, number[]>;
   /** Cumulative team result bonus by week (only when teamResultBonus is set). */
   teamBonus: Record<string, number[]>;
   teamOf: (player: string, week: number) => string | null;

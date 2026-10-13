@@ -209,14 +209,14 @@ function SeasonBasics() {
   );
 }
 
-/** Roster fillers for short teams. Removing one mid-season needs trades, so until then it's blocked once games exist. */
+/** Roster fillers for short teams. Once games exist, one comes off a team from a given week on Trades & waivers. */
 function PlugsCard() {
   const { season, result, update } = useSeason();
   const { input } = season;
   const [gender, setGender] = useState<Record<string, string>>({});
   const week = Math.max(1, input.throughWeek + 1);
   const teams = input.teams.filter((t) => !t.isSubTeam).map((t) => t.name);
-  const size = (t: string) => input.players.filter((p) => !p.isSub && result.teamOf(p.name, week) === t).length;
+  const size = (t: string) => input.players.filter((p) => result.teamOf(p.name, week) === t).length;
   const largest = Math.max(0, ...teams.map(size));
   const played = input.events.length > 0 || (input.boxScores?.length ?? 0) > 0;
   return (
@@ -235,7 +235,7 @@ function PlugsCard() {
                 <td>{plugs.map((p) => (
                   <span key={p.name} className="tag">{p.name}{" "}
                     <button className="link" disabled={played} aria-label={`Remove ${p.name}`}
-                      title={played ? "Games are recorded: removing a plug from a given week comes with the trades screen" : "Remove"}
+                      title={played ? "Games are recorded: take the plug off from a given week on Trades & waivers" : "Remove"}
                       onClick={() => update((i) => ({ ...i, players: i.players.filter((x) => x.name !== p.name) }))}>×</button>
                   </span>
                 ))}</td>
@@ -250,7 +250,7 @@ function PlugsCard() {
           })}
         </tbody>
       </table>
-      {played && <p className="muted small">Games are recorded, so plugs can be added but not removed yet: removing one from a given week will come with the trades screen.</p>}
+      {played && <p className="muted small">Games are recorded, so a plug comes off a team from a given week instead: on <Link to="../trades">Trades &amp; waivers</Link>, move it out of the league.</p>}
     </section>
   );
 }

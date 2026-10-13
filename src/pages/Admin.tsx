@@ -12,7 +12,7 @@ export function AdminFrame({ children }: { children: ReactNode }) {
   const base = `${seasonBase}/admin`;
   const tabs: [string, string, number][] = [
     ["", "Needs attention", counts.review], ["/names", "Names", counts.names], ["/subs", "Subs", counts.subs],
-    ["/recordings", "Recordings", 0], ["/setup", "Setup", 0],
+    ["/trades", "Trades & waivers", 0], ["/recordings", "Recordings", 0], ["/setup", "Setup", 0],
   ];
   return (
     <>
