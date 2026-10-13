@@ -91,7 +91,12 @@ export function seasonInputProblems(input: LeagueInput): Problem[] {
     if (!isName(t.player) || !Number.isInteger(t.afterWeek) || t.afterWeek < 0) block(`A trade${t.player ? ` of ${t.player}` : ""} is missing its player or week.`);
     if (t.toTeam !== null && !teams.has(t.toTeam)) block(`${t.player} is traded to “${t.toTeam}”, which isn't a team in this season.`);
     if (t.playerAdd !== undefined && !Number.isFinite(t.playerAdd)) block(`${t.player}'s trade salary adjustment isn't a number.`);
+    if (t.setSalary !== undefined && !Number.isFinite(t.setSalary)) block(`${t.player}'s waiver salary isn't a number.`);
   });
+  for (const c of input.capTrades ?? []) {
+    if (!teams.has(c.from) || !teams.has(c.to) || c.from === c.to) block(`A cap space trade after week ${c.afterWeek} names a team that isn't in this season.`);
+    if (!Number.isInteger(c.afterWeek) || c.afterWeek < 0 || !Number.isFinite(c.amount)) block(`A cap space trade from ${c.from} to ${c.to} is missing its week or amount.`);
+  }
   for (const b of input.boxScores ?? []) {
     const where = `The week ${b.week} box score for ${b.team}`;
     if (!teams.has(b.team) || !teams.has(b.opp)) block(`${where} names a team that isn't in this season.`);

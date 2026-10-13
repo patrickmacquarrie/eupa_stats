@@ -99,8 +99,10 @@ export function buildSnapshot(name: string, input: LeagueInput, result: EngineRe
     }
     return r;
   };
-  // Everyone on a roster appears, even with no games yet.
-  for (const p of input.players) if (!p.isSub && !p.isPlug && (result.teamOf(p.name, w) ?? result.teamOf(p.name, w + 1))) row(p.name);
+  // Everyone on a roster appears, even with no games yet (a waiver pickup included; the sub pool isn't a roster).
+  const real = new Set(input.teams.filter((t) => !t.isSubTeam).map((t) => t.name));
+  const onTeam = (n: string, wk: number) => { const t = result.teamOf(n, wk); return t !== null && real.has(t); };
+  for (const p of input.players) if (!p.isPlug && (onTeam(p.name, w) || onTeam(p.name, w + 1))) row(p.name);
   for (const l of result.lines) {
     if (!counted(l)) continue;
     const r = row(l.player);

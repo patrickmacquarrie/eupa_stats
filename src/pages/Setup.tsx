@@ -216,7 +216,7 @@ function PlugsCard() {
   const [gender, setGender] = useState<Record<string, string>>({});
   const week = Math.max(1, input.throughWeek + 1);
   const teams = input.teams.filter((t) => !t.isSubTeam).map((t) => t.name);
-  const size = (t: string) => input.players.filter((p) => !p.isSub && result.teamOf(p.name, week) === t).length;
+  const size = (t: string) => input.players.filter((p) => result.teamOf(p.name, week) === t).length;
   const largest = Math.max(0, ...teams.map(size));
   const played = input.events.length > 0 || (input.boxScores?.length ?? 0) > 0;
   return (

@@ -79,19 +79,22 @@ export function useSeason() {
 
 
 /**
- * Team payroll after `week`: every rostered (non-sub) player on the team for the next week's
- * games, plus any team result bonus that counts against the cap.
+ * Team payroll after `week`: every player on the team for the next week's games (a waiver pickup
+ * from the sub pool included), plus any team result bonus that counts against the cap.
  */
 export function teamPayroll(input: LeagueInput, res: EngineResult, week: number) {
   const out: Record<string, number> = {};
   for (const t of input.teams) if (!t.isSubTeam) out[t.name] = res.teamBonus[t.name]?.[week] ?? 0;
   for (const p of input.players) {
     const t = res.teamOf(p.name, week + 1);
-    if (!t || p.isSub || !(t in out)) continue;
+    if (!t || !(t in out)) continue;
     out[t] += res.salary[p.name][week];
   }
   return out;
 }
+
+/** A team's own cap after `week`: the league cap plus any cap space it has traded for (or away). */
+export const teamCap = (res: EngineResult, team: string, week: number) => res.capByWeek[week] + (res.capSpace[team]?.[week] ?? 0);
 
 /** Each season's latest auto-matches, to start the next calculation from. */
 const lastAuto = new Map<string, SubAssignment[]>();
