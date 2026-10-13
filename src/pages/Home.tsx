@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { Component, lazy, Suspense, useEffect, useState, type ReactNode } from "react";
 import { askConfirm } from "../lib/confirm";
 import { Link, useNavigate } from "react-router-dom";
 import { recentLeagues } from "../lib/recentLeagues";
@@ -44,8 +44,9 @@ export function Home() {
       <SiteNav current="admin" />
     </div></header>
     <main className="page narrow">
-      {/* Only a browser that has opened a league loads Firebase here. */}
-      {recentLeagues().length > 0 && <Suspense fallback={null}><MainSeasonLink /></Suspense>}
+      {/* The main page's league, on every device: a new browser (or one with its data cleared) has no
+          list of leagues yet, and this is the one an admin usually wants. */}
+      <Quiet><Suspense fallback={null}><MainSeasonLink /></Suspense></Quiet>
       <h1>Seasons</h1>
       <p className="muted">
         Every salary, cap and box score is recalculated from the raw tablet recordings and the league's rules.
@@ -125,4 +126,11 @@ function LeaguesOnline() {
       </div>
     </section>
   );
+}
+
+/** Shows nothing if the main-season card can't load (no signal, nothing online yet): the page works without it. */
+class Quiet extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  render() { return this.state.failed ? null : this.props.children; }
 }

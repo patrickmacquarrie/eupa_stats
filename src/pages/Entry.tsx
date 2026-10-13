@@ -69,16 +69,22 @@ export function StatsEntry() {
 export function MainSeasonLink() {
   const { main } = useMain();
   const [names, setNames] = useState<{ league: string; season: string } | null>(null);
+  const [role, setRole] = useState<Role | null | undefined>(undefined);
   useEffect(() => {
     if (!main) return;
     getLeague(main.league).then((l) => l && setNames({ league: l.name, season: l.seasons.find((s) => s.id === main.season)?.name ?? main.season })).catch(() => {});
   }, [main?.league, main?.season]);
+  useEffect(() => (main ? watchRole(main.league, setRole) : undefined), [main?.league]);
   if (!main || !names) return null;
+  const league = `/l/${main.league}`;
   return (
     <section className="card main-season">
       <h2>Online</h2>
-      <p><Link to={`/l/${main.league}/s/${main.season}`} className="season-name">{names.season}</Link> <span className="muted small">{names.league} · on the main page</span></p>
-      <p className="muted small">Other seasons online are on the <Link to={`/l/${main.league}`}>league page</Link>.</p>
+      <p><Link to={`${league}/s/${main.season}`} className="season-name">{names.season}</Link> <span className="muted small">{names.league} · on the main page</span></p>
+      {role === null
+        // A device that hasn't unlocked the league sees the season read-only: unlocking is on the league page.
+        ? <p className="small"><Link to={league} className="button-link">Unlock admin on this device</Link> <span className="muted">with the league's admin password, on the league page</span></p>
+        : <p className="muted small">Other seasons online are on the <Link to={league}>league page</Link>.</p>}
     </section>
   );
 }
