@@ -330,7 +330,17 @@ button.flag.on { color: var(--warn); background: var(--surface-1); border-color:
   .log { position: static; max-height: none; }
 }
 .flag-review { display: flex; flex-direction: column; gap: 4px; padding: 8px 0; border-top: 1px solid var(--border); }
-.flag-review input { width: 100%; }
+.flag-review input, .flag-review textarea { width: 100%; }
+/* Finish screen: flagged possessions come first, each with a note box. */
+.flagged-notes { border-left: 4px solid var(--warn); }
+.flagged-notes h2 { margin-bottom: 4px; }
+.flag-what { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.flag-what .side { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+.flag-what .side.ours { color: var(--good); }
+.flag-what .side.theirs { color: var(--bad); }
+.flag-note-field { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
+.flag-note-field textarea { font: inherit; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-1); resize: vertical; min-height: 44px; }
+.unnoted { align-self: center; }
 .flag-item { border-top: 1px solid var(--border); padding: 10px 0; }
 .flag-item.resolved { opacity: 0.55; }
 .flag-item .plays { margin: 6px 0 0; padding-left: 18px; }

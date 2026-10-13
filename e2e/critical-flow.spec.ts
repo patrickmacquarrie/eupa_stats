@@ -264,6 +264,9 @@ test("on a phone, a 12-player team fits on one screen and the page can't be scro
   // Leaving the recording screen gives the page back its scrolling.
   await page.getByRole("button", { name: "Finish game" }).click();
   expect(await page.evaluate(() => document.documentElement.classList.contains("recording"))).toBe(false);
+  // On the phone's Finish screen the flagged possession's note box is on screen without scrolling.
+  const box = await page.getByLabel(/Note for the possession/).boundingBox();
+  expect(box!.y + box!.height).toBeLessThanOrEqual(664);
   await ctx.close();
 });
 
@@ -435,4 +438,45 @@ test("trades and waivers: move players and cap space from a week, see the cap, u
   await expect(page.locator(".deal")).toHaveCount(1);
   await expect(page.locator(".deal").first()).toContainText("Waivers");
   expect(errors).toEqual([]);
+});
+
+test("finishing a game asks for a note on each flagged possession, without requiring one", async ({ page }) => {
+  await page.goto("/#/admin");
+  await page.getByRole("link", { name: /New season/ }).click();
+  await page.fill("#ns-name", "Flags");
+  await page.fill("#ns-roster", ROSTER);
+  await page.locator(".plug-prompt").getByRole("button", { name: "Add plug" }).click();
+  await page.fill("#ns-first", "2027-01-04"); await page.fill("#ns-weeks", "4");
+  await page.click("text=Fill in weekly dates");
+  await page.click("text=Create season");
+  await page.click(".track-stats");
+  await page.fill('input[type="date"]', "2027-01-04");
+  await page.click("text=Start recording");
+  await tap(page, "Ann Arbour", "Touch");
+  await tap(page, "Al Ames", "Point");
+  await tap(page, "Art Aldo", "GSO");
+  await tap(page, "Amy Ash", "Touch");
+  await tap(page, "Amy Ash", "Throwaway");
+  // Flag two possessions during the game (the log sits beside the roster on a tablet).
+  await page.getByRole("button", { name: "Flag this possession" }).nth(0).click();
+  await page.getByRole("button", { name: "Flag this possession" }).nth(1).click();
+  await page.click("text=Finish game");
+
+  // The Finish screen opens with them, above the box score, each with a note box.
+  const section = page.locator(".flagged-notes");
+  await expect(section.locator("h2")).toHaveText("⚑ You flagged 2 possessions");
+  expect(await section.evaluate((s) => !!(s.compareDocumentPosition(document.querySelector("table.data")!) & Node.DOCUMENT_POSITION_FOLLOWING))).toBe(true);
+  await expect(section.locator("textarea")).toHaveCount(2);
+  await expect(page.locator(".unnoted")).toContainText("The 2 flagged possessions have no note.");
+  // "Add one" goes to the first empty note.
+  await page.locator(".unnoted").getByRole("button", { name: "Add one" }).click();
+  await page.keyboard.type("Al may have caught it out of bounds");
+  await expect(section.locator("textarea").first()).toHaveValue("Al may have caught it out of bounds");
+  await expect(page.locator(".unnoted")).toContainText("1 of 2 flagged possessions have no note.");
+
+  // A note isn't required: save with one left blank. The note reaches the game page.
+  await page.click("text=Save to season");
+  await expect(page.locator("h1")).toHaveText("Saved");
+  await page.getByRole("link", { name: "Open the game" }).click();
+  await expect(page.locator("main")).toContainText("Al may have caught it out of bounds");
 });

@@ -547,6 +547,8 @@ function Review({ draft, onChange, cancelSend, onSaved, onBack, onDone }: { draf
   const notes: Record<number, string> = Object.fromEntries((draft.flags ?? []).map((f) => [f.start, f.note ?? ""]));
   const setNotes = (n: Record<number, string>) => onChange({ ...draft, flags: (draft.flags ?? []).map((f) => ({ ...f, note: n[f.start] })) });
   const poss = possessions(draft.events);
+  const flags = [...(draft.flags ?? [])].sort((a, b) => a.start - b.start);   // in game order
+  const unnoted = flags.filter((f) => !(notes[f.start] ?? "").trim());
   const tally = useMemo(() => tallyRecording(draft.events, (n) => n), [draft.events]);
   const s = stateOf(draft);
   const key = `${draft.date}|${draft.team}|${draft.opp}`;
@@ -615,6 +617,31 @@ function Review({ draft, onChange, cancelSend, onSaved, onBack, onDone }: { draf
       <p className="crumbs"><button className="link" onClick={onBack}>← Back to recording</button></p>
       <h1>{shortTeam(draft.team)} {s.us}–{s.them} {shortTeam(draft.opp)}</h1>
       <p className="muted">{draft.date} · week {week || "?"} · {draft.events.length} plays</p>
+      {flags.length > 0 && (
+        // First thing on the Finish screen: the stat-taker remembers what went wrong now, not later.
+        <section className="card flagged-notes" aria-labelledby="flagged-title">
+          <h2 id="flagged-title">⚑ You flagged {flags.length === 1 ? "a possession" : `${flags.length} possessions`}</h2>
+          <p className="small">Say what went wrong while you remember it. The admin who fixes {flags.length === 1 ? "it" : "them"} sees your note on the game page. Notes are optional.</p>
+          {flags.map((f) => {
+            const p = poss.find((x) => x.start === f.start);
+            const end = p ? draft.events[p.end] : undefined;
+            return (
+              <div key={f.start} className="flag-review">
+                <div className="flag-what">
+                  {p && <span className={"side " + (p.ours ? "ours" : "theirs")}>{shortTeam(p.ours ? draft.team : draft.opp)}</span>}
+                  <span className="muted small">{f.clock.slice(0, 5)}{end ? ` · ${end.statScore}–${end.otherScore}` : ""}</span>
+                  <span>{p?.summary ?? "(possession removed)"}</span>
+                </div>
+                <label className="flag-note-field">
+                  <span className="small">What went wrong? <span className="muted">(optional)</span></span>
+                  <textarea rows={2} data-note={f.start} placeholder="e.g. missed a touch before the point" value={notes[f.start] ?? ""}
+                    onChange={(e) => setNotes({ ...notes, [f.start]: e.target.value })} aria-label={`Note for the possession at ${f.clock}`} />
+                </label>
+              </div>
+            );
+          })}
+        </section>
+      )}
       <section className="card scroll-x">
         <table className="data">
           <thead><tr><th>Player</th><th className="num">G</th><th className="num">A</th><th className="num">2A</th><th className="num">D</th><th className="num">Drop</th><th className="num">TA</th><th className="num">Tch</th></tr></thead>
@@ -640,25 +667,15 @@ function Review({ draft, onChange, cancelSend, onSaved, onBack, onDone }: { draf
           </div>
         )}
       </section>
-      {(draft.flags?.length ?? 0) > 0 && (
-        <section className="card">
-          <h2>Flagged possessions ({draft.flags!.length})</h2>
-          <p className="muted small">These go to the game page for the admin to check. A note helps: what went wrong?</p>
-          {draft.flags!.map((f) => {
-            const p = poss.find((x) => x.start === f.start);
-            return (
-              <div key={f.start} className="flag-review">
-                <div><span className="muted small">{f.clock}</span> {p?.summary ?? "(possession removed)"}</div>
-                <input placeholder="Note (optional), e.g. missed a touch before the point" value={notes[f.start] ?? ""}
-                  onChange={(e) => setNotes({ ...notes, [f.start]: e.target.value })} aria-label={`Note for the possession at ${f.clock}`} />
-              </div>
-            );
-          })}
-        </section>
-      )}
       {exists && <p className="attn">{online ? `Another tablet already sent ${draft.team}'s recording for ${draft.date}.` : `This replaces the recording already saved for ${draft.team} on ${draft.date}.`}</p>}
       <div className="row gap wrap">
         <button className="primary big" onClick={save}>Save to season</button>
+        {unnoted.length > 0 && (
+          <span className="muted small unnoted">
+            {unnoted.length === flags.length ? (flags.length === 1 ? "The flagged possession has" : `The ${flags.length} flagged possessions have`) : `${unnoted.length} of ${flags.length} flagged possessions have`} no note.{" "}
+            <button className="link" onClick={() => document.querySelector<HTMLTextAreaElement>(`[data-note="${unnoted[0].start}"]`)?.focus()}>Add one</button>
+          </span>
+        )}
         <button onClick={download}>Download CSV</button>
         <span className="grow" />
         <button className="danger" onClick={async () => {
