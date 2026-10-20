@@ -480,3 +480,32 @@ test("finishing a game asks for a note on each flagged possession, without requi
   await page.getByRole("link", { name: "Open the game" }).click();
   await expect(page.locator("main")).toContainText("Al may have caught it out of bounds");
 });
+
+test("names: a “Sub” record merges into any player, and any two players can be merged", async ({ page }) => {
+  await page.goto("/#/admin");
+  await page.getByRole("link", { name: /New season/ }).click();
+  await page.fill("#ns-name", "Names");
+  await page.fill("#ns-roster", ROSTER);
+  await page.locator(".plug-prompt").getByRole("button", { name: "Add plug" }).click();
+  await page.fill("#ns-first", "2027-01-04"); await page.fill("#ns-weeks", "4");
+  await page.click("text=Fill in weekly dates");
+  await page.click("text=Create season");
+  await page.click("nav.tabs >> text=Admin");
+  await page.click(".subtabs >> text=Names");
+
+  // "Casey Sub" has no "Casey" to go to, so it would be renamed; pick the real person instead.
+  const pick = page.getByLabel("Merge Casey Sub into");
+  await expect(pick).toHaveValue("Casey");
+  await pick.selectOption("Amy Ash");
+  await page.locator(".sub-records").getByRole("button", { name: "Merge" }).click();
+  await expect(page.locator("tr", { hasText: "Casey Sub" }).last()).toContainText("→ Amy Ash");
+  await page.getByRole("button", { name: "Undo" }).click();
+
+  // Any two records: Casey Sub into Bea Brook.
+  await page.getByLabel("Merge this player").selectOption("Casey Sub");
+  await page.getByLabel("Into this player").selectOption("Bea Brook");
+  await page.locator(".merge-any").getByRole("button", { name: "Merge" }).click();
+  await page.click(".modal >> button:text-is('Merge')");
+  await expect(page.locator("tr", { hasText: "Casey Sub" }).last()).toContainText("→ Bea Brook");
+  await expect(page.getByLabel("Merge Casey Sub into")).toHaveCount(0);
+});

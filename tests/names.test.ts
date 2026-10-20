@@ -13,6 +13,17 @@ describe("name matching", () => {
     expect(likelySame("Leopold Rookwood", "Leopold Rookwood Sub")).toMatch(/Sub/);
     expect(likelySame("Dashiell Ashgrove", "Quillon Ashgrove")).toBeNull();
     expect(likelySame("Peregrine Oakenshaw", "Leopold Rookwood")).toBeNull();
+    expect(likelySame("Jess Sub", "Jessica Van Os")).toMatch(/first name only/);
+    expect(likelySame("Jo Sub", "Jordan Lee")).toBeNull();   // too short to tell
+  });
+
+  it("offers the likeliest real player for a “Sub” record with only a first name", () => {
+    const input = load("fall-2026").input;
+    const jessica = { ...input.players.find((p) => !p.isSub)!, name: "Jessica Van Os" };
+    const withJess = { ...input, players: [...input.players, jessica, { name: "Jess Sub", gender: "F", initialSalary: 0, team: null, isSub: true }] };
+    const r = findNameIssues(withJess).subRecords.find((x) => x.player.name === "Jess Sub")!;
+    expect(r.base?.name).toBe("Jessica Van Os");
+    expect(r.why).toBe("first name only");
   });
 
   it("suggests the right player for every unmatched spelling in the real seasons", () => {

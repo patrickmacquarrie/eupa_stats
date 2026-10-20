@@ -71,11 +71,14 @@ export function likelySame(x: string, y: string): string | null {
   const [fa, ...la] = a.split(" "), [fb, ...lb] = b.split(" ");
   if (la.length && la.join(" ") === lb.join(" ") && Math.min(fa.length, fb.length) >= 3 && (fa.startsWith(fb) || fb.startsWith(fa)))
     return "short form of the first name";
+  // A first name on its own, as a tablet often records a sub: "Jess Sub" / "Jessica Van Os".
+  if ((!la.length) !== (!lb.length) && Math.min(fa.length, fb.length) >= 3 && (fa.startsWith(fb) || fb.startsWith(fa)))
+    return "first name only";
   return null;
 }
 
 export interface UnknownName { name: string; plays: number; recordings: string[]; suggestion?: string; why?: string }
-export interface SubRecord { player: Player; base?: Player }
+export interface SubRecord { player: Player; base?: Player; /** Why `base` is a guess rather than the same name without “Sub”. */ why?: string }
 export interface DuplicatePair { a: Player; b: Player; why: string }
 
 const isSubSuffixRecord = (p: Player) => p.isSub && !p.isPlug && SUB_SUFFIX.test(p.name);
@@ -117,8 +120,16 @@ export function findNameIssues(input: LeagueInput, aliases: Alias[] = [], ignore
     .sort((a, b) => b.plays - a.plays);
 
   // 2. Old-style "Name Sub" records.
+  // The real record is the same name without "Sub", or failing that the likeliest match ("Jess Sub" → Jessica Van Os).
+  const real = input.players.filter((p) => !p.isPlug && !isSubSuffixRecord(p));
   const subRecords: SubRecord[] = input.players.filter(isSubSuffixRecord)
-    .map((p) => ({ player: p, base: known.get(nameKey(stripSub(p.name))) }))
+    .map((p): SubRecord => {
+      const exact = known.get(nameKey(stripSub(p.name)));
+      if (exact) return { player: p, base: exact };
+      const s = suggestPlayer(stripSub(p.name), real);
+      const base = s ? real.find((x) => x.name === s.name) : undefined;
+      return base ? { player: p, base, why: s!.why } : { player: p };
+    })
     .filter((s) => !s.base || !isSubSuffixRecord(s.base));
 
   // 3. Player records that look like the same person twice (excluding the Sub pairs above).
