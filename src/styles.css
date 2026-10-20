@@ -681,3 +681,13 @@ main.live { animation: fade-in 150ms ease-out; }
 .over-warning { margin: 4px 0; }
 .deal-list > li.deal { padding: 8px 0; border-bottom: 1px solid var(--border); }
 .deal-list > li.deal:last-child { border-bottom: none; }
+
+/* Rankings: the master sheet's tab, wide, with the header and player names held in place. */
+.page.wide { max-width: none; }
+.rankings-scroll { max-height: calc(100vh - 220px); max-height: calc(100dvh - 220px); overflow: auto; }
+.rankings-table th { position: sticky; top: 0; z-index: 2; background: var(--surface-2); white-space: normal; min-width: 64px; vertical-align: bottom; line-height: 1.2; }
+.rankings-table .name-col { position: sticky; left: 0; z-index: 1; background: var(--surface-1); white-space: nowrap; }
+.rankings-table th.name-col { z-index: 3; background: var(--surface-2); }
+.rankings-table td { white-space: nowrap; }
+.rankings-table td.neg { color: var(--bad); }
+.rankings-table tr.sub-row td { color: var(--text-secondary); }
