@@ -29,6 +29,7 @@ const StatsEntry = lazy(() => import("./pages/Entry").then((m) => ({ default: m.
 const PublicPage = lazy(() => import("./pages/PublicPage").then((m) => ({ default: m.PublicPage })));
 const OnlineSeasonProvider = lazy(() => import("./lib/OnlineSeason"));
 const Subs = lazy(() => import("./pages/Subs").then((m) => ({ default: m.Subs })));
+const Rankings = lazy(() => import("./pages/Rankings").then((m) => ({ default: m.Rankings })));
 const Trades = lazy(() => import("./pages/Trades").then((m) => ({ default: m.Trades })));
 
 /** Catches crashes outside a season (Seasons, New season) and pages that fail to load; resets on navigation. */
@@ -70,6 +71,7 @@ function seasonRoutes() {
       <Route path="record" element={<Record />} />
       <Route path="players" element={<Players />} />
       <Route path="players/:name" element={<PlayerDetail />} />
+      <Route path="rankings" element={<Rankings />} />
       <Route path="games" element={<Games />} />
       <Route path="games/:week/:a/:b" element={<GameDetail />} />
       <Route path="stats" element={<Stats />} />
@@ -131,7 +133,7 @@ function Header() {
   const admin = adminCounts(open, nameIssueCount, result.warnings.length, league?.unfinished.length).total;
   // Admins see every tab; stats entry (and a locked device) sees the games, each with its box score.
   const tabs: [string, string][] = canAdmin
-    ? [["", "Overview"], ["/players", "Players"], ["/games", "Games"], ["/stats", "Player stats"], ["/admin", "Admin"]]
+    ? [["", "Overview"], ["/players", "Players"], ["/rankings", "Rankings"], ["/games", "Games"], ["/stats", "Player stats"], ["/admin", "Admin"]]
     : [["/games", "Games"]];
   return (
     <header className="app-header">

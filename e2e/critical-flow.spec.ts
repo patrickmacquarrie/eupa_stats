@@ -332,7 +332,7 @@ test("on a 10-inch tablet and a phone, 10 players and 2 subs fit with a slim sco
     await page.fill('input[type="date"]', "2027-01-04");
     for (const sub of ["Sully Subwoman", "Simon Subman"]) {
       await page.fill('input[placeholder="Start typing a name"]', sub.slice(0, 5));
-      await page.locator(".addsub button", { hasText: sub }).click();
+      await page.locator(".addsub button", { hasText: new RegExp(`^${sub}`) }).click();
     }
     await page.click("text=Start recording");
 
@@ -479,4 +479,85 @@ test("finishing a game asks for a note on each flagged possession, without requi
   await expect(page.locator("h1")).toHaveText("Saved");
   await page.getByRole("link", { name: "Open the game" }).click();
   await expect(page.locator("main")).toContainText("Al may have caught it out of bounds");
+});
+
+test("names: a “Sub” record merges into any player, and any two players can be merged", async ({ page }) => {
+  await page.goto("/#/admin");
+  await page.getByRole("link", { name: /New season/ }).click();
+  await page.fill("#ns-name", "Names");
+  await page.fill("#ns-roster", ROSTER);
+  await page.locator(".plug-prompt").getByRole("button", { name: "Add plug" }).click();
+  await page.fill("#ns-first", "2027-01-04"); await page.fill("#ns-weeks", "4");
+  await page.click("text=Fill in weekly dates");
+  await page.click("text=Create season");
+  await page.click("nav.tabs >> text=Admin");
+  await page.click(".subtabs >> text=Names");
+
+  // "Casey Sub" has no "Casey" to go to, so it would be renamed; pick the real person instead.
+  const pick = page.getByLabel("Merge Casey Sub into");
+  await expect(pick).toHaveValue("Casey");
+  await pick.selectOption("Amy Ash");
+  await page.locator(".sub-records").getByRole("button", { name: "Merge" }).click();
+  await expect(page.locator("tr", { hasText: "Casey Sub" }).last()).toContainText("→ Amy Ash");
+  await page.getByRole("button", { name: "Undo" }).click();
+
+  // Any two records: Casey Sub into Bea Brook.
+  await page.getByLabel("Merge this player").selectOption("Casey Sub");
+  await page.getByLabel("Into this player").selectOption("Bea Brook");
+  await page.locator(".merge-any").getByRole("button", { name: "Merge" }).click();
+  await page.click(".modal >> button:text-is('Merge')");
+  await expect(page.locator("tr", { hasText: "Casey Sub" }).last()).toContainText("→ Bea Brook");
+  await expect(page.getByLabel("Merge Casey Sub into")).toHaveCount(0);
+});
+
+test("rankings: the master sheet's Rankings tab, sortable, downloads as Excel and CSV", async ({ page }) => {
+  await page.goto("/#/admin");
+  await page.getByRole("link", { name: /New season/ }).click();
+  await page.fill("#ns-name", "Rankings");
+  await page.fill("#ns-roster", ROSTER);
+  await page.locator(".plug-prompt").getByRole("button", { name: "Add plug" }).click();
+  await page.fill("#ns-first", "2027-01-04"); await page.fill("#ns-weeks", "4");
+  await page.click("text=Fill in weekly dates");
+  await page.click("text=Create season");
+  await page.click(".track-stats");
+  await page.fill('input[type="date"]', "2027-01-04");
+  await page.click("text=Start recording");
+  await tap(page, "Ann Arbour", "Touch");
+  await tap(page, "Al Ames", "Point");                 // Al: goal; Ann: assist
+  await tap(page, "Art Aldo", "D-Play");
+  await tap(page, "Amy Ash", "Touch");
+  await tap(page, "Ann Arbour", "Point");              // Ann: goal; Amy: assist
+  await page.click("text=Finish game");
+  await page.click("text=Save to season");
+  await page.getByRole("link", { name: "Open the game" }).click();
+
+  await page.click("nav.tabs >> text=Rankings");
+  const table = page.locator(".rankings-table");
+  await expect(table.locator("thead th")).toHaveCount(28);
+  // A cell by player and column header, as the table shows it.
+  const cell = (n: string, label: string) => table.evaluate((t, [n, label]) => {
+    const i = [...t.querySelectorAll("thead th")].findIndex((th) => th.textContent!.replace(/[▲▼]/g, "").trim() === label);
+    const tr = [...t.querySelectorAll("tbody tr")].find((r) => r.querySelector("td")!.textContent!.trim() === n);
+    return tr?.querySelectorAll("td")[i]?.textContent?.trim();
+  }, [n, label]);
+  expect(await cell("Ann Arbour", "Points")).toBe("1");
+  expect(await cell("Ann Arbour", "Assists")).toBe("1");
+  expect(await cell("Ann Arbour", "Games Played")).toBe("1");
+  expect(await cell("Art Aldo", "Blocks")).toBe("1");
+  expect(await cell("Ann Arbour", "GM")).not.toBe("Sub");
+
+  // Sort by Points: the scorers first.
+  await table.locator("thead th", { hasText: /^Points$/ }).getByRole("button").click();
+  const first2 = (await table.locator("tbody td.name-col").allTextContents()).slice(0, 2).sort();
+  expect(first2).toEqual(["Al Ames", "Ann Arbour"]);
+
+  const xlsx = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download Excel" }).click();
+  const x = await xlsx;
+  expect(x.suggestedFilename()).toBe("Rankings - Rankings through week 1.xlsx");
+  expect(readFileSync(await x.path()).subarray(0, 2).toString()).toBe("PK");   // a real .xlsx (zip)
+  const csv = page.waitForEvent("download");
+  await page.getByRole("button", { name: "CSV" }).click();
+  const c = readFileSync(await (await csv).path(), "utf8");
+  expect(c.split("\n")[0]).toMatch(/^Player,Salary,Player Growth,Sub Growth,Total Growth,Games Played,Wins,Points,/);
 });

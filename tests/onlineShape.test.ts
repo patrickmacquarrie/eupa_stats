@@ -54,6 +54,9 @@ describe("a season stored online", () => {
     expect(back.input.presentWithoutPlays).toContainEqual({ week: 5, team, opp, player: "Quiet One" });
     // The admin's next save moves the new sub into the season document.
     expect(split(back).seasonDoc.input.players.some((p) => p.name === "Brand New")).toBe(true);
+    // Merged into a player later, the tablet's new sub isn't added back from the recording.
+    const merged = { ...seasonDoc, aliases: [{ from: "Brand New", to: s.input.players[0].name }] };
+    expect(assemble(merged, [...docsOf(s), tablet]).input.players.some((p) => p.name === "Brand New")).toBe(false);
   });
 
   it("compares documents regardless of key order", () => {

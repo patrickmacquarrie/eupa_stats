@@ -40,9 +40,12 @@ export function Names() {
   const ignore = (k: string) => updateSeason((s) => ({ ...s, ignoredNames: [...(s.ignoredNames ?? []), k] }));
   const undo = (a: Alias) => updateSeason((s) => ({ ...s, ...unmergeName(s.input, s.aliases ?? [], a) }));
 
-  const subMerges: Merge[] = issues.subRecords.map((s) => ({ from: s.player.name, to: s.base?.name ?? stripSub(s.player.name) }));
+  // Each "Sub" record goes to its real record by default, or keeps its plain name; the admin can pick anyone.
+  const [subPicks, setSubPicks] = useState<Record<string, string>>({});
+  const subTarget = (s: { player: { name: string }; base?: { name: string } }) => subPicks[s.player.name] ?? s.base?.name ?? stripSub(s.player.name);
+  const subMerges: Merge[] = issues.subRecords.map((s) => ({ from: s.player.name, to: subTarget(s) }));
   const typoMerges: Merge[] = issues.unknown.filter((u) => u.suggestion).map((u) => ({ from: u.name, to: u.suggestion! }));
-  const subEffect = useMemo(() => (subMerges.length ? effectOf(season, subMerges, result.salary) : []), [season, result]);
+  const subEffect = useMemo(() => (subMerges.length ? effectOf(season, subMerges, result.salary) : []), [season, result, subPicks]);
   const typoEffect = useMemo(() => (typoMerges.length ? effectOf(season, typoMerges, result.salary) : []), [season, result]);
 
   const Effect = ({ e }: { e: { name: string; d: number }[] }) => (
@@ -121,14 +124,27 @@ export function Names() {
             Merging folds each “Sub” record into the real one; players who only ever sub keep one record under their plain name.
           </p>
           <Effect e={subEffect} />
-          <ul className="plain small cols">
-            {issues.subRecords.map((s) => (
-              <li key={s.player.name}>
-                {s.player.name} → {s.base ? <Link to={`../players/${encodeURIComponent(s.base.name)}`}>{s.base.name}</Link> : <em>{stripSub(s.player.name)}</em>}
-                {!s.base && <span className="muted"> (renamed)</span>}
-              </li>
-            ))}
-          </ul>
+          <table className="data compact sub-records">
+            <thead><tr><th>Record</th><th>Merge into</th><th /></tr></thead>
+            <tbody>
+              {issues.subRecords.map((s) => {
+                const plain = stripSub(s.player.name);
+                const to = subTarget(s);
+                return (
+                  <tr key={s.player.name}>
+                    <td>{s.player.name}{s.why && to === s.base?.name && <div className="muted small">{s.why}</div>}</td>
+                    <td>
+                      <select value={to} onChange={(e) => setSubPicks({ ...subPicks, [s.player.name]: e.target.value })} aria-label={`Merge ${s.player.name} into`}>
+                        {!players.some((p) => nameKey(p.name) === nameKey(plain)) && <option value={plain}>Keep as “{plain}” (renamed)</option>}
+                        {players.filter((p) => p.name !== s.player.name).map((p) => <option key={p.name} value={p.name}>{p.name}</option>)}
+                      </select>
+                    </td>
+                    <td><button className="small-btn primary" onClick={() => merge([{ from: s.player.name, to }])}>Merge</button></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </section>
       )}
 
@@ -160,6 +176,8 @@ export function Names() {
         </section>
       )}
 
+      <MergeAny />
+
       {(season.aliases?.length ?? 0) > 0 && (
         <section className="card scroll-x">
           <h2>Merged names ({season.aliases!.length})</h2>
@@ -184,5 +202,45 @@ export function Names() {
         </p>
       )}
     </main>
+  );
+}
+
+/** Any two player records that are the same person, whatever the names look like ("Jess Sub" and Jessica Van Os). */
+function MergeAny() {
+  const { season, result, updateSeason } = useSeason();
+  const players = [...season.input.players].filter((p) => !p.isPlug).sort((a, b) => a.name.localeCompare(b.name));
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const ok = !!from && !!to && from !== to;
+  const effect = useMemo(() => (ok ? effectOf(season, [{ from, to }], result.salary) : []), [ok, from, to, season, result]);
+  const desc = (n: string) => { const p = season.input.players.find((x) => x.name === n); return p ? `${p.team ?? "sub pool"}, ${money(p.initialSalary)}` : ""; };
+  return (
+    <section className="card merge-any" aria-labelledby="merge-any-title">
+      <h2 id="merge-any-title">Merge two players</h2>
+      <p className="muted small">
+        For one person with two records, like a sub added under a short name. The first record's games count for the second player;
+        its own record, team and starting salary are dropped. Recordings keep the name the tablet used, and the merge can be undone below.
+      </p>
+      <div className="row gap-sm wrap">
+        <select value={from} onChange={(e) => setFrom(e.target.value)} aria-label="Merge this player">
+          <option value="">Merge this player…</option>
+          {players.map((p) => <option key={p.name}>{p.name}</option>)}
+        </select>
+        <span>into</span>
+        <select value={to} onChange={(e) => setTo(e.target.value)} aria-label="Into this player">
+          <option value="">this player…</option>
+          {players.filter((p) => p.name !== from).map((p) => <option key={p.name}>{p.name}</option>)}
+        </select>
+        <button className="primary" disabled={!ok} onClick={async () => {
+          if (!(await askConfirm(`Merge ${from} (${desc(from)}) into ${to}? ${from}'s games count for ${to} from now on.`, { ok: "Merge" }))) return;
+          await updateSeason((s) => applyMerges(s, [{ from, to }]));
+          setFrom(""); setTo("");
+        }}>Merge</button>
+      </div>
+      {ok && (
+        <p className="small">{effect.length === 0 ? <span className="muted">No salary changes.</span> : <>Salary effect after week {season.input.throughWeek}:{" "}
+          {effect.slice(0, 6).map((x, i) => <span key={x.name}>{i ? ", " : ""}{x.name} <span className={x.d > 0 ? "up" : "down"}>{delta(x.d)}</span></span>)}</>}</p>
+      )}
+    </section>
   );
 }

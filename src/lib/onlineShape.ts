@@ -33,7 +33,8 @@ export const recId = (date: string, team: string, opp: string) => `${date}__${te
 /** The app's Season from the season document and its recordings. */
 export function assemble(seasonDoc: Season, recs: RecordingDoc[]): Season {
   const sorted = [...recs].sort((a, b) => recKey(a.date, a.team, a.opp).localeCompare(recKey(b.date, b.team, b.opp)));
-  const known = new Set(seasonDoc.input.players.map((p) => nameKey(p.name)));
+  // A sub added on a tablet and later merged into another player stays merged: its alias, not a new record.
+  const known = new Set([...seasonDoc.input.players.map((p) => nameKey(p.name)), ...(seasonDoc.aliases ?? []).map((a) => nameKey(a.from))]);
   const added: Player[] = [];
   for (const r of sorted) for (const p of r.newPlayers ?? []) if (!known.has(nameKey(p.name))) { known.add(nameKey(p.name)); added.push(p); }
   const schedule = seasonDoc.input.schedule;
