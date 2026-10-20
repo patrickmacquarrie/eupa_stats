@@ -22,7 +22,7 @@
     "e2e:online": "firebase emulators:exec --only firestore,auth --project demo-eupa-stats \"playwright test -c playwright.online.config.ts\""
   },
   "dependencies": {
-    "firebase": "^12.19.0",
+    "firebase": "^13.0.0",
     "idb-keyval": "^6.2.2",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
