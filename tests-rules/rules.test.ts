@@ -161,3 +161,32 @@ describe("the main page's season", () => {
     await assertFails(setDoc(doc(as("otherAdmin"), "site/main"), { league: "other", season: "x" }));
   });
 });
+
+describe("history (past seasons with salaries)", () => {
+  const season = { v: 1, id: "sheet-2025-s1", name: "2025 S1", source: "sheet", firstDate: null, lastDate: null, weeks: 9, teams: [], players: [] };
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (c) => {
+      await setDoc(doc(c.firestore(), "leagues/eupa/history/sheet-2025-s1"), season);
+      await setDoc(doc(c.firestore(), "leagues/eupa/meta/history"), { aliases: [], distinct: [] });
+    });
+  });
+  it("is hidden from visitors and stat-takers", async () => {
+    for (const uid of [null, "stranger", "tablet"]) {
+      await assertFails(getDoc(doc(as(uid), "leagues/eupa/history/sheet-2025-s1")));
+      await assertFails(getDocs(collection(as(uid), "leagues/eupa/history")));
+      await assertFails(getDoc(doc(as(uid), "leagues/eupa/meta/history")));
+    }
+  });
+  it("is read and changed only by the league's admins", async () => {
+    const db = as("admin1");
+    await assertSucceeds(getDocs(collection(db, "leagues/eupa/history")));
+    await assertSucceeds(setDoc(doc(db, "leagues/eupa/history/fall"), { ...season, id: "fall", source: "app" }));
+    await assertSucceeds(setDoc(doc(db, "leagues/eupa/meta/history"), { aliases: [{ from: "Jess", to: "Jessica" }], distinct: [] }));
+    await assertSucceeds(deleteDoc(doc(db, "leagues/eupa/history/sheet-2025-s1")));
+    await assertFails(setDoc(doc(as("tablet"), "leagues/eupa/history/x"), season));
+    await assertFails(setDoc(doc(as("tablet"), "leagues/eupa/meta/history"), { aliases: [] }));
+  });
+  it("keeps other meta documents closed, even to admins", async () => {
+    await assertFails(setDoc(doc(as("admin1"), "leagues/eupa/meta/other"), { x: 1 }));
+  });
+});

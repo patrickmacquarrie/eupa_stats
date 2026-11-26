@@ -691,3 +691,15 @@ main.live { animation: fade-in 150ms ease-out; }
 .rankings-table td { white-space: nowrap; }
 .rankings-table td.neg { color: var(--bad); }
 .rankings-table tr.sub-row td { color: var(--text-secondary); }
+
+/* History (admins only) */
+.title-in { font-family: var(--font-display); font-size: 1.5rem; font-weight: 600; color: var(--text); border: 1px solid transparent; border-radius: 6px; background: none; padding: 2px 6px; margin: 4px 0 4px -7px; width: 100%; max-width: 640px; }
+.title-in:hover:not(:disabled), .title-in:focus { border-color: var(--border); background: var(--surface-1); }
+.num-in { width: 4.5em; margin: 0 6px; }
+.file-inline.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; padding: 6px 12px; }
+.file-inline.primary:hover { background: var(--accent); filter: brightness(1.08); }
+.merge-list li { display: grid; gap: 4px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.merge-list li:last-child { border-bottom: none; }
+.history-table tfoot td { font-weight: 700; border-top: 2px solid var(--border); border-bottom: none; }
+.name-checks li { padding: 4px 0; }
+.import-card .field { max-width: 640px; }

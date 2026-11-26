@@ -84,6 +84,13 @@ export function LeagueHome() {
         ) : <p className="muted">No seasons online yet.{role === "admin" ? " Open a season from this device's list and choose “Move this season online”." : ""}</p>}
       </section>
 
+      {role === "admin" && (
+        <section className="card">
+          <h2>History</h2>
+          <p><Link to={`/l/${slug}/history`}>Past seasons, careers and all-time leaders</Link> <span className="muted small">admins only</span></p>
+        </section>
+      )}
+
       {role !== "admin" && <UnlockCard slug={slug} current={role ?? null} />}
       {/* Once the league has a season, its settings live in that season's Admin → Setup. */}
       {role === "admin" && (league.seasons.length
@@ -93,8 +100,9 @@ export function LeagueHome() {
   );
 }
 
-export function UnlockCard({ slug, current }: { slug: string; current: Role | null }) {
-  const [which, setWhich] = useState<Role>(current === "stat" ? "admin" : "stat");
+/** `only` limits it to one role (History asks for the admin password only). */
+export function UnlockCard({ slug, current, only }: { slug: string; current: Role | null; only?: Role }) {
+  const [which, setWhich] = useState<Role>(only ?? (current === "stat" ? "admin" : "stat"));
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -103,7 +111,7 @@ export function UnlockCard({ slug, current }: { slug: string; current: Role | nu
       <h2>Unlock this device</h2>
       <p className="muted small">Enter a password once; this device remembers it until it's locked or the password changes.</p>
       <div className="seg" role="group" aria-label="Unlock for">
-        {(["stat", "admin"] as Role[]).filter((r) => r !== current).map((r) => (
+        {(["stat", "admin"] as Role[]).filter((r) => r !== current && (!only || r === only)).map((r) => (
           <button key={r} aria-pressed={which === r} onClick={() => setWhich(r)}>{ROLE_LABEL[r]}</button>
         ))}
       </div>

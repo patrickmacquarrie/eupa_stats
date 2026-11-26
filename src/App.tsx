@@ -31,6 +31,13 @@ const OnlineSeasonProvider = lazy(() => import("./lib/OnlineSeason"));
 const Subs = lazy(() => import("./pages/Subs").then((m) => ({ default: m.Subs })));
 const Rankings = lazy(() => import("./pages/Rankings").then((m) => ({ default: m.Rankings })));
 const Trades = lazy(() => import("./pages/Trades").then((m) => ({ default: m.Trades })));
+const HistoryShell = lazy(() => import("./pages/History").then((m) => ({ default: m.HistoryShell })));
+const HistoryAllTime = lazy(() => import("./pages/History").then((m) => ({ default: m.HistoryAllTime })));
+const HistorySeasons = lazy(() => import("./pages/History").then((m) => ({ default: m.HistorySeasons })));
+const HistorySeasonPage = lazy(() => import("./pages/History").then((m) => ({ default: m.HistorySeasonPage })));
+const HistoryPlayerPage = lazy(() => import("./pages/History").then((m) => ({ default: m.HistoryPlayerPage })));
+const HistoryMetaPage = lazy(() => import("./pages/History").then((m) => ({ default: m.HistoryMetaPage })));
+const HistoryImport = lazy(() => import("./pages/History").then((m) => ({ default: m.HistoryImport })));
 
 /** Catches crashes outside a season (Seasons, New season) and pages that fail to load; resets on navigation. */
 function RouteBoundary({ children }: { children: ReactNode }) {
@@ -53,6 +60,15 @@ export function App() {
         <Route path="/new-league" element={<NewLeague />} />
         <Route path="/l/:slug" element={<LeagueHome />} />
         <Route path="/l/:slug/p/:sid" element={<PublicPage />} />
+        {/* League history: admins only (the page asks for the admin password otherwise). */}
+        <Route path="/l/:slug/history" element={<HistoryShell />}>
+          <Route index element={<HistoryAllTime />} />
+          <Route path="seasons" element={<HistorySeasons />} />
+          <Route path="seasons/:hid" element={<HistorySeasonPage />} />
+          <Route path="players/:name" element={<HistoryPlayerPage />} />
+          <Route path="names" element={<HistoryMetaPage />} />
+          <Route path="import" element={<HistoryImport />} />
+        </Route>
         <Route path="/s/:id" element={<SeasonShell />}>{seasonRoutes()}</Route>
         <Route path="/l/:slug/s/:sid" element={<OnlineSeasonShell />}>{seasonRoutes()}</Route>
         <Route path="*" element={<p className="pad">Page not found. <a href="#/">Player stats</a> · <a href="#/admin">Seasons</a></p>} />
@@ -157,6 +173,7 @@ function Header() {
             {tabs.map(([to, label]) => <NavLink key={to} to={base + to} end={to === ""}>
               {label}{to === "/admin" && admin > 0 && <span className="badge alert" aria-label={`${admin} to review`}>{admin}</span>}
             </NavLink>)}
+            {league && canAdmin && <NavLink to={`/l/${league.slug}/history`}>History</NavLink>}
           </nav>
           <NavLink to={canRecord ? base + "/record" : `/l/${league?.slug}`} className="track-stats"
             title={canRecord ? undefined : "Enter the league's stats-entry password to record games"}>Track Stats</NavLink>
