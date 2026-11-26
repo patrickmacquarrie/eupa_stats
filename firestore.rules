@@ -8,6 +8,8 @@ rules_version = '2';
 //   leagues/{league}/seasons/{season}     rules, players, schedule, overrides (no plays)
 //   leagues/{league}/seasons/{season}/recordings/{id}   one team's side of one game
 //   leagues/{league}/public/{season}      the player stats page's snapshot
+//   leagues/{league}/history/{id}         a past season's player totals and salaries (admins only)
+//   leagues/{league}/meta/history         history's merged name spellings (admins only)
 //   site/main                             { league, season }: what the site's main page shows
 //
 // A key is sha256(salt + ":" + password), computed in the browser. A device unlocks by writing
@@ -88,6 +90,15 @@ service cloud.firestore {
         allow read: if true;
         allow create, update: if canRecord(l);
         allow delete: if isAdmin(l);
+      }
+
+      // History carries salaries, so unlike everything else here it's hidden from everyone but
+      // the league's admins (see src/lib/onlineHistory.ts).
+      match /history/{h} {
+        allow read, write: if isAdmin(l);
+      }
+      match /meta/{doc} {
+        allow read, write: if doc == "history" && isAdmin(l);
       }
     }
   }

@@ -43,7 +43,9 @@ jobs:
   # Browser: create, record, refresh recovery, finish, dispute, export/import, offline; online league.
   browser:
     name: Browser
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest is now 26.04, where Playwright 1.56 can't install Chromium. Move back
+    # to ubuntu-latest once @playwright/test supports it.
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7

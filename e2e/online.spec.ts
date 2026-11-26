@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { fakeMasterSheetXlsx } from "../tests/masterSheetFixture";
 
 // Two devices (separate browser contexts) on one league, against the Firebase emulators.
 test("create a league, unlock a tablet with the stats password, and lock it out by changing it", async ({ browser }) => {
@@ -235,6 +236,73 @@ test("a season moved online gets a tablet's recording live, with and without a s
 // Stress: 200 random taps on a tablet with undos, reloads, screen locks and lost signal thrown in.
 // After every disruption the game must be exactly where it was, and at the end the league's copy
 // must match the tablet's, byte for byte.
+test("history: a season in the app joins on its own, a past season imports from its sheet, and only admins see it", async ({ browser }) => {
+  const slug = `hist-${Date.now().toString(36)}`;
+  const admin = await (await browser.newContext()).newPage();
+  const errors: string[] = [];
+  admin.on("pageerror", (e) => errors.push(e.message));
+
+  await admin.goto("/#/admin");
+  await admin.getByRole("link", { name: /New season/ }).click();
+  await admin.fill("#ns-name", "Winter Online");
+  await admin.fill("#ns-roster", ROSTER);
+  await admin.fill("#ns-first", "2027-01-04"); await admin.fill("#ns-weeks", "4");
+  await admin.click("text=Fill in weekly dates");
+  await admin.click("text=Create season");
+  await admin.click("nav.tabs >> text=Admin"); await admin.click(".subtabs >> text=Setup");
+  await admin.fill("#mv-name", "History League"); await admin.fill("#mv-slug", slug);
+  await admin.fill("#mv-stat", "tablet-pass"); await admin.fill("#mv-admin", "admin-pass"); await admin.fill("#mv-admin2", "admin-pass");
+  await admin.getByRole("button", { name: "Create the league and move this season" }).click();
+  await expect(admin).toHaveURL(new RegExp(`/l/${slug}/s/`));
+  await expect(admin.locator(".role-pill")).toHaveText("Admin");
+
+  // While the admin has the season open, its history record is written.
+  const sid = admin.url().match(/\/s\/([^/?#]+)/)![1];
+  const historyDoc = async () => (await fetch(`http://127.0.0.1:8085/v1/projects/demo-eupa-stats/databases/(default)/documents/leagues/${slug}/history/${sid}`,
+    { headers: { Authorization: "Bearer owner" } })).status;
+  await expect.poll(historyDoc, { timeout: 20_000 }).toBe(200);
+
+  await admin.locator("nav.tabs").getByRole("link", { name: "History", exact: true }).click();
+  await expect(admin).toHaveURL(new RegExp(`/l/${slug}/history$`));
+  await admin.locator("nav.tabs").getByRole("link", { name: "Import" }).click();
+  await admin.setInputFiles('input[type="file"]', {
+    name: "2025_Test_4v4_S1_-__Master_Sheet_-_Working.xlsx",
+    mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    buffer: await fakeMasterSheetXlsx(),
+  });
+  await expect(admin.locator(".import-card input.title-in")).toHaveValue("2025 Test 4v4 S1");
+  await expect(admin.locator(".import-card")).toContainText("Team 1 (X) 1–0–1");
+  await admin.getByRole("button", { name: "Save to history" }).click();
+  await expect(admin.locator(".import-card .ok-text")).toContainText("Saved");
+
+  await admin.locator("nav.tabs").getByRole("link", { name: "Seasons" }).click();
+  await expect(admin.locator(".history-table")).toContainText("2025 Test 4v4 S1");
+  await expect(admin.locator(".history-table")).toContainText("Winter Online");
+  await admin.locator("nav.tabs").getByRole("link", { name: "All-time" }).click();
+  await expect(admin.locator(".history-table")).toContainText("Ada Alpha");
+  await expect(admin.locator(".history-table")).toContainText("Ann Arbour");
+
+  // Two spellings of one person, merged on the Names tab.
+  await admin.locator("nav.tabs").getByRole("link", { name: /Names/ }).click();
+  await admin.getByLabel("Name to merge").fill("Fay Walkon");
+  await admin.getByLabel("Name to keep").fill("Ann Arbour");
+  await admin.getByRole("button", { name: "Merge", exact: true }).click();
+  await expect(admin.locator("table")).toContainText("Fay Walkon");
+  await admin.goto(`/#/l/${slug}/history/players/Fay%20Walkon`);
+  await expect(admin.locator("h1")).toHaveText("Ann Arbour");
+
+  // A device that isn't unlocked as admin gets the admin password, not the history.
+  const other = await (await browser.newContext()).newPage();
+  other.on("pageerror", (e) => errors.push(e.message));
+  await other.goto(`/#/l/${slug}/history`);
+  await expect(other.locator("main")).toContainText("are for History League's admins");
+  await expect(other.locator(".history-table")).toHaveCount(0);
+  await other.getByLabel("League admin password").fill("admin-pass");
+  await other.getByRole("button", { name: "Unlock", exact: true }).click();
+  await expect(other.locator(".history-table")).toContainText("Ada Alpha", { timeout: 15_000 });
+  expect(errors).toEqual([]);
+});
+
 test("stress: a tablet survives 200 random taps with reloads, locks and lost signal", async ({ browser }, testInfo) => {
   test.setTimeout(240_000);
   const slug = `stress-${Date.now().toString(36)}`;

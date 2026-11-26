@@ -5,6 +5,8 @@ import { deviceId } from "./firebase";
 import { getLeague, watchRole, type Role } from "./league";
 import { deleteRecording, markFinished, publishSnapshot, pushRecording, saveSeasonOnline, watchSeason, watchSynced, type Remote } from "./onlineSeason";
 import { seasonSnapshot } from "./publicStats";
+import { historyFromSeason } from "./history";
+import { publishHistory } from "./onlineHistory";
 import { assemble, recKey } from "./onlineShape";
 import { rememberLeague } from "./recentLeagues";
 import { todayIso } from "./format";
@@ -82,6 +84,7 @@ export default function OnlineSeasonProvider({ slug, sid, children }: { slug: st
     <SeasonView season={season} persist={persist} saveError={saveError} base={`/l/${slug}/s/${sid}`} draftKey={`l:${slug}:${sid}`}
       canAdmin={role === "admin"} canRecord={role === "admin" || role === "stat"} online={online}>
       {(role === "admin" || (role === "stat" && !ownLive)) && <PublishSnapshot slug={slug} sid={sid} />}
+      {role === "admin" && <PublishHistory slug={slug} sid={sid} />}
       {children}
     </SeasonView>
   );
@@ -102,5 +105,21 @@ function PublishSnapshot({ slug, sid }: { slug: string; sid: string }) {
     }, 3000);
     return () => clearTimeout(t);
   }, [slug, sid, season, input, result, provisional]);
+  return null;
+}
+
+/**
+ * While an admin has the season open, its record in the league's history follows it, the same way
+ * the public page does (history is admins only, so a tablet never writes it).
+ */
+function PublishHistory({ slug, sid }: { slug: string; sid: string }) {
+  const { season, input, result } = useSeason();
+  const last = useRef<string | null>(null);
+  useEffect(() => {
+    const t = setTimeout(() => {
+      publishHistory(slug, historyFromSeason(sid, season.name, input, result), last).catch(() => { last.current = null; });
+    }, 4000);
+    return () => clearTimeout(t);
+  }, [slug, sid, season.name, input, result]);
   return null;
 }
