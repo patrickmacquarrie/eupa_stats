@@ -1,3 +1,4 @@
+import type { BinDoc } from "./bin";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { computeLeague } from "../../engine/compute";
 import { gamesOf } from "./games";
@@ -63,11 +64,21 @@ export interface OnlineCtx {
   uid: string;
   pushRecording: (d: Draft, status: "live" | "finished", extra?: { present?: string[]; flags?: SavedFlag[] }) => Promise<void>;
   deleteRecording: (d: Pick<Draft, "date" | "team" | "opp">) => Promise<void>;
+  /** Track Stats: Discard, keeping a copy in the season's bin for an admin to restore. */
+  discardRecording: (d: Draft) => Promise<void>;
+  /** Admin: the season's deleted recordings, newest first, live. */
+  watchBin: (onBin: (items: BinItem[]) => void, onError: (e: Error) => void) => () => void;
+  /** Admin: puts a deleted recording back (anything in its place goes into the bin). */
+  restoreFromBin: (item: BinItem) => Promise<void>;
+  /** Admin: removes a deleted recording for good. */
+  deleteFromBin: (id: string) => Promise<void>;
   /** Calls back with true when this device's writes to the recording have reached the server. */
   watchSynced: (d: Pick<Draft, "date" | "team" | "opp">, onSynced: (synced: boolean) => void) => () => void;
   /** Track Stats: hold the season's updates while recording (they're applied when it lets go). */
   holdUpdates: (on: boolean) => void;
 }
+
+export type BinItem = BinDoc & { id: string };
 
 const SeasonCtx = createContext<Ctx | null>(null);
 

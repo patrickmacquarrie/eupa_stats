@@ -233,6 +233,74 @@ test("a season moved online gets a tablet's recording live, with and without a s
   expect(errors).toEqual([]);
 });
 
+test("deleted recordings: a tablet's discard and an admin's delete land in the bin, and come back", async ({ browser }) => {
+  const slug = `bin-${Date.now().toString(36)}`;
+  const admin = await (await browser.newContext()).newPage(), tablet = await (await browser.newContext()).newPage();
+  const errors: string[] = [];
+  for (const p of [admin, tablet]) p.on("pageerror", (e) => errors.push(e.message));
+
+  await admin.goto("/#/admin");
+  await admin.getByRole("link", { name: /New season/ }).click();
+  await admin.fill("#ns-name", "Bin Season");
+  await admin.fill("#ns-roster", ROSTER);
+  await admin.fill("#ns-first", "2027-01-04"); await admin.fill("#ns-weeks", "4");
+  await admin.click("text=Fill in weekly dates");
+  await admin.click("text=Create season");
+  await admin.click("nav.tabs >> text=Admin"); await admin.click(".subtabs >> text=Setup");
+  await admin.fill("#mv-name", "Bin League"); await admin.fill("#mv-slug", slug);
+  await admin.fill("#mv-stat", "tablet-pass"); await admin.fill("#mv-admin", "admin-pass"); await admin.fill("#mv-admin2", "admin-pass");
+  await admin.getByRole("button", { name: "Create the league and move this season" }).click();
+  await expect(admin).toHaveURL(new RegExp(`/l/${slug}/s/`));
+  const sid = admin.url().match(/\/s\/([^/?#]+)/)![1];
+  const docs = async (sub: string) => {
+    const r = await fetch(`http://127.0.0.1:8085/v1/projects/demo-eupa-stats/databases/(default)/documents/leagues/${slug}/seasons/${sid}/${sub}`,
+      { headers: { Authorization: "Bearer owner" } });
+    const j = (await r.json()) as { documents?: { fields: Record<string, { stringValue?: string }> }[] };
+    return (j.documents ?? []).map((d) => `${d.fields.team?.stringValue}:${d.fields.why?.stringValue ?? d.fields.status?.stringValue}`).sort();
+  };
+
+  // A tablet records a game, then throws it away at Finish: it leaves the season, into the bin.
+  await tablet.goto(`/#/l/${slug}`);
+  await tablet.getByLabel("Stats entry password").fill("tablet-pass");
+  await tablet.getByRole("button", { name: "Unlock", exact: true }).click();
+  await expect(tablet.locator("main")).toContainText("unlocked for stats entry");
+  await tablet.goto(`/#/l/${slug}/s/${sid}/record`);
+  await tablet.fill('input[type="date"]', "2027-01-04");
+  await tablet.click("text=Start recording");
+  await tap(tablet, "Ann Arbour", "Touch");
+  await tap(tablet, "Al Ames", "Point");
+  await expect(tablet.locator("[data-sync]")).toHaveText("Synced", { timeout: 15_000 });
+  await tablet.click("text=Finish game");
+  await tablet.getByRole("button", { name: "Discard", exact: true }).click();
+  await expect(tablet.getByRole("alertdialog")).toContainText("a league admin can bring it back");
+  await tablet.getByRole("alertdialog").getByRole("button", { name: "Discard", exact: true }).click();
+  await expect.poll(() => docs("recordings"), { timeout: 15_000 }).toEqual([]);
+  await expect.poll(() => docs("bin"), { timeout: 15_000 }).toEqual(["Team A:discarded"]);
+
+  // The admin restores it from Admin → Recordings.
+  await admin.click("nav.tabs >> text=Admin"); await admin.click(".subtabs >> text=Recordings");
+  const bin = admin.locator(".deleted-recordings");
+  await expect(bin.locator("tbody tr")).toHaveCount(1, { timeout: 15_000 });
+  await expect(bin).toContainText("Discarded on a tablet");
+  await bin.getByRole("button", { name: "Restore", exact: true }).click();
+  await expect(bin).toContainText("Nothing deleted.", { timeout: 15_000 });
+  await expect.poll(() => docs("recordings"), { timeout: 15_000 }).toEqual(["Team A:finished"]);
+
+  // An admin's Delete goes to the bin too; only "Delete for good" removes it.
+  const saved = admin.locator("section.card", { hasText: "Recordings in this season" });
+  await expect(saved.locator("tbody tr")).toHaveCount(1, { timeout: 15_000 });
+  await saved.getByRole("button", { name: "Delete", exact: true }).click();
+  await expect(admin.getByRole("alertdialog")).toContainText("moves to Deleted recordings");
+  await admin.getByRole("alertdialog").getByRole("button", { name: "Delete", exact: true }).click();
+  await expect(bin).toContainText("Deleted by an admin", { timeout: 15_000 });
+  await expect.poll(() => docs("recordings"), { timeout: 15_000 }).toEqual([]);
+  await bin.getByRole("button", { name: "Delete for good", exact: true }).click();
+  await admin.getByRole("alertdialog").getByRole("button", { name: "Delete for good", exact: true }).click();
+  await expect(bin).toContainText("Nothing deleted.", { timeout: 15_000 });
+  await expect.poll(() => docs("bin"), { timeout: 15_000 }).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
 // Stress: 200 random taps on a tablet with undos, reloads, screen locks and lost signal thrown in.
 // After every disruption the game must be exactly where it was, and at the end the league's copy
 // must match the tablet's, byte for byte.

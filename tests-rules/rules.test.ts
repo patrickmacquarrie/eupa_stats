@@ -190,3 +190,35 @@ describe("history (past seasons with salaries)", () => {
     await assertFails(setDoc(doc(as("admin1"), "leagues/eupa/meta/other"), { x: 1 }));
   });
 });
+
+describe("deleted recordings (the bin)", () => {
+  const copy = (uid: string, by: string) => ({ uid, binnedBy: by, recId: "r1", binnedAtMs: 1, why: "discarded", date: "2026-11-26", team: "A", opp: "B", events: [{ action: "Touch" }] });
+  it("lets a stat-taker bin their own recording while discarding it, never another device's", async () => {
+    const db = as("tablet");
+    const b = writeBatch(db);
+    b.set(doc(db, "leagues/eupa/seasons/fall/bin/r1__1"), copy("tablet", "tablet"));
+    b.delete(doc(db, "leagues/eupa/seasons/fall/recordings/r1"));
+    await assertSucceeds(b.commit());
+    await assertFails(setDoc(doc(db, "leagues/eupa/seasons/fall/bin/x__2"), copy("tablet2", "tablet")));
+    await assertFails(setDoc(doc(db, "leagues/eupa/seasons/fall/bin/x__3"), copy("tablet", "someone-else")));
+    await assertFails(setDoc(doc(as("stranger"), "leagues/eupa/seasons/fall/bin/x__4"), copy("stranger", "stranger")));
+  });
+  it("is readable like recordings, and only an admin takes things out of it", async () => {
+    await env.withSecurityRulesDisabled((c) => setDoc(doc(c.firestore(), "leagues/eupa/seasons/fall/bin/r1__1"), copy("tablet", "tablet")));
+    await assertSucceeds(getDocs(collection(as(null), "leagues/eupa/seasons/fall/bin")));
+    await assertFails(deleteDoc(doc(as("tablet"), "leagues/eupa/seasons/fall/bin/r1__1")));
+    await assertFails(updateDoc(doc(as("admin1"), "leagues/eupa/seasons/fall/bin/r1__1"), { why: "deleted" }));
+    await assertSucceeds(deleteDoc(doc(as("admin1"), "leagues/eupa/seasons/fall/bin/r1__1")));
+  });
+  it("lets an admin restore a recording under the device that made it, and bin any recording", async () => {
+    const db = as("admin1");
+    await env.withSecurityRulesDisabled((c) => setDoc(doc(c.firestore(), "leagues/eupa/seasons/fall/bin/r9__1"), { ...copy("tablet", "tablet"), recId: "r9" }));
+    const b = writeBatch(db);
+    b.set(doc(db, "leagues/eupa/seasons/fall/recordings/r9"), { uid: "tablet", team: "A", opp: "B", events: [] });
+    b.delete(doc(db, "leagues/eupa/seasons/fall/bin/r9__1"));
+    await assertSucceeds(b.commit());
+    await assertSucceeds(setDoc(doc(db, "leagues/eupa/seasons/fall/bin/r1__5"), copy("tablet", "admin1")));
+    // A stat-taker still can't create a recording under another device's name.
+    await assertFails(setDoc(doc(as("tablet"), "leagues/eupa/seasons/fall/recordings/r8"), { uid: "admin1", events: [] }));
+  });
+});
