@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { deviceId } from "./firebase";
 import { getLeague, watchRole, type Role } from "./league";
-import { deleteRecording, markFinished, publishSnapshot, pushRecording, saveSeasonOnline, watchSeason, watchSynced, type Remote } from "./onlineSeason";
+import {
+  deleteFromBin, deleteRecording, discardRecording, markFinished, publishSnapshot, pushRecording, restoreFromBin, saveSeasonOnline, watchBin, watchSeason,
+  watchSynced, type Remote,
+} from "./onlineSeason";
 import { seasonSnapshot } from "./publicStats";
 import { historyFromSeason } from "./history";
 import { publishHistory } from "./onlineHistory";
@@ -68,6 +71,10 @@ export default function OnlineSeasonProvider({ slug, sid, children }: { slug: st
       markFinished: (d) => markFinished(slug, sid, d),
       pushRecording: (d, status, finish) => pushRecording(slug, sid, d, status, finish),
       deleteRecording: (d) => deleteRecording(slug, sid, d),
+      discardRecording: (d) => discardRecording(slug, sid, d),
+      watchBin: (cb, err) => watchBin(slug, sid, cb, err),
+      restoreFromBin: (item) => restoreFromBin(slug, sid, item, remote?.recs.get(item.recId) ?? null),
+      deleteFromBin: (id) => deleteFromBin(slug, sid, id),
       watchSynced: (d, cb) => watchSynced(slug, sid, d, cb),
       holdUpdates,
     };

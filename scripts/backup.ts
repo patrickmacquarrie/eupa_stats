@@ -1,4 +1,4 @@
-// Weekly backup of every online league: `npm run backup -- <folder>` (run by .github/workflows/backup.yml).
+// Daily backup of every online league: `npm run backup -- <folder>` (run by .github/workflows/backup.yml).
 //
 // Everything a backup needs is readable by anyone (the passwords' keys aren't, and aren't needed),
 // so this signs in to nothing. Each season is written in the app's export format, so restoring one
@@ -30,6 +30,9 @@ export async function backupAll(db: Firestore): Promise<BackupFile[]> {
       });
       const season = assemble(s.data() as Season, recs);
       files.push({ path: `${slug}/${fileName(season.name)} (${s.id}).json`, data: season });
+      // Deleted recordings, as they sit in the bin (each restores from Admin → Recordings while it's there).
+      const bin = (await getDocs(collection(db, "leagues", slug, "seasons", s.id, "bin"))).docs.map((d) => ({ id: d.id, ...d.data() }));
+      if (bin.length) files.push({ path: `${slug}/${fileName(season.name)} (${s.id}) deleted recordings.json`, data: bin });
     }
   }
   return files;
@@ -45,7 +48,7 @@ async function main(out: string) {
     mkdirSync(join(out, f.path, ".."), { recursive: true });
     writeFileSync(join(out, f.path), JSON.stringify(f.data, null, 2));
   }
-  const seasons = files.filter((f) => !f.path.endsWith("/league.json")).length;
+  const seasons = files.filter((f) => !f.path.endsWith("/league.json") && !f.path.endsWith(" deleted recordings.json")).length;
   console.log(`Backed up ${files.length - seasons} league(s) and ${seasons} season(s) to ${out}.`);
   process.exit(0);   // Firestore keeps its connection open otherwise
 }

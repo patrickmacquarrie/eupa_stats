@@ -1,4 +1,4 @@
-// The weekly backup, against the Firestore emulator and the real rules: npm run test:rules
+// The daily backup, against the Firestore emulator and the real rules: npm run test:rules
 import { initializeTestEnvironment, type RulesTestEnvironment } from "@firebase/rules-unit-testing";
 import { doc, setDoc, type Firestore } from "firebase/firestore";
 import { readFileSync } from "node:fs";
@@ -27,11 +27,13 @@ it("saves every season in the app's export format, with no visitor access needed
     await setDoc(doc(db, "leagues/eupa/members/tablet"), { role: "stat", key: "secret-stat" });
     await setDoc(doc(db, "leagues/eupa/seasons/fall26"), seasonDoc);
     for (const [id, body] of recs) await setDoc(doc(db, "leagues/eupa/seasons/fall26/recordings", id), { uid: "tablet", status: "finished", ...body, updatedAt: new Date() });
+    await setDoc(doc(db, "leagues/eupa/seasons/fall26/bin/x__1"), { uid: "tablet", binnedBy: "tablet", recId: "x", binnedAtMs: 1, why: "discarded", date: "2026-11-26", team: "A", opp: "B", events: [] });
   });
 
   // A visitor with no login can take the whole backup: the rules allow it.
   const files = await backupAll(env.unauthenticatedContext().firestore() as unknown as Firestore);
-  expect(files.map((f) => f.path).sort()).toEqual(["eupa/Fall 2026 (fall26).json", "eupa/league.json"]);
+  expect(files.map((f) => f.path).sort()).toEqual(["eupa/Fall 2026 (fall26) deleted recordings.json", "eupa/Fall 2026 (fall26).json", "eupa/league.json"]);
+  expect(files.find((f) => f.path.includes("deleted"))!.data).toEqual([expect.objectContaining({ id: "x__1", why: "discarded" })]);
   expect(JSON.stringify(files)).not.toContain("secret-");
 
   // The season file imports, with every play.

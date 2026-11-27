@@ -349,7 +349,7 @@ export function HistorySeasons() {
           ))}</ul>
         </section>
       )}
-      <p className="muted small">The weekly backup doesn't include history (it can't read admin-only pages), so download a copy after importing.</p>
+      <p className="muted small">The daily backup doesn't include history (it can't read admin-only pages), so download a copy after importing.</p>
     </>
   );
 }

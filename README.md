@@ -84,7 +84,7 @@ History is stored apart from the seasons, as one document per season (`leagues/<
 each player's own-team and sub totals, division, team, start and end salary, and the standings) and
 the merged spellings (`leagues/<league>/meta/history`). Because it carries salaries, the security
 rules let only the league's admins read or write it, unlike everything else in a league. That also
-keeps it out of the weekly backup (which signs in to nothing), so download the history from its
+keeps it out of the daily backup (which signs in to nothing), so download the history from its
 Seasons tab after importing; a season in the app rebuilds its own record whenever an admin opens it.
 
 Seasons are stored in the browser's IndexedDB, one per key, so nothing leaves the device. Export a
@@ -140,9 +140,17 @@ device offline skips it rather than queueing old numbers. The page reads the sna
 marks provisional weeks. The copy-and-paste shareable page (`npm run build:share`) remains
 for seasons kept in a browser, and until the online page has replaced it.
 
-Backups: every Monday, `.github/workflows/backup.yml` saves every online league's details and
-each season, in the same format as the app's Export, as a download on that run's page in the
-repo's Actions tab ("Backup"), kept for 90 days. To restore a season, download it, unzip it and
+Deleted recordings: in an online season nothing a tablet or an admin removes is gone at once.
+Discard on a tablet, Delete on Admin → Recordings, and any change that drops plays from a recording
+(an edit, a re-uploaded file) copy the recording into the season's bin
+(`leagues/<league>/seasons/<season>/bin`) in the same write. Admin → Recordings lists them under
+Deleted recordings, with Restore (a recording now in its place goes into the bin, so restoring loses
+nothing either), CSV and Delete for good. A stat-taker can bin only their own recording; only an
+admin restores or empties the bin.
+
+Backups: every morning, `.github/workflows/backup.yml` saves every online league's details and
+each season, in the same format as the app's Export, plus each season's deleted recordings, as a
+download on that run's page in the repo's Actions tab ("Backup"), kept for 90 days. To restore a season, download it, unzip it and
 use Import on the Seasons screen; from there an admin can move it online again. "Run workflow"
 on the Backup page takes one at any time. It needs no secret, because everything it saves is
 readable by anyone already; the password keys aren't readable and aren't saved. While the repo is

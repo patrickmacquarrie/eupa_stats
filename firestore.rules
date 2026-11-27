@@ -7,6 +7,7 @@ rules_version = '2';
 //   leagues/{league}/members/{uid}        { role: "stat" | "admin", key }
 //   leagues/{league}/seasons/{season}     rules, players, schedule, overrides (no plays)
 //   leagues/{league}/seasons/{season}/recordings/{id}   one team's side of one game
+//   leagues/{league}/seasons/{season}/bin/{id}          a deleted recording, to restore (src/lib/bin.ts)
 //   leagues/{league}/public/{season}      the player stats page's snapshot
 //   leagues/{league}/history/{id}         a past season's player totals and salaries (admins only)
 //   leagues/{league}/meta/history         history's merged name spellings (admins only)
@@ -76,12 +77,22 @@ service cloud.firestore {
 
         match /recordings/{r} {
           allow read: if true;
-          // A stat-taker writes their own device's recordings; an admin can change any.
-          allow create: if canRecord(l) && request.resource.data.uid == request.auth.uid;
+          // A stat-taker writes their own device's recordings; an admin can change any, and puts a
+          // deleted one back from the bin under the device that recorded it.
+          allow create: if (canRecord(l) && request.resource.data.uid == request.auth.uid) || isAdmin(l);
           allow update: if isAdmin(l)
             || (canRecord(l) && resource.data.uid == request.auth.uid && request.resource.data.uid == request.auth.uid);
           // Discard: a stat-taker can throw away their own recording, never another device's.
           allow delete: if isAdmin(l) || (canRecord(l) && resource.data.uid == request.auth.uid);
+        }
+
+        // Deleted recordings: readable like recordings (the backup saves them too). A stat-taker
+        // bins only their own recording; only an admin restores (deletes from here) or empties it.
+        match /bin/{b} {
+          allow read: if true;
+          allow create: if request.auth != null && request.resource.data.binnedBy == request.auth.uid
+            && (isAdmin(l) || (canRecord(l) && request.resource.data.uid == request.auth.uid));
+          allow delete: if isAdmin(l);
         }
       }
 

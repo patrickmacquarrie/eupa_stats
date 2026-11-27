@@ -10,7 +10,8 @@ import { shortTeam } from "../lib/format";
 import { csvName, toTabletCsv } from "../lib/recorder";
 import { downloadText } from "../lib/store";
 import { recordingsOf, weekOfDate, withoutFlagsFor } from "../lib/season";
-import { useSeason } from "../lib/SeasonContext";
+import { useSeason, type BinItem } from "../lib/SeasonContext";
+import { WHY_LABEL } from "../lib/bin";
 
 interface Pending { file: string; events: PlayEvent[]; error?: string; warnings?: string[] }
 
@@ -21,7 +22,7 @@ const loadSamples = (): Promise<Sample[]> => (import.meta.env.VITE_DEMOS === "tr
 const recKey = (e: PlayEvent) => `${e.date}|${e.statTeam}|${e.otherTeam}`;
 
 export function Recordings() {
-  const { season, updateSeason } = useSeason();
+  const { season, updateSeason, online, canAdmin } = useSeason();
   const { input } = season;
   const [pending, setPending] = useState<Pending[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
@@ -162,7 +163,9 @@ export function Recordings() {
                   <td><div className="row gap-sm"><button className="small-btn" aria-label={`Download ${team}'s ${date} recording as CSV`}
                     onClick={() => downloadText(csvName(date, team, opp, shortTeam), toTabletCsv(evs))}>CSV</button>
                   <button className="danger small-btn" onClick={async () => {
-                    if (await askConfirm(`Delete ${team}'s recording of ${date}? This can't be undone unless you have an export.`, { ok: "Delete", danger: true }))
+                    if (await askConfirm(online
+                      ? `Delete ${team}'s recording of ${date}? It moves to Deleted recordings below, where you can restore it.`
+                      : `Delete ${team}'s recording of ${date}? This can't be undone unless you have an export.`, { ok: "Delete", danger: true }))
                       updateSeason((x) => ({ ...x, flags: withoutFlagsFor(x.flags, new Set([k])), input: { ...x.input, events: x.input.events.filter((e) => recKey(e) !== k) } }));
                   }}>Delete</button></div></td>
                 </tr>
@@ -172,6 +175,71 @@ export function Recordings() {
         </table>
         {byDate.length === 0 && <p className="empty">No tablet recordings yet.</p>}
       </section>
+
+      {online && canAdmin && <DeletedRecordings />}
     </main>
+  );
+}
+
+const when = (ms: number) => new Date(ms).toLocaleString("en-CA", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+
+/** Online seasons: recordings discarded on a tablet, or deleted or replaced by an admin, to restore. */
+function DeletedRecordings() {
+  const { online, season } = useSeason();
+  const [items, setItems] = useState<BinItem[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const watch = online!.watchBin;
+  // The season's own id and league don't change while the page is open.
+  useEffect(() => watch(setItems, (e) => setError(e.message)), [online!.slug, season.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const restore = async (it: BinItem) => {
+    const taken = online!.owners.has(`${it.date}|${it.team}|${it.opp}`);
+    if (taken && !(await askConfirm(`${it.team} has a recording of ${it.date} now. Put this one back in its place? The current one moves here, so you can swap back.`, { ok: "Restore" }))) return;
+    setBusy(it.id); setError(null);
+    try { await online!.restoreFromBin(it); } catch (e) { setError((e as Error).message); }
+    setBusy(null);
+  };
+  const forget = async (it: BinItem) => {
+    if (!(await askConfirm(`Delete ${it.team}'s ${it.date} recording for good? This one can't be brought back.`, { ok: "Delete for good", danger: true }))) return;
+    setBusy(it.id); setError(null);
+    try { await online!.deleteFromBin(it.id); } catch (e) { setError((e as Error).message); }
+    setBusy(null);
+  };
+
+  return (
+    <section className="card scroll-x deleted-recordings">
+      <h2>Deleted recordings</h2>
+      <p className="muted small">
+        A recording discarded on a tablet, or deleted or replaced here, lands in this list instead of disappearing. Restore puts it back
+        in the season; if the game has a recording now, that one moves here, so nothing is lost either way.
+      </p>
+      {error && <p className="error">{error}</p>}
+      {items === null ? <p className="muted">Loading…</p> : items.length === 0 ? <p className="empty">Nothing deleted.</p> : (
+        <table className="data">
+          <thead><tr><th>Removed</th><th>Game</th><th className="num">Plays</th><th className="num">Final</th><th>How</th><th /></tr></thead>
+          <tbody>
+            {items.map((it) => {
+              const last = it.events[it.events.length - 1];
+              return (
+                <tr key={it.id}>
+                  <td className="nowrap">{when(it.binnedAtMs)}</td>
+                  <td>{it.date} · {shortTeam(it.team)} <span className="muted">v {shortTeam(it.opp)}</span></td>
+                  <td className="num">{it.events.length}</td>
+                  <td className="num">{last ? `${last.statScore}–${last.otherScore}` : "—"}</td>
+                  <td className="small">{WHY_LABEL[it.why]}</td>
+                  <td><div className="row gap-sm">
+                    <button className="small-btn" disabled={busy === it.id} onClick={() => restore(it)}>Restore</button>
+                    <button className="small-btn" aria-label={`Download ${it.team}'s deleted ${it.date} recording as CSV`}
+                      onClick={() => downloadText(csvName(it.date, it.team, it.opp, shortTeam), toTabletCsv(it.events))}>CSV</button>
+                    <button className="danger small-btn" disabled={busy === it.id} onClick={() => forget(it)}>Delete for good</button>
+                  </div></td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+    </section>
   );
 }

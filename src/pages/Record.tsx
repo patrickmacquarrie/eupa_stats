@@ -679,9 +679,11 @@ function Review({ draft, onChange, cancelSend, onSaved, onBack, onDone }: { draf
         <button onClick={download}>Download CSV</button>
         <span className="grow" />
         <button className="danger" onClick={async () => {
-          if (!(await askConfirm("Throw this recording away? It can't be recovered.", { ok: "Discard", danger: true }))) return;
+          if (!(await askConfirm(online
+            ? "Throw this recording away? It leaves the season, but a league admin can bring it back from Admin → Recordings."
+            : "Throw this recording away? It can't be recovered.", { ok: "Discard", danger: true }))) return;
           cancelSend();
-          if (online && owner === online.uid) online.deleteRecording(draft).catch(() => {});
+          if (online && owner === online.uid) online.discardRecording(draft).catch(() => {});
           onDone();
         }}>Discard</button>
       </div>

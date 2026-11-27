@@ -2,6 +2,7 @@
 import {
   arrayUnion, collection, deleteDoc, doc, getDoc, onSnapshot, runTransaction, serverTimestamp, setDoc, updateDoc, writeBatch,
 } from "firebase/firestore";
+import { binId, binProblems, fromBin, losesPlays, toBin, type BinDoc } from "./bin";
 import type { Draft } from "./recorder";
 import { deviceId, firebase } from "./firebase";
 import { getLeague, leagueRef } from "./league";
@@ -12,6 +13,7 @@ import { SEASON_SCHEMA, type SavedFlag, type Season } from "./season";
 const seasonRef = (slug: string, sid: string) => doc(firebase().db, "leagues", slug, "seasons", sid);
 const recsRef = (slug: string, sid: string) => collection(firebase().db, "leagues", slug, "seasons", sid, "recordings");
 const recRef = (slug: string, sid: string, id: string) => doc(recsRef(slug, sid), id);
+const binRef = (slug: string, sid: string, id: string) => doc(firebase().db, "leagues", slug, "seasons", sid, "bin", id);
 
 export interface Remote {
   seasonDoc: Season | null;
@@ -63,13 +65,21 @@ export async function saveSeasonOnline(slug: string, next: Season, remote: Remot
   const { seasonDoc, recs } = split({ ...next, schemaVersion: SEASON_SCHEMA });
   const ops: ((b: ReturnType<typeof writeBatch>) => void)[] = [];
   if (!remote.seasonDoc || stable(seasonDoc) !== stable(remote.seasonDoc)) ops.push((b) => b.set(seasonRef(slug, sid), seasonDoc));
+  const now = Date.now();
   for (const [id, body] of recs) {
     const old = remote.recs.get(id);
     if (old && stable(bodyOf(old)) === stable(body)) continue;
+    // A change that drops plays (an edit, a re-uploaded file) keeps the version it replaces in the bin.
+    if (old && losesPlays(old.events, body.events)) ops.push((b) => b.set(binRef(slug, sid, binId(id, now)), toBin(old, "replaced", uid, now)));
     // Merged, so what only the tablet knows (its check-in list) stays.
     ops.push((b) => b.set(recRef(slug, sid, id), { uid: old?.uid ?? uid, status: old?.status ?? "finished", ...body, updatedAt: serverTimestamp() }, { merge: true }));
   }
-  for (const id of remote.recs.keys()) if (!recs.has(id)) ops.push((b) => b.delete(recRef(slug, sid, id)));
+  for (const [id, old] of remote.recs) {
+    if (recs.has(id)) continue;
+    // Deleted: into the bin with it, in the same write.
+    if (old.events?.length) ops.push((b) => b.set(binRef(slug, sid, binId(id, now)), toBin(old, "deleted", uid, now)));
+    ops.push((b) => b.delete(recRef(slug, sid, id)));
+  }
   if (!ops.length) return;
   await inBatches(ops);
   // Keep the league's season list's name current.
@@ -100,10 +110,48 @@ export async function markFinished(slug: string, sid: string, d: Pick<Draft, "da
   await updateDoc(recRef(slug, sid, recId(d.date, d.team, d.opp)), { status: "finished", updatedAt: serverTimestamp() });
 }
 
-/** Track Stats: removes this device's recording (Discard). */
+/** Track Stats: removes this device's empty recording (its game moved to other teams or a date before the first play). */
 export async function deleteRecording(slug: string, sid: string, d: Pick<Draft, "date" | "team" | "opp">) {
   await deleteDoc(recRef(slug, sid, recId(d.date, d.team, d.opp)));
 }
+
+/**
+ * Track Stats: Discard. The recording goes into the bin, as this tablet has it, in the same write
+ * that removes it, so an admin can restore it. Works offline: both wait to be sent together.
+ */
+export async function discardRecording(slug: string, sid: string, d: Draft) {
+  const uid = await deviceId(), now = Date.now(), id = recId(d.date, d.team, d.opp);
+  const b = writeBatch(firebase().db);
+  if (d.events.length) {
+    const rec: RecordingDoc = { uid, status: "live", date: d.date, team: d.team, opp: d.opp, events: d.events, newPlayers: d.newPlayers, present: [], flags: [], checkIn: d.present, subs: d.subs };
+    b.set(binRef(slug, sid, binId(id, now)), toBin(rec, "discarded", uid, now));
+  }
+  b.delete(recRef(slug, sid, id));
+  await b.commit();
+}
+
+/** Admin: the season's deleted recordings, newest first, live. Damaged copies are left out. */
+export function watchBin(slug: string, sid: string, onBin: (items: (BinDoc & { id: string })[]) => void, onError: (e: Error) => void) {
+  return onSnapshot(collection(firebase().db, "leagues", slug, "seasons", sid, "bin"), (q) => {
+    onBin(q.docs.map((d) => ({ ...(d.data() as BinDoc), id: d.id })).filter((x) => !binProblems(x).length).sort((a, b) => b.binnedAtMs - a.binnedAtMs));
+  }, onError);
+}
+
+/**
+ * Admin: puts a deleted recording back. A recording now in its place goes into the bin first, so
+ * restoring never loses anything either.
+ */
+export async function restoreFromBin(slug: string, sid: string, item: BinDoc & { id: string }, current: RecordingDoc | null) {
+  const uid = await deviceId(), now = Date.now();
+  const b = writeBatch(firebase().db);
+  if (current?.events?.length) b.set(binRef(slug, sid, binId(item.recId, now)), toBin(current, "replaced", uid, now));
+  b.set(recRef(slug, sid, item.recId), { ...fromBin(item), updatedAt: serverTimestamp() });
+  b.delete(binRef(slug, sid, item.id));
+  await b.commit();
+}
+
+/** Admin: removes a deleted recording for good. */
+export const deleteFromBin = (slug: string, sid: string, id: string) => deleteDoc(binRef(slug, sid, id));
 
 /** Whether this device's writes to a recording have reached the server: true synced, false waiting. */
 export function watchSynced(slug: string, sid: string, d: Pick<Draft, "date" | "team" | "opp">, onSynced: (synced: boolean) => void) {
